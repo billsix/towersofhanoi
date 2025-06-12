@@ -12,31 +12,37 @@ public class IterativeHanoi {
             Move[] nextMoves = new Move[totalSize];
 
             // Copy original moves into both halves
-            copyArray(moves, 0, nextMoves, 0, prevSize);
-            copyArray(moves, 0, nextMoves, prevSize + 1, prevSize);
-
+            copyArray(moves, nextMoves, 0, prevSize);
             // Middle move
             nextMoves[prevSize] = new Move(from, to);
+            // Copy original moves into both halves
+            copyArray(moves, nextMoves, prevSize + 1, prevSize);
 
-            // Remap #1: goal → temp
-            int[] remap1 = new int[4]; // 1-based
-            remap1[from] = from;
-            remap1[to] = temp;
-            remap1[temp] = to;
 
-            // Remap #2: source → temp, temp → goal
-            int[] remap2 = new int[4];
-            remap2[from] = temp;
-            remap2[temp] = from;
-            remap2[to] = to;
+
 
             // Apply remaps
-            for (int i = 0; i < prevSize; i++) {
-                nextMoves[i] = nextMoves[i].remap(remap1);
+            {
+                // Remap #1: goal → temp
+                int[] remap1 = new int[4]; // 1-based
+                remap1[from] = from;
+                remap1[to] = temp;
+                remap1[temp] = to;
+                for (int i = 0; i < prevSize; i++) {
+                    nextMoves[i] = nextMoves[i].remap(remap1);
+                }
             }
-            for (int i = 0; i < prevSize; i++) {
-                int index = prevSize + 1 + i;
-                nextMoves[index] = nextMoves[index].remap(remap2);
+            {
+                // Remap #2: source → temp, temp → goal
+                int[] remap2 = new int[4];
+                remap2[from] = temp;
+                remap2[temp] = from;
+                remap2[to] = to;
+
+                for (int i = 0; i < prevSize; i++) {
+                    int index = prevSize + 1 + i;
+                    nextMoves[index] = nextMoves[index].remap(remap2);
+                }
             }
 
             moves = nextMoves;
@@ -45,9 +51,9 @@ public class IterativeHanoi {
         return moves;
     }
 
-    private static void copyArray(Move[] src, int srcPos, Move[] dest, int destPos, int length) {
+    private static void copyArray(Move[] src, Move[] dest, int destPos, int length) {
         for (int i = 0; i < length; i++) {
-            dest[destPos + i] = src[srcPos + i];
+            dest[destPos + i] = src[i];
         }
     }
 

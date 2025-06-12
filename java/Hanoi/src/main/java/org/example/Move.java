@@ -9,14 +9,6 @@ public class Move {
         this.to = to;
     }
 
-    public int getFrom() {
-        return from;
-    }
-
-    public int getTo() {
-        return to;
-    }
-
     public Move remap(int[] pegMap) {
         return new Move(pegMap[from], pegMap[to]);
     }
