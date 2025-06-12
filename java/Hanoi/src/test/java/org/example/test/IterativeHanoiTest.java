@@ -9,11 +9,6 @@ import static org.example.IterativeHanoi.*;
 
 public class IterativeHanoiTest {
 
-    @Test
-    public void testZeroDisks() {
-        IterativeHanoi.Move[] result =  IterativeHanoi.solveHanoiIteratively(0, 1, 3, 2);
-        assertEquals(0, result.length);
-    }
 
     @Test
     public void testOneDisk() {

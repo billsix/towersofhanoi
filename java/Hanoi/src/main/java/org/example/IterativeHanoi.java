@@ -37,8 +37,8 @@ public class IterativeHanoi {
             // Remap #2: source → temp, temp → goal
             int[] remap2 = new int[4];
             remap2[from] = temp;
-            remap2[temp] = to;
-            remap2[to] = from;
+            remap2[temp] = from;
+            remap2[to] = to;
 
             // Apply remaps
             for (int i = 0; i < prevSize; i++) {
