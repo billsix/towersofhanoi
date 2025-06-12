@@ -3,10 +3,10 @@ package org.example;
 public class IterativeHanoi {
 
 
-    public static Move[] solveHanoiIteratively(int n, int from, int to, int temp) {
-        Move[] moves = new Move[] { new Move(from, to) };
+    public static Move[] solveHanoiIteratively(int numberOfPegs, int sourcePeg, int goalPeg, int temporaryPeg) {
+        Move[] moves = new Move[] { new Move(sourcePeg, goalPeg) };
 
-        for (int disk = 2; disk <= n; disk++) {
+        for (int disk = 2; disk <= numberOfPegs; disk++) {
             int prevSize = moves.length;
             int totalSize = prevSize * 2 + 1;
             Move[] nextMoves = new Move[totalSize];
@@ -14,7 +14,7 @@ public class IterativeHanoi {
             // Copy original moves into both halves
             copyArray(moves, nextMoves, 0, prevSize);
             // Middle move
-            nextMoves[prevSize] = new Move(from, to);
+            nextMoves[prevSize] = new Move(sourcePeg, goalPeg);
             // Copy original moves into both halves
             copyArray(moves, nextMoves, prevSize + 1, prevSize);
 
@@ -25,9 +25,9 @@ public class IterativeHanoi {
             {
                 // Remap #1: goal → temp
                 int[] remap1 = new int[4]; // 1-based
-                remap1[from] = from;
-                remap1[to] = temp;
-                remap1[temp] = to;
+                remap1[sourcePeg] = sourcePeg;
+                remap1[goalPeg] = temporaryPeg;
+                remap1[temporaryPeg] = goalPeg;
                 for (int i = 0; i < prevSize; i++) {
                     nextMoves[i] = nextMoves[i].remap(remap1);
                 }
@@ -35,9 +35,9 @@ public class IterativeHanoi {
             {
                 // Remap #2: source → temp, temp → goal
                 int[] remap2 = new int[4];
-                remap2[from] = temp;
-                remap2[temp] = from;
-                remap2[to] = to;
+                remap2[sourcePeg] = temporaryPeg;
+                remap2[temporaryPeg] = sourcePeg;
+                remap2[goalPeg] = goalPeg;
 
                 for (int i = 0; i < prevSize; i++) {
                     int index = prevSize + 1 + i;

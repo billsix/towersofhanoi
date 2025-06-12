@@ -1,21 +1,21 @@
 package org.example;
 
 public class Move {
-    private final int from;
-    private final int to;
+    private final int sourcePeg;
+    private final int goalPeg;
 
-    public Move(int from, int to) {
-        this.from = from;
-        this.to = to;
+    public Move(int sourcePeg, int goalPeg) {
+        this.sourcePeg = sourcePeg;
+        this.goalPeg = goalPeg;
     }
 
     public Move remap(int[] pegMap) {
-        return new Move(pegMap[from], pegMap[to]);
+        return new Move(pegMap[sourcePeg], pegMap[goalPeg]);
     }
 
     @Override
     public String toString() {
-        return "Move from " + from + " to " + to;
+        return "Move from " + sourcePeg + " to " + goalPeg;
     }
 
     @Override
@@ -23,11 +23,11 @@ public class Move {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         Move other = (Move) obj;
-        return from == other.from && to == other.to;
+        return sourcePeg == other.sourcePeg && goalPeg == other.goalPeg;
     }
 
     @Override
     public int hashCode() {
-        return 31 * from + to;
+        return 31 * sourcePeg + goalPeg;
     }
 }
