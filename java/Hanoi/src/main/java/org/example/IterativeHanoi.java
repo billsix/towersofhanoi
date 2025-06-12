@@ -2,16 +2,6 @@ package org.example;
 
 public class IterativeHanoi {
 
-    public record Move(int from, int to) {
-        @Override
-        public String toString() {
-            return "Move from " + from + " to " + to;
-        }
-
-        Move remap(int[] pegMap) {
-            return new Move(pegMap[from], pegMap[to]);
-        }
-    }
 
     public static Move[] solveHanoiIteratively(int n, int from, int to, int temp) {
         Move[] moves = new Move[] { new Move(from, to) };
