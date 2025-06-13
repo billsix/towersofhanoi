@@ -1,21 +1,21 @@
 package org.example;
 
 public class Move {
-    private final int sourcePeg;
-    private final int goalPeg;
+    private final int thisMovesSourcePeg;
+    private final int thisMovesGoalPeg;
 
     public Move(int sourcePeg, int goalPeg) {
-        this.sourcePeg = sourcePeg;
-        this.goalPeg = goalPeg;
+        this.thisMovesSourcePeg = sourcePeg;
+        this.thisMovesGoalPeg = goalPeg;
     }
 
-    public Move remap(int[] pegMap) {
-        return new Move(pegMap[sourcePeg], pegMap[goalPeg]);
+    public Move remap(int[] renumberingContext) {
+        return new Move(renumberingContext[thisMovesSourcePeg], renumberingContext[thisMovesGoalPeg]);
     }
 
     @Override
     public String toString() {
-        return "Move from " + sourcePeg + " to " + goalPeg;
+        return "Move from " + thisMovesSourcePeg + " to " + thisMovesGoalPeg;
     }
 
     @Override
@@ -23,11 +23,11 @@ public class Move {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         Move other = (Move) obj;
-        return sourcePeg == other.sourcePeg && goalPeg == other.goalPeg;
+        return thisMovesSourcePeg == other.thisMovesSourcePeg && thisMovesGoalPeg == other.thisMovesGoalPeg;
     }
 
     @Override
     public int hashCode() {
-        return 31 * sourcePeg + goalPeg;
+        return 31 * thisMovesSourcePeg + thisMovesGoalPeg;
     }
 }
