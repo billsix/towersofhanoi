@@ -3,8 +3,8 @@ package org.example;
 public class IterativeHanoi {
 
 
-    public static Move[] solveHanoiIteratively(int numberOfPegs, int sourcePeg, int goalPeg, int temporaryPeg) {
-        Move[] moves = new Move[] { new Move(sourcePeg, goalPeg) };
+    public static Move[] solveHanoiIteratively(int numberOfPegs) {
+        Move[] moves = new Move[] { new Move(1, 3) };
 
         for (int disk = 2; disk <= numberOfPegs; disk++) {
             int prevSize = moves.length;
@@ -14,7 +14,7 @@ public class IterativeHanoi {
             // Copy original moves into both halves
             copyArray(moves, nextMoves, 0, prevSize);
             // Middle move
-            nextMoves[prevSize] = new Move(sourcePeg, goalPeg);
+            nextMoves[prevSize] = new Move(1,3);
             // Copy original moves into both halves
             copyArray(moves, nextMoves, prevSize + 1, prevSize);
 
@@ -25,9 +25,9 @@ public class IterativeHanoi {
             {
                 // Remap #1: goal → temp
                 int[] remap1 = new int[4]; // 1-based
-                remap1[sourcePeg] = sourcePeg;
-                remap1[goalPeg] = temporaryPeg;
-                remap1[temporaryPeg] = goalPeg;
+                remap1[1] = 1;
+                remap1[3] = 2;
+                remap1[2] = 3;
                 for (int i = 0; i < prevSize; i++) {
                     nextMoves[i] = nextMoves[i].remap(remap1);
                 }
@@ -35,9 +35,9 @@ public class IterativeHanoi {
             {
                 // Remap #2: source → temp, temp → goal
                 int[] remap2 = new int[4];
-                remap2[sourcePeg] = temporaryPeg;
-                remap2[temporaryPeg] = sourcePeg;
-                remap2[goalPeg] = goalPeg;
+                remap2[1] = 2;
+                remap2[2] = 1;
+                remap2[3] = 3;
 
                 for (int i = 0; i < prevSize; i++) {
                     int index = prevSize + 1 + i;
@@ -59,7 +59,7 @@ public class IterativeHanoi {
 
     public static void main(String[] args) {
         int n = 3;
-        Move[] moves = solveHanoiIteratively(n, 1, 3, 2);
+        Move[] moves = solveHanoiIteratively(n);
         for (Move move : moves) {
             System.out.println(move);
         }

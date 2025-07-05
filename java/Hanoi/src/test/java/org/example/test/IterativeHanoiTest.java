@@ -13,7 +13,7 @@ public class IterativeHanoiTest {
 
     @Test
     public void testOneDisk() {
-        Move[] result = IterativeHanoi.solveHanoiIteratively(1, 1, 3, 2);
+        Move[] result = IterativeHanoi.solveHanoiIteratively(1);
         assertArrayEquals(new Move[] {
                 new Move(1, 3)
         }, result);
@@ -21,7 +21,7 @@ public class IterativeHanoiTest {
 
     @Test
     public void testTwoDisks() {
-        Move[] result = IterativeHanoi.solveHanoiIteratively(2, 1, 3, 2);
+        Move[] result = IterativeHanoi.solveHanoiIteratively(2);
         assertArrayEquals(new Move[] {
                 new Move(1, 2),
                 new Move(1, 3),
@@ -31,7 +31,7 @@ public class IterativeHanoiTest {
 
     @Test
     public void testThreeDisks() {
-        Move[] result = IterativeHanoi.solveHanoiIteratively(3, 1, 3, 2);
+        Move[] result = IterativeHanoi.solveHanoiIteratively(3);
         assertArrayEquals(new Move[] {
                 new Move(1, 3),
                 new Move(1, 2),
