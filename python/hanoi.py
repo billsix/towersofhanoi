@@ -91,3 +91,6 @@ def hanoi_3(i: int, t: int, g: int) -> str:
         three_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + three_minus_1_t_to_g
     )
     return moves
+
+if __name__ == "__main__":
+    hanoi_3(1,2,3)
