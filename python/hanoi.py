@@ -17,12 +17,35 @@
 
 import snoop
 
+from typing import Callable
+import unittest
+import doctest
+
 initial_peg: str = "1"
 temporary_peg: str = "2"
 goal_peg: str = "3"
 
 
+# @snoop
 def first_remap(s: str) -> str:
+    """Remap temporary and goal
+    1->1
+    2->3
+    3->2
+
+    >>> first_remap("1 -> 2")
+    '1 -> 3'
+    >>> first_remap("1 -> 3")
+    '1 -> 2'
+    >>> first_remap("2 -> 3")
+    '3 -> 2'
+    >>> first_remap("2 -> 1")
+    '3 -> 1'
+    >>> first_remap("3 -> 1")
+    '2 -> 1'
+    >>> first_remap("3 -> 2")
+    '2 -> 3'
+    """
     result: str = ""
     c: str
     for c in s:
@@ -38,7 +61,26 @@ def first_remap(s: str) -> str:
     return result
 
 
+# @snoop
 def second_remap(s: str) -> str:
+    """Remap temporary and initial
+    1->2
+    2->1
+    3->3
+
+    >>> second_remap("1 -> 2")
+    '2 -> 1'
+    >>> second_remap("1 -> 3")
+    '2 -> 3'
+    >>> second_remap("2 -> 3")
+    '1 -> 3'
+    >>> second_remap("2 -> 1")
+    '1 -> 2'
+    >>> second_remap("3 -> 1")
+    '3 -> 2'
+    >>> second_remap("3 -> 2")
+    '3 -> 1'
+    """
     result: str = ""
     c: str
     for c in s:
@@ -57,12 +99,14 @@ def second_remap(s: str) -> str:
 def hanoi(n: int):
     moves: str = initial_peg + " -> " + goal_peg
 
-    for x in range(2, n + 1):
+    x = 2
+    while x <= n:
         x_minus_1_i_to_t: str = first_remap(moves)
         big_peg_to_goal: str = initial_peg + " -> " + goal_peg
         x_minus_1_t_to_g: str = second_remap(moves)
 
         moves: str = x_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + x_minus_1_t_to_g
+        x = x + 1
     print(moves)
 
 
@@ -74,7 +118,7 @@ def hanoi_1(i: int, t: int, g: int) -> str:
 @snoop
 def hanoi_2(i: int, t: int, g: int) -> str:
     two_minus_1_i_to_t: str = hanoi_1(i=i, t=g, g=t)
-    big_peg_to_goal: str = initial_peg + " -> " + goal_peg
+    big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
     two_minus_1_t_to_g: str = hanoi_1(i=t, t=i, g=g)
 
     moves: str = two_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + two_minus_1_t_to_g
@@ -84,7 +128,7 @@ def hanoi_2(i: int, t: int, g: int) -> str:
 @snoop
 def hanoi_3(i: int, t: int, g: int) -> str:
     three_minus_1_i_to_t: str = hanoi_2(i=i, t=g, g=t)
-    big_peg_to_goal: str = initial_peg + " -> " + goal_peg
+    big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
     three_minus_1_t_to_g: str = hanoi_2(i=t, t=i, g=g)
 
     moves: str = (
@@ -92,5 +136,105 @@ def hanoi_3(i: int, t: int, g: int) -> str:
     )
     return moves
 
+
+@snoop
+def hanoi_4(i: int, t: int, g: int) -> str:
+    four_minus_1_i_to_t: str = hanoi_3(i=i, t=g, g=t)
+    big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
+    four_minus_1_t_to_g: str = hanoi_3(i=t, t=i, g=g)
+
+    moves: str = (
+        four_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + four_minus_1_t_to_g
+    )
+    return moves
+
+
+def hanoi_3_second(i: int, t: int, g: int) -> str:
+    @snoop
+    def hanoi_1(i: int, t: int, g: int) -> str:
+        return str(i) + " -> " + str(g)
+
+    @snoop
+    def hanoi_2(i: int, t: int, g: int, h1: Callable[[int, int, int], str]) -> str:
+        two_minus_1_i_to_t: str = h1(i=i, t=g, g=t)
+        big_peg_to_goal: str = h1(i=i, t=t, g=g)
+        two_minus_1_t_to_g: str = h1(i=t, t=i, g=g)
+
+        moves: str = (
+            two_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + two_minus_1_t_to_g
+        )
+        return moves
+
+    @snoop
+    def hanoi_3(
+        i: int,
+        t: int,
+        g: int,
+        h2: Callable[[int, int, int], str],
+        h1: Callable[[int, int, int], str],
+    ) -> str:
+        three_minus_1_i_to_t: str = h2(i=i, t=g, g=t, h1=h1)
+        big_peg_to_goal: str = h1(i=i, t=t, g=g)
+        three_minus_1_t_to_g: str = h2(i=t, t=i, g=g, h1=h1)
+
+        moves: str = (
+            three_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + three_minus_1_t_to_g
+        )
+        return moves
+
+    return hanoi_3(i, t, g, hanoi_2, hanoi_1)
+
+
+def hanoi_n_second(n: int, i: int, t: int, g: int) -> str:
+    @snoop
+    def hanoi_1(i: int, t: int, g: int) -> str:
+        return str(i) + " -> " + str(g)
+
+    @snoop
+    def hanoi_n(
+        n: int, i: int, t: int, g: int, h: Callable[[int, int, int], str]
+    ) -> str:
+        if n == 1:
+            return hanoi_1(i, t, g)
+        else:
+            n_minus_1_i_to_t: str = h(n=n - 1, i=i, t=g, g=t, h=h)
+            big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
+            n_minus_1_t_to_g: str = h(n=n - 1, i=t, t=i, g=g, h=h)
+
+            moves: str = (
+                n_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + n_minus_1_t_to_g
+            )
+            return moves
+
+    return hanoi_n(n, i, t, g, hanoi_n)
+
+
+def hanoi_n_third(n: int, i: int, t: int, g: int) -> str:
+    @snoop
+    def hanoi_n(n: int, i: int, t: int, g: int) -> str:
+        if n == 1:
+            return str(i) + " -> " + str(g)
+        else:
+            n_minus_1_i_to_t: str = hanoi_n(n=n - 1, i=i, t=g, g=t)
+            big_peg_to_goal: str = hanoi_n(n=1, i=i, t=t, g=g)
+            n_minus_1_t_to_g: str = hanoi_n(n=n - 1, i=t, t=i, g=g)
+
+            moves: str = (
+                n_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + n_minus_1_t_to_g
+            )
+            return moves
+
+    return hanoi_n(n, i, t, g)
+
+
+class TestMethodFinder(unittest.TestCase):
+    def test_doctest(self):
+        import sys
+
+        failureCount, testCount = doctest.testmod(sys.modules[__name__])
+        self.assertEqual(0, failureCount)
+
+
 if __name__ == "__main__":
-    hanoi_3(1,2,3)
+    # unittest.main()
+    print(hanoi(3))
