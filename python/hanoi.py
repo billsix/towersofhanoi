@@ -21,10 +21,6 @@ from typing import Callable
 import unittest
 import doctest
 
-initial_peg: str = "1"
-temporary_peg: str = "2"
-goal_peg: str = "3"
-
 
 # @snoop
 def first_remap(s: str) -> str:
@@ -50,11 +46,11 @@ def first_remap(s: str) -> str:
     c: str
     for c in s:
         # the temporary peg becomes the goal peg
-        if c == temporary_peg:
-            result += goal_peg
+        if c == "2":
+            result += "3"
         # the goal peg becomes the temporary peg
-        elif c == goal_peg:
-            result += temporary_peg
+        elif c == "3":
+            result += "2"
         # the initial peg is unchanges
         else:
             result += c
@@ -85,11 +81,11 @@ def second_remap(s: str) -> str:
     c: str
     for c in s:
         # the initial peg becomes the temporary peg
-        if c == initial_peg:
-            result += temporary_peg
+        if c == "1":
+            result += "2"
         # the temporary peg becomes the initial peg
-        elif c == temporary_peg:
-            result += initial_peg
+        elif c == "2":
+            result += "1"
         else:
             result += c
     return result
@@ -97,12 +93,12 @@ def second_remap(s: str) -> str:
 
 @snoop
 def hanoi(n: int):
-    moves: str = initial_peg + " -> " + goal_peg
+    moves: str = "1 -> 3"
 
     x = 2
     while x <= n:
         x_minus_1_i_to_t: str = first_remap(moves)
-        big_peg_to_goal: str = initial_peg + " -> " + goal_peg
+        big_peg_to_goal: str = "1 -> 3"
         x_minus_1_t_to_g: str = second_remap(moves)
 
         moves: str = x_minus_1_i_to_t + "\n" + big_peg_to_goal + "\n" + x_minus_1_t_to_g
@@ -112,11 +108,24 @@ def hanoi(n: int):
 
 @snoop
 def hanoi_1(i: int, t: int, g: int) -> str:
+    """
+
+    >>> print(hanoi_1(i=1,t=2,g=3))
+    1 -> 3
+    """
+
     return str(i) + " -> " + str(g)
 
 
 @snoop
 def hanoi_2(i: int, t: int, g: int) -> str:
+    """
+
+    >>> print(hanoi_2(i=1,t=2,g=3))
+    1 -> 2
+    1 -> 3
+    2 -> 3
+    """
     two_minus_1_i_to_t: str = hanoi_1(i=i, t=g, g=t)
     big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
     two_minus_1_t_to_g: str = hanoi_1(i=t, t=i, g=g)
@@ -127,6 +136,17 @@ def hanoi_2(i: int, t: int, g: int) -> str:
 
 @snoop
 def hanoi_3(i: int, t: int, g: int) -> str:
+    """
+
+    >>> print(hanoi_3(i=1,t=2,g=3))
+    1 -> 3
+    1 -> 2
+    3 -> 2
+    1 -> 3
+    2 -> 1
+    2 -> 3
+    1 -> 3
+    """
     three_minus_1_i_to_t: str = hanoi_2(i=i, t=g, g=t)
     big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
     three_minus_1_t_to_g: str = hanoi_2(i=t, t=i, g=g)
@@ -236,5 +256,5 @@ class TestMethodFinder(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # unittest.main()
     print(hanoi(3))
+    unittest.main()
