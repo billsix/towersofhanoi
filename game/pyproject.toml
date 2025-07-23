@@ -1,0 +1,22 @@
+[project]
+name = "hanoigame"
+version = "0.0.1"
+authors = [{name="William Emerison Six", email="billsix@gmail.com"}]
+description = "Towers of hanoi game"
+
+dependencies = [
+    "autoflake==2.3.1",
+    "isort==6.0.1",
+    "ruff==0.11.11",
+    "pytest==8.3.5",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest]
+testpaths = ["tests"]
