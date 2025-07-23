@@ -6,6 +6,7 @@ RUN apt update  && apt upgrade -y
 RUN apt install    -y python3-full \
                       python3-pip \
                       tmux
+RUN echo "alias ls='ls --color=auto'" >> ~/.bashrc
 
 
 ENTRYPOINT ["/entrypoint.sh"]
