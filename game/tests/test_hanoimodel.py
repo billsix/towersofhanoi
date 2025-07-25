@@ -37,20 +37,20 @@ def test_makemove():
     def make_move(ordinal):
         list(game.valid_moves())[ordinal][1]()
 
-    assert list(towers(game.valid_moves())) == [(0, 1), (0, 2)]
+    assert towers(game.valid_moves()) == [(0, 1), (0, 2)]
 
     make_move(0)
     assert game.towers == [[3, 2], [1], []]
-    assert list(towers(game.valid_moves())) == [(0, 2), (1, 0), (1, 2)]
+    assert towers(game.valid_moves()) == [(0, 2), (1, 0), (1, 2)]
 
     make_move(2)
     assert game.towers == [[3, 2], [], [1]]
-    assert list(towers(game.valid_moves())) == [(0, 1), (2, 0), (2, 1)]
+    assert towers(game.valid_moves()) == [(0, 1), (2, 0), (2, 1)]
 
     make_move(0)
     assert game.towers == [[3], [2], [1]]
-    assert list(towers(game.valid_moves())) == [(1, 0), (2, 0), (2, 1)]
+    assert towers(game.valid_moves()) == [(1, 0), (2, 0), (2, 1)]
 
     make_move(2)
     assert game.towers == [[3], [2, 1], []]
-    assert list(towers(game.valid_moves())) == [(0, 2), (1, 0), (1, 2)]
+    assert towers(game.valid_moves()) == [(0, 2), (1, 0), (1, 2)]
