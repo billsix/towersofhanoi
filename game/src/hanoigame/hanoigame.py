@@ -34,10 +34,12 @@ from curses import (
     start_color,
 )
 from dataclasses import dataclass
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Callable
 
 from _curses import window
 from hanoimodel import HanoiGame
+
+import sys
 
 # --- Helper Classes ---
 
@@ -46,10 +48,15 @@ from hanoimodel import HanoiGame
 class MenuButton:
     """Represents a button in a curses menu."""
 
-    id: Union[Tuple[int, int], int]
+    id: any
     text: str
     x: int
     y: int
+    action: Callable
+
+    def __post_init__(self):
+        if not self.action:
+            self.action = lambda : id
 
 
 def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
@@ -195,7 +202,7 @@ def display_menu(
 
 def get_button_choice(
     stdscr: window, buttons: List[MenuButton]
-) -> Union[Tuple[int, int], int]:
+) -> MenuButton:
     """Allows user to navigate and select a button using arrow keys and Enter."""
     current_selection: int = 0
     # Ensure button positions are set correctly before initial display
@@ -218,9 +225,9 @@ def get_button_choice(
         elif key == KEY_DOWN:
             current_selection = (current_selection + 1) % len(buttons)
         elif key == KEY_ENTER or key == 10:  # Enter key
-            return buttons[current_selection].id
+            return buttons[current_selection]
         elif key == ord("q") or key == ord("Q"):  # Allow 'Q' to quit from menus
-            return "quit"
+            return MenuButton(id="quit", text="", x=0, y=0, action=lambda: sys.exit(0))
 
 
 # --- Main Game Loop (wrapped for safety) ---
@@ -235,16 +242,16 @@ def main(stdscr: window):
     curs_set(0)  # Hide cursor by default
     # --- Disk Selection Menu ---
     disk_buttons = [
-        MenuButton(id=1, text="1 Disks", x=0, y=0),
-        MenuButton(id=2, text="2 Disks", x=0, y=0),
-        MenuButton(id=3, text="3 Disks", x=0, y=0),
-        MenuButton(id=4, text="4 Disks", x=0, y=0),
-        MenuButton(id=5, text="5 Disks", x=0, y=0),
-        MenuButton(id=6, text="6 Disks", x=0, y=0),
-        MenuButton(id=7, text="7 Disks", x=0, y=0),
-        MenuButton(id=8, text="8 Disks", x=0, y=0),
-        MenuButton(id=9, text="9 Disks", x=0, y=0),
-        MenuButton(id=10, text="10 Disks", x=0, y=0),
+        MenuButton(id=1, text="1 Disks", x=0, y=0, action= lambda: 1),
+        MenuButton(id=2, text="2 Disks", x=0, y=0, action= lambda: 2),
+        MenuButton(id=3, text="3 Disks", x=0, y=0, action= lambda: 3),
+        MenuButton(id=4, text="4 Disks", x=0, y=0, action= lambda: 4),
+        MenuButton(id=5, text="5 Disks", x=0, y=0, action= lambda: 5),
+        MenuButton(id=6, text="6 Disks", x=0, y=0, action= lambda: 6),
+        MenuButton(id=7, text="7 Disks", x=0, y=0, action= lambda: 7),
+        MenuButton(id=8, text="8 Disks", x=0, y=0, action= lambda: 8),
+        MenuButton(id=9, text="9 Disks", x=0, y=0, action= lambda: 9),
+        MenuButton(id=10, text="10 Disks", x=0, y=0, action= lambda: 10),
     ]
     # Position buttons centrally
     menu_start_y: int = (curses.LINES // 2) - (len(disk_buttons) // 2)
@@ -257,20 +264,24 @@ def main(stdscr: window):
     stdscr.clear()
     stdscr.addstr(menu_start_y - 2, menu_start_x - 5, "Select Number of Disks:")
     stdscr.refresh()
-    selected_disks = get_button_choice(stdscr, disk_buttons)
-    if selected_disks == "quit":
-        return  # Exit game
+    selected_disk = get_button_choice(stdscr, disk_buttons)
+    if selected_disk.id == "quit":
+        selected_disk.action()
 
-    game: HanoiGame = HanoiGame(num_disks=selected_disks)
+    game: HanoiGame = HanoiGame(num_disks=selected_disk.action())
     # --- Game Loop ---
     while not game.check_win_condition():
         draw_game_state(game, stdscr)  # Draw the game board first
         # Generate valid move buttons dynamically
         move_buttons: List = []
 
-        for from_p, to_p in game.valid_moves():
+        for (from_p, to_p), action in game.valid_moves():
             move_buttons.append(
-                MenuButton((from_p, to_p), f"{from_p + 1} -> {to_p + 1}", 0, 0)
+                MenuButton(id=(from_p, to_p),
+                           text=f"{from_p + 1} -> {to_p + 1}",
+                           x=0,
+                           y=0,
+                           action=action)
             )
         if not move_buttons:
             # This should only happen when the game is won, but as a safeguard
@@ -292,10 +303,9 @@ def main(stdscr: window):
             btn.y = move_menu_start_y + i
             btn.x = move_menu_start_x
         selected_move_tuple = get_button_choice(stdscr, move_buttons)
-        if selected_move_tuple == "quit":
+        if selected_move_tuple.id == "quit":
             break
-        from_peg_idx, to_peg_idx = selected_move_tuple
-        game.make_move(from_peg_idx, to_peg_idx)
+        selected_move_tuple.action()
         time.sleep(0.1)  # Small delay for visual effect of move
     # --- Game Over / Win Message ---
     draw_game_state(game, stdscr)  # Draw final state

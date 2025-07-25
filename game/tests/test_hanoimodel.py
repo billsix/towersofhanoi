@@ -16,6 +16,8 @@
 # Boston, MA 02111-1307, USA.
 
 
+from typing import List
+
 import hanoigame.hanoimodel
 
 
@@ -28,16 +30,27 @@ def test_postinit():
 
 def test_makemove():
     game = hanoigame.hanoimodel.HanoiGame(num_disks=3)
-    assert list(game.valid_moves()) == [(0, 1), (0, 2)]
-    game.make_move(0, 1)
+
+    def towers(x) -> List:
+        return list(map(lambda x: x[0], x))
+
+    def make_move(ordinal):
+        list(game.valid_moves())[ordinal][1]()
+
+    assert list(towers(game.valid_moves())) == [(0, 1), (0, 2)]
+
+    make_move(0)
     assert game.towers == [[3, 2], [1], []]
-    assert list(game.valid_moves()) == [(0, 2), (1, 0), (1, 2)]
-    game.make_move(1, 2)
+    assert list(towers(game.valid_moves())) == [(0, 2), (1, 0), (1, 2)]
+
+    make_move(2)
     assert game.towers == [[3, 2], [], [1]]
-    assert list(game.valid_moves()) == [(0, 1), (2, 0), (2, 1)]
-    game.make_move(0, 1)
+    assert list(towers(game.valid_moves())) == [(0, 1), (2, 0), (2, 1)]
+
+    make_move(0)
     assert game.towers == [[3], [2], [1]]
-    assert list(game.valid_moves()) == [(1, 0), (2, 0), (2, 1)]
-    game.make_move(2, 1)
+    assert list(towers(game.valid_moves())) == [(1, 0), (2, 0), (2, 1)]
+
+    make_move(2)
     assert game.towers == [[3], [2, 1], []]
-    assert list(game.valid_moves()) == [(0, 2), (1, 0), (1, 2)]
+    assert list(towers(game.valid_moves())) == [(0, 2), (1, 0), (1, 2)]

@@ -23,14 +23,12 @@ from typing import List
 class HanoiGame:
     """Represents a Hanoi Game"""
 
-    towers: List = field(default_factory=lambda: [])
+    towers: List = field(default_factory=lambda: [[] for _ in range(3)])
     num_disks: int = 0
     current_moves: int = 0
 
     def __post_init__(self):
         """Resets the game state with a given number of disks."""
-        self.current_moves = 0
-        self.towers = [[] for _ in range(3)]  # Create 3 empty pegs
         # Place disks on the first peg (Peg 0) from largest to smallest
         for i in range(self.num_disks, 0, -1):
             self.towers[0].append(i)
@@ -61,15 +59,21 @@ class HanoiGame:
             (2, 1),  # From Peg 3
         ]
 
+        def make_move(from_peg_idx: int, to_peg_idx: int):
+            """Executes a valid move."""
+
+            # dum wrapper to make sure that from_peg_idx and to_peg_idx
+            # are captured correctly in the for loop before, because Python
+            def foo():
+                disk = self.towers[from_peg_idx].pop()
+                self.towers[to_peg_idx].append(disk)
+                self.current_moves += 1
+
+            return foo
+
         for from_p, to_p in all_possible_peg_moves:
             if is_valid_move(from_p, to_p):
-                yield from_p, to_p
-
-    def make_move(self, from_peg_idx: int, to_peg_idx: int):
-        """Executes a valid move."""
-        disk = self.towers[from_peg_idx].pop()
-        self.towers[to_peg_idx].append(disk)
-        self.current_moves += 1
+                yield (from_p, to_p), make_move(from_p, to_p)
 
     def check_win_condition(self) -> bool:
         """Checks if the game has been won."""
