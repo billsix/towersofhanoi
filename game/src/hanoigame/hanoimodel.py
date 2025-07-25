@@ -16,7 +16,7 @@
 # Boston, MA 02111-1307, USA.
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Callable, Iterable, List, Tuple
 
 
 @dataclass
@@ -33,7 +33,18 @@ class HanoiGame:
         for i in range(self.num_disks, 0, -1):
             self.towers[0].append(i)
 
-    def valid_moves(self):
+    def valid_moves(self) -> Iterable[Tuple[Tuple[int, int], Callable]]:
+        """
+        Returns an iterable which represents the valid moves
+
+        The first element of the tuple is a tuple that represents
+        the from-peg and to-peg
+
+        The second element of the tuple is a callable of zero arguments,
+        which when invoked, makes the move from the from-peg to the
+        to-peg
+        """
+
         def is_valid_move(from_peg_idx: int, to_peg_idx: int):
             """Checks if a move is valid according to Towers of Hanoi rules."""
             if not (0 <= from_peg_idx < 3 and 0 <= to_peg_idx < 3):
