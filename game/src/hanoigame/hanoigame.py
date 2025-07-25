@@ -16,7 +16,9 @@
 # Boston, MA 02111-1307, USA.
 
 import curses
+import sys
 import time
+from contextlib import contextmanager
 from curses import (
     A_REVERSE,
     COLOR_BLACK,
@@ -34,12 +36,10 @@ from curses import (
     start_color,
 )
 from dataclasses import dataclass
-from typing import List, Tuple, Union, Callable
+from typing import Callable, List
 
 from _curses import window
 from hanoimodel import HanoiGame
-
-import sys
 
 # --- Helper Classes ---
 
@@ -56,7 +56,16 @@ class MenuButton:
 
     def __post_init__(self):
         if not self.action:
-            self.action = lambda : id
+            self.action = lambda: id
+
+
+@contextmanager
+def stdscr_attr(stdscr: window, x: int):
+    stdscr.attron(x)
+    try:
+        yield
+    finally:
+        stdscr.attroff(x)
 
 
 def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
@@ -104,52 +113,46 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
     base_y: int = curses.LINES - 3  # Position for the base of the pegs
 
     # Draw peg labels
-    stdscr.attron(color_pair(2))
-    for i in range(3):
-        peg_center_x: int = (
+
+    def peg_center_x(i) -> int:
+        return (
             start_x + i * (peg_visual_width + peg_gap) + peg_visual_width // 2
         )
-        stdscr.addstr(
-            base_y + 2, peg_center_x, f"{i + 1}"
-        )  # 1-indexed for user
-    stdscr.attroff(color_pair(2))
+
+    with stdscr_attr(stdscr, color_pair(2)):
+        for i in range(3):
+            stdscr.addstr(
+                base_y + 2, peg_center_x(i), f"{i + 1}"
+            )  # 1-indexed for user
 
     # Draw the pegs (vertical lines)
-    stdscr.attron(color_pair(2))
-    for p_idx in range(3):
-        peg_center_x: int = (
-            start_x
-            + p_idx * (peg_visual_width + peg_gap)
-            + peg_visual_width // 2
-        )
-        for i in range(hanoi_game.num_disks + 1):  # +1 for the top of the peg
-            stdscr.addstr(base_y - i, peg_center_x, "|")
-    stdscr.attroff(color_pair(2))
+    with stdscr_attr(stdscr, color_pair(2)):
+        for p_idx in range(3):
+            for i in range(
+                hanoi_game.num_disks + 1
+            ):  # +1 for the top of the peg
+                stdscr.addstr(base_y - i, peg_center_x(p_idx), "|")
 
     # Draw disks - CORRECTION HERE: Iterate from bottom (index 0) to top of stack
     for p_idx, peg in enumerate(hanoi_game.towers):
-        peg_center_x: int = (
-            start_x
-            + p_idx * (peg_visual_width + peg_gap)
-            + peg_visual_width // 2
-        )
         for i in range(len(peg)):  # Iterate from bottom (index 0) to top
-            disk_size = peg[i]
             # y-coordinate: base_y (bottom) - i (offset for disk's height)
             draw_disk(
-                stdscr, base_y - i, peg_center_x, disk_size, max_disk_size
+                stdscr=stdscr,
+                y=base_y - i,
+                x=peg_center_x(p_idx),
+                size=peg[i],
+                max_disk_size=max_disk_size,
             )
 
     # Draw base line
-    stdscr.attron(color_pair(2))
-    base_str = "=" * total_game_content_width
-    stdscr.addstr(base_y + 1, start_x, base_str)
-    stdscr.attroff(color_pair(2))
+    with stdscr_attr(stdscr, color_pair(2)):
+        base_str = "=" * total_game_content_width
+        stdscr.addstr(base_y + 1, start_x, base_str)
 
     # Display moves
-    stdscr.attron(color_pair(3))
-    stdscr.addstr(curses.LINES - 1, 0, f"Moves: {hanoi_game.current_moves}")
-    stdscr.attroff(color_pair(3))
+    with stdscr_attr(stdscr, color_pair(3)):
+        stdscr.addstr(curses.LINES - 1, 0, f"Moves: {hanoi_game.current_moves}")
     stdscr.refresh()
 
 
@@ -161,19 +164,17 @@ def draw_disk(stdscr: window, y: int, x: int, size: int, max_disk_size: int):
     disk_char_width: int = size * 2 - 1
     peg_visual_width: int = max_disk_size * 2 - 1
     padding_left: int = (peg_visual_width - disk_char_width) // 2
-    stdscr.attron(color_pair(1))
-    disk_str: str = "*" * disk_char_width
-    stdscr.addstr(y, x - (peg_visual_width // 2) + padding_left, disk_str)
-    stdscr.attroff(color_pair(1))
+    with stdscr_attr(stdscr, color_pair(1)):
+        disk_str: str = "*" * disk_char_width
+        stdscr.addstr(y, x - (peg_visual_width // 2) + padding_left, disk_str)
 
 
 def display_message(stdscr: window, msg: str, row: int = 0):
     """Displays a message at a specific row, clearing the line first."""
     stdscr.move(row, 0)
     stdscr.clrtoeol()
-    stdscr.attron(color_pair(3))
-    stdscr.addstr(row, 0, msg)
-    stdscr.attroff(color_pair(3))
+    with stdscr_attr(stdscr, color_pair(3)):
+        stdscr.addstr(row, 0, msg)
     stdscr.refresh()
 
 
@@ -183,26 +184,20 @@ def display_menu(
     """Draws a list of buttons, highlighting the selected one."""
 
     for i, button in enumerate(buttons):
-        if i == current_selection:
-            stdscr.attron(
-                A_REVERSE | color_pair(3)
-            )  # Reverse video + Message color
-        else:
-            stdscr.attron(color_pair(2))  # Normal peg color
-        # Clear the line before drawing button text to ensure no artifacts from previous highlights
-        stdscr.move(button.y, button.x)
-        stdscr.clrtoeol()
-        stdscr.addstr(button.y, button.x, button.text)
-        if i == current_selection:
-            stdscr.attroff(A_REVERSE | color_pair(3))
-        else:
-            stdscr.attroff(color_pair(2))
+        with stdscr_attr(
+            stdscr,
+            (A_REVERSE | color_pair(3))
+            if (i == current_selection)
+            else color_pair(2),
+        ):
+            # Clear the line before drawing button text to ensure no artifacts from previous highlights
+            stdscr.move(button.y, button.x)
+            stdscr.clrtoeol()
+            stdscr.addstr(button.y, button.x, button.text)
     stdscr.refresh()
 
 
-def get_button_choice(
-    stdscr: window, buttons: List[MenuButton]
-) -> MenuButton:
+def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
     """Allows user to navigate and select a button using arrow keys and Enter."""
     current_selection: int = 0
     # Ensure button positions are set correctly before initial display
@@ -213,11 +208,11 @@ def get_button_choice(
         # Display buttons
         display_menu(stdscr, buttons, current_selection)
         display_message(
-            stdscr,
-            "Use UP/DOWN arrows, then ENTER to select. Press Q to quit.",
+            stdscr=stdscr,
+            msg="Use UP/DOWN arrows, then ENTER to select. Press Q to quit.",
             row=0,
         )  # Status message
-        key = stdscr.getch()
+        key: int = stdscr.getch()
         if key == KEY_UP:
             current_selection = (current_selection - 1 + len(buttons)) % len(
                 buttons
@@ -227,7 +222,9 @@ def get_button_choice(
         elif key == KEY_ENTER or key == 10:  # Enter key
             return buttons[current_selection]
         elif key == ord("q") or key == ord("Q"):  # Allow 'Q' to quit from menus
-            return MenuButton(id="quit", text="", x=0, y=0, action=lambda: sys.exit(0))
+            return MenuButton(
+                id="quit", text="", x=0, y=0, action=lambda: sys.exit(0)
+            )
 
 
 # --- Main Game Loop (wrapped for safety) ---
@@ -241,30 +238,36 @@ def main(stdscr: window):
         init_pair(4, COLOR_RED, COLOR_BLACK)  # Error messages
     curs_set(0)  # Hide cursor by default
     # --- Disk Selection Menu ---
-    disk_buttons = [
-        MenuButton(id=1, text="1 Disks", x=0, y=0, action= lambda: 1),
-        MenuButton(id=2, text="2 Disks", x=0, y=0, action= lambda: 2),
-        MenuButton(id=3, text="3 Disks", x=0, y=0, action= lambda: 3),
-        MenuButton(id=4, text="4 Disks", x=0, y=0, action= lambda: 4),
-        MenuButton(id=5, text="5 Disks", x=0, y=0, action= lambda: 5),
-        MenuButton(id=6, text="6 Disks", x=0, y=0, action= lambda: 6),
-        MenuButton(id=7, text="7 Disks", x=0, y=0, action= lambda: 7),
-        MenuButton(id=8, text="8 Disks", x=0, y=0, action= lambda: 8),
-        MenuButton(id=9, text="9 Disks", x=0, y=0, action= lambda: 9),
-        MenuButton(id=10, text="10 Disks", x=0, y=0, action= lambda: 10),
+    disk_buttons: List[MenuButton] = [
+        MenuButton(id=1, text="1 Disks", x=0, y=0, action=lambda: 1),
+        MenuButton(id=2, text="2 Disks", x=0, y=0, action=lambda: 2),
+        MenuButton(id=3, text="3 Disks", x=0, y=0, action=lambda: 3),
+        MenuButton(id=4, text="4 Disks", x=0, y=0, action=lambda: 4),
+        MenuButton(id=5, text="5 Disks", x=0, y=0, action=lambda: 5),
+        MenuButton(id=6, text="6 Disks", x=0, y=0, action=lambda: 6),
+        MenuButton(id=7, text="7 Disks", x=0, y=0, action=lambda: 7),
+        MenuButton(id=8, text="8 Disks", x=0, y=0, action=lambda: 8),
+        MenuButton(id=9, text="9 Disks", x=0, y=0, action=lambda: 9),
+        MenuButton(id=10, text="10 Disks", x=0, y=0, action=lambda: 10),
     ]
     # Position buttons centrally
-    menu_start_y: int = (curses.LINES // 2) - (len(disk_buttons) // 2)
-    max_text_width: int = max(len(btn.text) for btn in disk_buttons)
-    menu_start_x: int = (curses.COLS // 2) - (max_text_width // 2)
-    # Adjust button positions for display_menu
-    for i, btn in enumerate(disk_buttons):
-        btn.y = menu_start_y + i
-        btn.x = menu_start_x
     stdscr.clear()
-    stdscr.addstr(menu_start_y - 2, menu_start_x - 5, "Select Number of Disks:")
+
+    def prompt_select_number_of_disks() -> None:
+        menu_start_y: int = (curses.LINES // 2) - (len(disk_buttons) // 2)
+        max_text_width: int = max(len(btn.text) for btn in disk_buttons)
+        menu_start_x: int = (curses.COLS // 2) - (max_text_width // 2)
+        # Adjust button positions for display_menu
+        for i, btn in enumerate(disk_buttons):
+            btn.y = menu_start_y + i
+            btn.x = menu_start_x
+        stdscr.addstr(
+            menu_start_y - 2, menu_start_x - 5, "Select Number of Disks:"
+        )
+
+    prompt_select_number_of_disks()
     stdscr.refresh()
-    selected_disk = get_button_choice(stdscr, disk_buttons)
+    selected_disk: MenuButton = get_button_choice(stdscr, disk_buttons)
     if selected_disk.id == "quit":
         selected_disk.action()
 
@@ -277,17 +280,19 @@ def main(stdscr: window):
 
         for (from_p, to_p), action in game.valid_moves():
             move_buttons.append(
-                MenuButton(id=(from_p, to_p),
-                           text=f"{from_p + 1} -> {to_p + 1}",
-                           x=0,
-                           y=0,
-                           action=action)
+                MenuButton(
+                    id=(from_p, to_p),
+                    text=f"{from_p + 1} -> {to_p + 1}",
+                    x=0,
+                    y=0,
+                    action=action,
+                )
             )
         if not move_buttons:
             # This should only happen when the game is won, but as a safeguard
             display_message(
-                stdscr,
-                "No valid moves available! (Perhaps game is won?)",
+                stdstr=stdscr,
+                msg="No valid moves available! (Perhaps game is won?)",
                 row=1,
             )
             stdscr.getch()  # Wait for user to acknowledge
@@ -302,7 +307,9 @@ def main(stdscr: window):
         for i, btn in enumerate(move_buttons):
             btn.y = move_menu_start_y + i
             btn.x = move_menu_start_x
-        selected_move_tuple = get_button_choice(stdscr, move_buttons)
+        selected_move_tuple: MenuButton = get_button_choice(
+            stdscr, move_buttons
+        )
         if selected_move_tuple.id == "quit":
             break
         selected_move_tuple.action()
@@ -310,24 +317,32 @@ def main(stdscr: window):
     # --- Game Over / Win Message ---
     draw_game_state(game, stdscr)  # Draw final state
     if game.check_win_condition():
-        min_moves = (2**game.num_disks) - 1
-        display_message(stdscr, "Congratulations! You solved it!", row=0)
+        min_moves: int = (2**game.num_disks) - 1
         display_message(
-            stdscr,
-            f"Total Moves: {game.current_moves}. Minimum moves: {min_moves}",
+            stdscr=stdscr, msg="Congratulations! You solved it!", row=0
+        )
+        display_message(
+            stdscr=stdscr,
+            msg=f"Total Moves: {game.current_moves}. Minimum moves: {min_moves}",
             row=1,
         )
         if game.current_moves == min_moves:
-            display_message(stdscr, "You achieved the optimal solution!", row=2)
+            display_message(
+                stdscr=stdscr, msg="You achieved the optimal solution!", row=2
+            )
         else:
             display_message(
-                stdscr,
-                f"You took {game.current_moves - min_moves} more moves than the optimum.",
+                stdscr=stdscr,
+                msg=f"You took {game.current_moves - min_moves} more moves than the optimum.",
                 row=2,
             )
     else:
-        display_message(stdscr, "Game ended. Thanks for playing!", row=0)
-    display_message(stdscr, "Press any key to exit...", curses.LINES - 1)
+        display_message(
+            stdscr=stdscr, msg="Game ended. Thanks for playing!", row=0
+        )
+    display_message(
+        stdscr=stdscr, msg="Press any key to exit...", row=curses.LINES - 1
+    )
     stdscr.getch()
 
 
