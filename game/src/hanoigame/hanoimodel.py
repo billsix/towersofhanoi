@@ -33,7 +33,11 @@ class HanoiGame:
         for i in range(self.num_disks, 0, -1):
             self.towers[0].append(i)
 
-    def valid_moves(self) -> Iterable[Tuple[Tuple[int, int], Callable]]:
+    def check_win_condition(self) -> bool:
+        """Checks if the game has been won."""
+        return len(self.towers[2]) == self.num_disks
+
+    def move_options(self) -> Iterable[Tuple[Tuple[int, int], Callable]]:
         """
         Returns an iterable which represents the valid moves
 
@@ -47,45 +51,35 @@ class HanoiGame:
 
         def is_valid_move(from_peg_idx: int, to_peg_idx: int):
             """Checks if a move is valid according to Towers of Hanoi rules."""
-            if not (0 <= from_peg_idx < 3 and 0 <= to_peg_idx < 3):
-                return False
-            if from_peg_idx == to_peg_idx:
-                return False
             if not self.towers[from_peg_idx]:  # Source peg empty
                 return False
-            disk_to_move = self.towers[from_peg_idx][-1]  # Get the top disk
             if (
                 self.towers[to_peg_idx]
-                and disk_to_move > self.towers[to_peg_idx][-1]
+                and self.towers[from_peg_idx][-1] > self.towers[to_peg_idx][-1]
             ):  # Larger on smaller
                 return False
             return True
 
-        all_possible_peg_moves: List = [
+        moves_to_return: List[Tuple[Tuple[int, int], Callable]] = []
+        for from_p, to_p in [
             (0, 1),
-            (0, 2),  # From Peg 1
+            (0, 2),
             (1, 0),
-            (1, 2),  # From Peg 2
+            (1, 2),
             (2, 0),
-            (2, 1),  # From Peg 3
-        ]
-
-        def make_move(from_peg_idx: int, to_peg_idx: int):
-            """Executes a valid move."""
-
-            # dum wrapper to make sure that from_peg_idx and to_peg_idx
-            # are captured correctly in the for loop before, because Python
-            def foo():
-                disk = self.towers[from_peg_idx].pop()
-                self.towers[to_peg_idx].append(disk)
-                self.current_moves += 1
-
-            return foo
-
-        for from_p, to_p in all_possible_peg_moves:
+            (2, 1),
+        ]:
             if is_valid_move(from_p, to_p):
-                yield (from_p, to_p), make_move(from_p, to_p)
 
-    def check_win_condition(self) -> bool:
-        """Checks if the game has been won."""
-        return len(self.towers[2]) == self.num_disks
+                def make_action(from_peg_idx: int, to_peg_idx: int):
+                    def f():
+                        disk = self.towers[from_peg_idx].pop()
+                        self.towers[to_peg_idx].append(disk)
+                        self.current_moves += 1
+
+                    return f
+
+                moves_to_return.append(
+                    ((from_p, to_p), make_action(from_p, to_p))
+                )
+        return moves_to_return

@@ -278,7 +278,7 @@ def main(stdscr: window):
         # Generate valid move buttons dynamically
         move_buttons: List = []
 
-        for (from_p, to_p), action in game.valid_moves():
+        for (from_p, to_p), action in game.move_options():
             move_buttons.append(
                 MenuButton(
                     id=(from_p, to_p),
