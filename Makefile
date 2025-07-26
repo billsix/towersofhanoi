@@ -15,7 +15,7 @@ shell: image ## Get Shell into a ephermeral container made from the image
 		-v ./bash:/hanoi/bash:Z \
 		-v ./python:/hanoi/python:Z \
 		hanoi \
-		-c "cd /hanoi/; python3 -m venv venv; source venv/bin/activate ; python3 -m pip install snoop  --root-user-action=ignore; echo source /hanoi/venv/bin/activate >> ~/.bashrc ; cd game;  python3 -m pip install -e .  --root-user-action=ignore ; exec bash"
+		-c "cd /hanoi/game;  python3 -m pip install -e .  --root-user-action=ignore ; exec bash"
 
 
 .PHONY: help

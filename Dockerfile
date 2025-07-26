@@ -1,14 +1,16 @@
-FROM docker.io/debian:trixie
+FROM docker.io/fedora:42
 
 COPY .tmux.conf /root/.tmux.conf
 
-RUN apt update  && apt upgrade -y
-RUN apt install    -y python3-full \
-                      python3-pip \
-                      tmux \
-                      nano
-
-RUN echo "alias ls='ls --color=auto'" >> ~/.bashrc
+RUN dnf upgrade -y
+RUN dnf install -y python3 \
+                   python3-pip \
+                   tmux \
+                   nano \
+		   ruff \
+		   python3-isort \
+		   python3-pysnooper \
+		   python3-pytest
 
 
 ENTRYPOINT ["/entrypoint.sh"]

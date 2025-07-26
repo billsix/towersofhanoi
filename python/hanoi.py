@@ -15,14 +15,14 @@
 # Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
 
-import snoop
+from pysnooper import snoop
 
 from typing import Callable
 import unittest
 import doctest
 
 
-# @snoop
+# @snoop()
 def first_remap(s: str) -> str:
     """Remap temporary and goal
     1->1
@@ -57,7 +57,7 @@ def first_remap(s: str) -> str:
     return result
 
 
-# @snoop
+# @snoop()
 def second_remap(s: str) -> str:
     """Remap temporary and initial
     1->2
@@ -91,7 +91,7 @@ def second_remap(s: str) -> str:
     return result
 
 
-@snoop
+@snoop()
 def hanoi(n: int):
     moves: str = "1 -> 3"
 
@@ -106,7 +106,7 @@ def hanoi(n: int):
     print(moves)
 
 
-@snoop
+@snoop()
 def hanoi_1(i: int, t: int, g: int) -> str:
     """
 
@@ -117,7 +117,7 @@ def hanoi_1(i: int, t: int, g: int) -> str:
     return str(i) + " -> " + str(g)
 
 
-@snoop
+@snoop()
 def hanoi_2(i: int, t: int, g: int) -> str:
     """
 
@@ -134,7 +134,7 @@ def hanoi_2(i: int, t: int, g: int) -> str:
     return moves
 
 
-@snoop
+@snoop()
 def hanoi_3(i: int, t: int, g: int) -> str:
     """
 
@@ -157,7 +157,7 @@ def hanoi_3(i: int, t: int, g: int) -> str:
     return moves
 
 
-@snoop
+@snoop()
 def hanoi_4(i: int, t: int, g: int) -> str:
     four_minus_1_i_to_t: str = hanoi_3(i=i, t=g, g=t)
     big_peg_to_goal: str = hanoi_1(i=i, t=t, g=g)
@@ -170,11 +170,11 @@ def hanoi_4(i: int, t: int, g: int) -> str:
 
 
 def hanoi_3_second(i: int, t: int, g: int) -> str:
-    @snoop
+    @snoop()
     def hanoi_1(i: int, t: int, g: int) -> str:
         return str(i) + " -> " + str(g)
 
-    @snoop
+    @snoop()
     def hanoi_2(i: int, t: int, g: int, h1: Callable[[int, int, int], str]) -> str:
         two_minus_1_i_to_t: str = h1(i=i, t=g, g=t)
         big_peg_to_goal: str = h1(i=i, t=t, g=g)
@@ -185,7 +185,7 @@ def hanoi_3_second(i: int, t: int, g: int) -> str:
         )
         return moves
 
-    @snoop
+    @snoop()
     def hanoi_3(
         i: int,
         t: int,
@@ -206,11 +206,11 @@ def hanoi_3_second(i: int, t: int, g: int) -> str:
 
 
 def hanoi_n_second(n: int, i: int, t: int, g: int) -> str:
-    @snoop
+    @snoop()
     def hanoi_1(i: int, t: int, g: int) -> str:
         return str(i) + " -> " + str(g)
 
-    @snoop
+    @snoop()
     def hanoi_n(
         n: int, i: int, t: int, g: int, h: Callable[[int, int, int], str]
     ) -> str:
@@ -230,7 +230,7 @@ def hanoi_n_second(n: int, i: int, t: int, g: int) -> str:
 
 
 def hanoi_n_third(n: int, i: int, t: int, g: int) -> str:
-    @snoop
+    @snoop()
     def hanoi_n(n: int, i: int, t: int, g: int) -> str:
         if n == 1:
             return str(i) + " -> " + str(g)
