@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="297mm"
+   height="210mm"
+   viewBox="0 0 1122.5197 793.70081"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="hanoi1.svg"
+   inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1"
+     inkscape:cx="438"
+     inkscape:cy="231.5"
+     inkscape:window-width="1920"
+     inkscape:window-height="1003"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:29.3333px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:3.77952765;stroke-dasharray:none"
+       x="140.70601"
+       y="111.97027"
+       id="text3"><tspan
+         sodipodi:role="line"
+         id="tspan3"
+         x="140.70601"
+         y="111.97027" /></text>
+    <rect
+       style="fill:#ff7373;stroke:#000000;stroke-width:0.723351"
+       id="rect1"
+       width="81.398476"
+       height="43.752506"
+       x="260.58621"
+       y="182.85788" />
+    <rect
+       style="fill:#73e2ff;fill-opacity:1;stroke:#000000;stroke-width:0.388306"
+       id="rect1-3"
+       width="87.981033"
+       height="44.087551"
+       x="401.16635"
+       y="182.79247" />
+    <rect
+       style="fill:#73e2ff;fill-opacity:1;stroke:#000000;stroke-width:0.388306"
+       id="rect1-3-8"
+       width="87.981033"
+       height="44.087551"
+       x="255.19415"
+       y="471.19415" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.185px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.723351"
+       x="222.81398"
+       y="123.92094"
+       id="text2"
+       transform="scale(0.99774418,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan2"
+         x="222.81398"
+         y="123.92094"
+         style="stroke-width:0.723351">Hanoi 1</tspan></text>
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:4.27188;stroke-dasharray:none"
+       d="m 351.98102,204.37551 h 37.84316"
+       id="path2" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:2.99204;stroke-dasharray:none"
+       d="M 391.45868,206.1012 378.33155,192.91465"
+       id="path2-2" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:2.99204;stroke-dasharray:none"
+       d="m 376.95582,218.25984 13.12714,-13.18658"
+       id="path2-2-6" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.5555px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       x="230.68596"
+       y="152.54637"
+       id="text4"
+       transform="scale(0.99774418,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan12"
+         x="230.68596"
+         y="152.54637">1) Copy solution for Hanoi 1, but replace 2 with 3 and 3 with 2</tspan></text>
+    <rect
+       style="fill:#000000;fill-opacity:0.169311;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       id="rect9"
+       width="392.39142"
+       height="123.2139"
+       x="218.60101"
+       y="116.74581" />
+    <rect
+       style="fill:#000000;fill-opacity:0.169311;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       id="rect9-4"
+       width="441.39142"
+       height="475.2139"
+       x="194"
+       y="81" />
+    <rect
+       style="fill:#ff7373;stroke:#000000;stroke-width:0.723351"
+       id="rect1-36"
+       width="81.398476"
+       height="43.752506"
+       x="260.9852"
+       y="329.66708" />
+    <rect
+       style="fill:#9dff73;fill-opacity:1;stroke:#000000;stroke-width:0.723351"
+       id="rect1-3-5"
+       width="81.398476"
+       height="43.752506"
+       x="401.73285"
+       y="329.7692" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.185px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.723351"
+       x="223.21388"
+       y="270.39896"
+       id="text2-6"
+       transform="scale(0.9977442,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan2-3"
+         x="223.21388"
+         y="270.39896"
+         style="stroke-width:0.723351">Hanoi 1</tspan></text>
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:4.27188;stroke-dasharray:none"
+       d="m 352.38001,351.18471 h 37.84316"
+       id="path2-9" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:2.99204;stroke-dasharray:none"
+       d="M 391.85767,352.9104 378.73054,339.72385"
+       id="path2-2-4" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:2.99204;stroke-dasharray:none"
+       d="m 377.35481,365.06904 13.12714,-13.18658"
+       id="path2-2-6-8" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.5555px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       x="231.08586"
+       y="299.02438"
+       id="text4-1"
+       transform="scale(0.9977442,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan15">1) Copy solution for Hanoi 1, no replacements</tspan></text>
+    <rect
+       style="fill:#000000;fill-opacity:0.169311;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       id="rect9-9"
+       width="392.39142"
+       height="123.2139"
+       x="219"
+       y="263.55502" />
+    <rect
+       style="fill:#9dff73;fill-opacity:1;stroke:#000000;stroke-width:0.723351"
+       id="rect1-3-50"
+       width="81.398476"
+       height="43.752506"
+       x="396.73285"
+       y="474.7692" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.185px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.723351"
+       x="218.20256"
+       y="415.07187"
+       id="text2-9"
+       transform="scale(0.9977442,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan2-6"
+         x="218.20256"
+         y="415.07187"
+         style="stroke-width:0.723351">Hanoi 1</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:21.185px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.723351"
+       x="195.75294"
+       y="88.809525"
+       id="text2-9-6"
+       transform="scale(0.9977442,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan14">Hanoi 2</tspan></text>
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:4.27188;stroke-dasharray:none"
+       d="m 347.38001,496.18472 h 37.84316"
+       id="path2-3" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:2.99204;stroke-dasharray:none"
+       d="M 386.85767,497.91041 373.73054,484.72386"
+       id="path2-2-8" />
+    <path
+       style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:2.99204;stroke-dasharray:none"
+       d="m 372.35481,510.06905 13.12714,-13.18658"
+       id="path2-2-6-5" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.5555px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       x="226.07455"
+       y="443.6973"
+       id="text4-6"
+       transform="scale(0.9977442,1.0022609)"><tspan
+         sodipodi:role="line"
+         id="tspan13">1) Copy solution for Hanoi 1, but replace 1 with 2 and 2 with 1</tspan></text>
+    <rect
+       style="fill:#000000;fill-opacity:0.169311;stroke:#000000;stroke-width:0;stroke-dasharray:none"
+       id="rect9-1"
+       width="392.39142"
+       height="123.2139"
+       x="216"
+       y="409.55502" />
+  </g>
+</svg>
