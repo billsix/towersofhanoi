@@ -21,25 +21,40 @@ from typing import Callable, Iterable, List
 
 @dataclass
 class Move:
-    from_peg: int
-    to_peg: int
+    from_peg: int = field(
+        metadata={"doc": "The peg from which the top disk is taken"}
+    )
+    to_peg: int = field(metadata={"doc": "The peg on which the disk is placed"})
 
 
 @dataclass
 class ValidMove:
     """Represents an option for a move in Hanoi Game"""
 
-    move: Move
-    action: Callable[[], None]
+    move: Move = field(metadata={"doc": "The pegs of the valid move"})
+    action: Callable[[], None] = field(
+        metadata={"doc": "The procedure to make the move"}, default_factory=lambda: pass]
+    )
 
 
 @dataclass
 class HanoiGame:
     """Represents a Hanoi Game"""
 
-    towers: List = field(default_factory=lambda: [[] for _ in range(3)])
-    num_disks: int = 0
-    current_moves: int = 0
+    towers: List = field(
+        metadata={
+            "doc": "The three towers, each of which implmented using a list as a stack"
+        },
+        default_factory=lambda: [[] for _ in range(3)],
+    )
+    num_disks: int = field(
+        metadata={"doc": "The pegs of the valid move"},
+        default_factory=lambda: 0,
+    )
+    current_moves: int = field(
+        metadata={"doc": "The pegs of the valid move"},
+        default_factory=lambda: 0,
+    )
 
     def __post_init__(self):
         """Resets the game state with a given number of disks."""
