@@ -16,7 +16,21 @@
 # Boston, MA 02111-1307, USA.
 
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, List, Tuple
+from typing import Callable, Iterable, List
+
+
+@dataclass
+class Move:
+    from_peg: int
+    to_peg: int
+
+
+@dataclass
+class ValidMove:
+    """Represents an option for a move in Hanoi Game"""
+
+    move: Move
+    action: Callable[[], None]
 
 
 @dataclass
@@ -37,7 +51,7 @@ class HanoiGame:
         """Checks if the game has been won."""
         return len(self.towers[2]) == self.num_disks
 
-    def move_options(self) -> Iterable[Tuple[Tuple[int, int], Callable]]:
+    def move_options(self) -> Iterable[ValidMove]:
         """
         Returns an iterable which represents the valid moves
 
@@ -60,7 +74,7 @@ class HanoiGame:
                 return False
             return True
 
-        moves_to_return: List[Tuple[Tuple[int, int], Callable]] = []
+        moves_to_return: List[ValidMove] = []
         for from_p, to_p in [
             (0, 1),
             (0, 2),
@@ -80,6 +94,9 @@ class HanoiGame:
                     return f
 
                 moves_to_return.append(
-                    ((from_p, to_p), make_action(from_p, to_p))
+                    ValidMove(
+                        Move(from_peg=from_p, to_peg=to_p),
+                        action=make_action(from_p, to_p),
+                    )
                 )
         return moves_to_return
