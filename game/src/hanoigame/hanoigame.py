@@ -237,83 +237,99 @@ def main(stdscr: window):
         init_pair(3, COLOR_YELLOW, COLOR_BLACK)  # Messages/Highlight
         init_pair(4, COLOR_RED, COLOR_BLACK)  # Error messages
     curs_set(0)  # Hide cursor by default
-    # --- Disk Selection Menu ---
-    disk_buttons: List[MenuButton] = [
-        MenuButton(id=1, text="1 Disks", x=0, y=0, action=lambda: 1),
-        MenuButton(id=2, text="2 Disks", x=0, y=0, action=lambda: 2),
-        MenuButton(id=3, text="3 Disks", x=0, y=0, action=lambda: 3),
-        MenuButton(id=4, text="4 Disks", x=0, y=0, action=lambda: 4),
-        MenuButton(id=5, text="5 Disks", x=0, y=0, action=lambda: 5),
-        MenuButton(id=6, text="6 Disks", x=0, y=0, action=lambda: 6),
-        MenuButton(id=7, text="7 Disks", x=0, y=0, action=lambda: 7),
-        MenuButton(id=8, text="8 Disks", x=0, y=0, action=lambda: 8),
-        MenuButton(id=9, text="9 Disks", x=0, y=0, action=lambda: 9),
-        MenuButton(id=10, text="10 Disks", x=0, y=0, action=lambda: 10),
-    ]
+
     # Position buttons centrally
-    stdscr.clear()
 
-    def prompt_select_number_of_disks() -> None:
-        menu_start_y: int = (curses.LINES // 2) - (len(disk_buttons) // 2)
-        max_text_width: int = max(len(btn.text) for btn in disk_buttons)
-        menu_start_x: int = (curses.COLS // 2) - (max_text_width // 2)
-        # Adjust button positions for display_menu
-        for i, btn in enumerate(disk_buttons):
-            btn.y = menu_start_y + i
-            btn.x = menu_start_x
-        stdscr.addstr(
-            menu_start_y - 2, menu_start_x - 5, "Select Number of Disks:"
-        )
+    def select_number_of_disks() -> int:
+        stdscr.clear()
 
-    prompt_select_number_of_disks()
-    stdscr.refresh()
-    selected_disk: MenuButton = get_button_choice(stdscr, disk_buttons)
-    if selected_disk.id == "quit":
-        selected_disk.action()
+        # --- Disk Selection Menu ---
+        disk_buttons: List[MenuButton] = [
+            MenuButton(id=1, text="1 Disks", x=0, y=0, action=lambda: 1),
+            MenuButton(id=2, text="2 Disks", x=0, y=0, action=lambda: 2),
+            MenuButton(id=3, text="3 Disks", x=0, y=0, action=lambda: 3),
+            MenuButton(id=4, text="4 Disks", x=0, y=0, action=lambda: 4),
+            MenuButton(id=5, text="5 Disks", x=0, y=0, action=lambda: 5),
+            MenuButton(id=6, text="6 Disks", x=0, y=0, action=lambda: 6),
+            MenuButton(id=7, text="7 Disks", x=0, y=0, action=lambda: 7),
+            MenuButton(id=8, text="8 Disks", x=0, y=0, action=lambda: 8),
+            MenuButton(id=9, text="9 Disks", x=0, y=0, action=lambda: 9),
+            MenuButton(id=10, text="10 Disks", x=0, y=0, action=lambda: 10),
+        ]
 
-    game: HanoiGame = HanoiGame(num_disks=selected_disk.action())
-    # --- Game Loop ---
-    while not game.check_win_condition():
-        draw_game_state(game, stdscr)  # Draw the game board first
-        # Generate valid move buttons dynamically
-        move_buttons: List = []
+        def prompt_select_number_of_disks() -> None:
+            menu_start_y: int = (curses.LINES // 2) - (len(disk_buttons) // 2)
+            max_text_width: int = max(len(btn.text) for btn in disk_buttons)
+            menu_start_x: int = (curses.COLS // 2) - (max_text_width // 2)
+            # Adjust button positions for display_menu
+            for i, btn in enumerate(disk_buttons):
+                btn.y = menu_start_y + i
+                btn.x = menu_start_x
+            stdscr.addstr(
+                menu_start_y - 2, menu_start_x - 5, "Select Number of Disks:"
+            )
 
-        for (from_p, to_p), action in game.move_options():
-            move_buttons.append(
-                MenuButton(
-                    id=(from_p, to_p),
-                    text=f"{from_p + 1} -> {to_p + 1}",
-                    x=0,
-                    y=0,
-                    action=action,
+        prompt_select_number_of_disks()
+        stdscr.refresh()
+        selected_disk: MenuButton = get_button_choice(stdscr, disk_buttons)
+        if selected_disk.id == "quit":
+            selected_disk.action()
+        return selected_disk.action()
+
+    def run_game_loop(number_of_disks) -> HanoiGame:
+        game: HanoiGame = HanoiGame(num_disks=number_of_disks)
+        # --- Game Loop ---
+        while not game.check_win_condition():
+            draw_game_state(game, stdscr)  # Draw the game board first
+            # Generate valid move buttons dynamically
+            move_buttons: List = []
+
+            for (from_p, to_p), action in game.move_options():
+                move_buttons.append(
+                    MenuButton(
+                        id=(from_p, to_p),
+                        text=f"{from_p + 1} -> {to_p + 1}",
+                        x=0,
+                        y=0,
+                        action=action,
+                    )
                 )
-            )
-        if not move_buttons:
-            # This should only happen when the game is won, but as a safeguard
-            display_message(
-                stdstr=stdscr,
-                msg="No valid moves available! (Perhaps game is won?)",
-                row=1,
-            )
-            stdscr.getch()  # Wait for user to acknowledge
-            continue
+            if not move_buttons:
+                # This should only happen when the game is won, but as a safeguard
+                display_message(
+                    stdstr=stdscr,
+                    msg="No valid moves available! (Perhaps game is won?)",
+                    row=1,
+                )
+                stdscr.getch()  # Wait for user to acknowledge
+                continue
 
-        move_menu_start_y = curses.LINES - 1 + 2  # Two lines below move count
-        if move_menu_start_y + len(move_buttons) >= curses.LINES:
-            move_menu_start_y = 4
-        max_move_text_width: int = max(len(btn.text) for btn in move_buttons)
-        move_menu_start_x: int = (curses.COLS // 2) - (max_move_text_width // 2)
-        # Adjust button positions for get_button_choice
-        for i, btn in enumerate(move_buttons):
-            btn.y = move_menu_start_y + i
-            btn.x = move_menu_start_x
-        selected_move_tuple: MenuButton = get_button_choice(
-            stdscr, move_buttons
-        )
-        if selected_move_tuple.id == "quit":
-            break
-        selected_move_tuple.action()
-        time.sleep(0.1)  # Small delay for visual effect of move
+            move_menu_start_y = (
+                curses.LINES - 1 + 2
+            )  # Two lines below move count
+            if move_menu_start_y + len(move_buttons) >= curses.LINES:
+                move_menu_start_y = 4
+            max_move_text_width: int = max(
+                len(btn.text) for btn in move_buttons
+            )
+            move_menu_start_x: int = (curses.COLS // 2) - (
+                max_move_text_width // 2
+            )
+            # Adjust button positions for get_button_choice
+            for i, btn in enumerate(move_buttons):
+                btn.y = move_menu_start_y + i
+                btn.x = move_menu_start_x
+            selected_move_tuple: MenuButton = get_button_choice(
+                stdscr, move_buttons
+            )
+            if selected_move_tuple.id == "quit":
+                break
+            selected_move_tuple.action()
+            time.sleep(0.1)  # Small delay for visual effect of move
+        return game
+
+    game: HanoiGame = run_game_loop(select_number_of_disks())
+
     # --- Game Over / Win Message ---
     draw_game_state(game, stdscr)  # Draw final state
     if game.check_win_condition():
