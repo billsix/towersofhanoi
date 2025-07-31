@@ -18,39 +18,58 @@
 
 from typing import List
 
-import hanoigame.hanoimodel
+from hanoigame.hanoimodel import HanoiGame, Move
 
 
 def test_postinit():
-    game = hanoigame.hanoimodel.HanoiGame(num_disks=3)
+    game = HanoiGame(num_disks=3)
     assert game.num_disks == 3
     assert game.current_moves == 0
     assert game.towers == [[3, 2, 1], [], []]
 
 
 def test_makemove():
-    game = hanoigame.hanoimodel.HanoiGame(num_disks=3)
+    game = HanoiGame(num_disks=3)
 
     def move_options(x) -> List:
-        return list(map(lambda x: x[0], x))
+        return list(map(lambda x: x.move, x))
 
     def make_move(ordinal):
-        list(game.move_options())[ordinal][1]()
+        list(game.move_options())[ordinal].action()
 
-    assert move_options(game.move_options()) == [(0, 1), (0, 2)]
+    assert move_options(game.move_options()) == [
+        Move(from_peg=0, to_peg=1),
+        Move(from_peg=0, to_peg=2),
+    ]
 
     make_move(0)
     assert game.towers == [[3, 2], [1], []]
-    assert move_options(game.move_options()) == [(0, 2), (1, 0), (1, 2)]
+    assert move_options(game.move_options()) == [
+        Move(from_peg=0, to_peg=2),
+        Move(from_peg=1, to_peg=0),
+        Move(from_peg=1, to_peg=2),
+    ]
 
     make_move(2)
     assert game.towers == [[3, 2], [], [1]]
-    assert move_options(game.move_options()) == [(0, 1), (2, 0), (2, 1)]
+    assert move_options(game.move_options()) == [
+        Move(from_peg=0, to_peg=1),
+        Move(from_peg=2, to_peg=0),
+        Move(from_peg=2, to_peg=1),
+    ]
 
     make_move(0)
     assert game.towers == [[3], [2], [1]]
-    assert move_options(game.move_options()) == [(1, 0), (2, 0), (2, 1)]
+    assert move_options(game.move_options()) == [
+        Move(from_peg=1, to_peg=0),
+        Move(from_peg=2, to_peg=0),
+        Move(from_peg=2, to_peg=1),
+    ]
 
     make_move(2)
     assert game.towers == [[3], [2, 1], []]
-    assert move_options(game.move_options()) == [(0, 2), (1, 0), (1, 2)]
+    assert move_options(game.move_options()) == [
+        Move(from_peg=0, to_peg=2),
+        Move(from_peg=1, to_peg=0),
+        Move(from_peg=1, to_peg=2),
+    ]

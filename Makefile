@@ -1,21 +1,25 @@
 .DEFAULT_GOAL := help
 
+PODMAN_CMD = podman
+CONTAINER_NAME = hanoi
+
 .PHONY: all
 all: clean image html ## Build the HTML and PDF from scratch in Debian Bulleye
 
 .PHONY: image
-image: ## Build a Podman image in which to build the book
-	podman build -t hanoi .
+image: ## Build a $(PODMAN_CMD) image in which to build the book
+	$(PODMAN_CMD) build -t $(CONTAINER_NAME) .
 
 .PHONY: shell
 shell: image ## Get Shell into a ephermeral container made from the image
-	podman run -it --rm \
+	$(PODMAN_CMD) run -it --rm \
 		--entrypoint /bin/bash \
-		-v ./game:/hanoi/game:Z \
-		-v ./bash:/hanoi/bash:Z \
-		-v ./python:/hanoi/python:Z \
-		hanoi \
-		-c "cd /hanoi/game;  python3 -m pip install -e .  --root-user-action=ignore ; exec bash"
+		-v ./game:/$(CONTAINER_NAME)/game:Z \
+		-v ./bash:/$(CONTAINER_NAME)/bash:Z \
+		-v ./entrypoint/shell.sh:/shell.sh:Z \
+		-v ./python:/$(CONTAINER_NAME)/python:Z \
+		$(CONTAINER_NAME) \
+		shell.sh
 
 
 .PHONY: help
