@@ -27,13 +27,17 @@ class Move:
     to_peg: int = field(metadata={"doc": "The peg on which the disk is placed"})
 
 
+def noop():
+    pass
+
+
 @dataclass
 class ValidMove:
     """Represents an option for a move in Hanoi Game"""
 
     move: Move = field(metadata={"doc": "The pegs of the valid move"})
     action: Callable[[], None] = field(
-        metadata={"doc": "The procedure to make the move"}, default_factory=lambda: pass]
+        metadata={"doc": "The procedure to make the move"}, default_factory=noop
     )
 
 
