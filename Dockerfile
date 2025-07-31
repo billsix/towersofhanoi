@@ -1,4 +1,4 @@
-FROM docker.io/fedora:42
+FROM registry.fedoraproject.org/fedora:42
 
 COPY .tmux.conf /root/.tmux.conf
 
