@@ -2,6 +2,10 @@
 
 PODMAN_CMD = podman
 CONTAINER_NAME = hanoi
+FILES_TO_MOUNT = -v ./game:/$(CONTAINER_NAME)/game:Z \
+		-v ./bash:/$(CONTAINER_NAME)/bash:Z \
+		-v ./python:/$(CONTAINER_NAME)/python:Z
+
 
 .PHONY: all
 all: shell ## Build the image and get a shell in it
@@ -14,10 +18,8 @@ image: ## Build a $(PODMAN_CMD) image in which to build the book
 shell: image ## Get Shell into a ephermeral container made from the image
 	$(PODMAN_CMD) run -it --rm \
 		--entrypoint /bin/bash \
-		-v ./game:/$(CONTAINER_NAME)/game:Z \
-		-v ./bash:/$(CONTAINER_NAME)/bash:Z \
+		$(FILES_TO_MOUNT) \
 		-v ./entrypoint/shell.sh:/shell.sh:Z \
-		-v ./python:/$(CONTAINER_NAME)/python:Z \
 		$(CONTAINER_NAME) \
 		shell.sh
 
