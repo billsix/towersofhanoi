@@ -4,7 +4,7 @@ PODMAN_CMD = podman
 CONTAINER_NAME = hanoi
 
 .PHONY: all
-all: clean image html ## Build the HTML and PDF from scratch in Debian Bulleye
+all: shell ## Build the image and get a shell in it
 
 .PHONY: image
 image: ## Build a $(PODMAN_CMD) image in which to build the book
