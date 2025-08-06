@@ -209,7 +209,7 @@ def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
         display_menu(stdscr, buttons, current_selection)
         display_message(
             stdscr=stdscr,
-            msg="Use UP/DOWN arrows, then ENTER to select. Press Q to quit.",
+            msg="Use UP/DOWN arrows, then ENTER to select. Press Q to quit",
             row=0,
         )  # Status message
         key: int = stdscr.getch()
@@ -329,38 +329,44 @@ def main(stdscr: window):
             time.sleep(0.1)  # Small delay for visual effect of move
         return game
 
-    game: HanoiGame = run_game_loop(select_number_of_disks())
-
-    # --- Game Over / Win Message ---
-    draw_game_state(game, stdscr)  # Draw final state
-    if game.check_win_condition():
-        min_moves: int = (2**game.num_disks) - 1
-        display_message(
-            stdscr=stdscr, msg="Congratulations! You solved it!", row=0
-        )
-        display_message(
-            stdscr=stdscr,
-            msg=f"Total Moves: {game.current_moves}. Minimum moves: {min_moves}",
-            row=1,
-        )
-        if game.current_moves == min_moves:
+    def game_over(game):
+        # --- Game Over / Win Message ---
+        draw_game_state(game, stdscr)  # Draw final state
+        if game.check_win_condition():
+            min_moves: int = (2**game.num_disks) - 1
             display_message(
-                stdscr=stdscr, msg="You achieved the optimal solution!", row=2
+                stdscr=stdscr, msg="Congratulations! You solved it!", row=0
             )
-        else:
             display_message(
                 stdscr=stdscr,
-                msg=f"You took {game.current_moves - min_moves} more moves than the optimum.",
-                row=2,
+                msg=f"Total Moves: {game.current_moves}. Minimum moves: {min_moves}",
+                row=1,
             )
-    else:
+            if game.current_moves == min_moves:
+                display_message(
+                    stdscr=stdscr,
+                    msg="You achieved the optimal solution!",
+                    row=2,
+                )
+            else:
+                display_message(
+                    stdscr=stdscr,
+                    msg=f"You took {game.current_moves - min_moves} more moves than the optimum.",
+                    row=2,
+                )
+        else:
+            display_message(
+                stdscr=stdscr, msg="Game ended. Thanks for playing!", row=0
+            )
         display_message(
-            stdscr=stdscr, msg="Game ended. Thanks for playing!", row=0
+            stdscr=stdscr,
+            msg="Press any key to go to the main screen...",
+            row=curses.LINES - 1,
         )
-    display_message(
-        stdscr=stdscr, msg="Press any key to exit...", row=curses.LINES - 1
-    )
-    stdscr.getch()
+        stdscr.getch()
+
+    while True:
+        game_over(run_game_loop(select_number_of_disks()))
 
 
 if __name__ == "__main__":

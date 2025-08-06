@@ -21,10 +21,8 @@ from typing import Callable, Iterable, List
 
 @dataclass
 class Move:
-    from_peg: int = field(
-        metadata={"doc": "The peg from which the top disk is taken"}
-    )
-    to_peg: int = field(metadata={"doc": "The peg on which the disk is placed"})
+    from_peg: int  #: The peg from which the top disk is taken
+    to_peg: int  #: The peg on which the disk is placed
 
 
 def noop():
@@ -35,10 +33,10 @@ def noop():
 class ValidMove:
     """Represents an option for a move in Hanoi Game"""
 
-    move: Move = field(metadata={"doc": "The pegs of the valid move"})
+    move: Move  #: The pegs of the valid move
     action: Callable[[], None] = field(
-        metadata={"doc": "The procedure to make the move"}, default_factory=noop
-    )
+        default_factory=noop
+    )  #: A procedure to do the valid move
 
 
 @dataclass
@@ -46,19 +44,14 @@ class HanoiGame:
     """Represents a Hanoi Game"""
 
     towers: List = field(
-        metadata={
-            "doc": "The three towers, each of which implmented using a list as a stack"
-        },
-        default_factory=lambda: [[] for _ in range(3)],
-    )
+        default_factory=lambda: [[] for _ in range(3)]
+    )  #: The three towers, each of which implmented using a list as a stack
     num_disks: int = field(
-        metadata={"doc": "The pegs of the valid move"},
-        default_factory=lambda: 0,
-    )
+        default_factory=lambda: 0
+    )  #: The number of disks for this game
     current_moves: int = field(
-        metadata={"doc": "The pegs of the valid move"},
-        default_factory=lambda: 0,
-    )
+        default_factory=lambda: 0
+    )  #: The number of moves done so far in this game
 
     def __post_init__(self):
         """Resets the game state with a given number of disks."""
