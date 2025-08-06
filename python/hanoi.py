@@ -25,9 +25,9 @@ import doctest
 # @snoop()
 def first_remap(s: str) -> str:
     """Remap temporary and goal
-    1->1
-    2->3
-    3->2
+    transform 1 to 1
+    tronsform 2 to 3
+    transform 3 to 2
 
     >>> first_remap("1 -> 2")
     '1 -> 3'
@@ -43,26 +43,27 @@ def first_remap(s: str) -> str:
     '2 -> 3'
     """
     result: str = ""
-    c: str
-    for c in s:
+    i: int
+
+    for i in range(len(s)):
         # the temporary peg becomes the goal peg
-        if c == "2":
+        if s[i] == "2":
             result += "3"
         # the goal peg becomes the temporary peg
-        elif c == "3":
+        elif s[i] == "3":
             result += "2"
         # the initial peg is unchanges
         else:
-            result += c
+            result += s[i]
     return result
 
 
 # @snoop()
 def second_remap(s: str) -> str:
     """Remap temporary and initial
-    1->2
-    2->1
-    3->3
+    transform 1 to 2
+    transform 2 to 1
+    transform 3 to 3
 
     >>> second_remap("1 -> 2")
     '2 -> 1'
@@ -78,16 +79,16 @@ def second_remap(s: str) -> str:
     '3 -> 1'
     """
     result: str = ""
-    c: str
-    for c in s:
+    i: int
+    for i in range(len(s)):
         # the initial peg becomes the temporary peg
-        if c == "1":
+        if s[i] == "1":
             result += "2"
         # the temporary peg becomes the initial peg
-        elif c == "2":
+        elif s[i] == "2":
             result += "1"
         else:
-            result += c
+            result += s[i]
     return result
 
 
@@ -257,4 +258,4 @@ class TestMethodFinder(unittest.TestCase):
 
 if __name__ == "__main__":
     print(hanoi(3))
-    unittest.main()
+    # unittest.main()
