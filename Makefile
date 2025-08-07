@@ -2,8 +2,7 @@
 
 PODMAN_CMD = podman
 CONTAINER_NAME = hanoi
-FILES_TO_MOUNT = -v ./game:/$(CONTAINER_NAME)/game:Z \
-		-v ./bash:/$(CONTAINER_NAME)/bash:Z \
+FILES_TO_MOUNT = -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 		-v ./python:/$(CONTAINER_NAME)/python:Z
 
 
