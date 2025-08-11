@@ -71,20 +71,15 @@ def stdscr_attr(stdscr: window, x: int):
 def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
     """Clears the screen and draws the current state of the game."""
     stdscr.clear()
-    max_disk_size: int = hanoi_game.num_disks
-    peg_visual_width: int = max_disk_size * 2 - 1
-    peg_gap: int = 5
-    total_game_content_width: int = (peg_visual_width + peg_gap) * 3 - peg_gap
-    min_cols: int = total_game_content_width + 4  # A little padding
-    min_rows: int = (
-        hanoi_game.num_disks + 6
-    )  # Enough space for disks, base, messages
 
-    if curses.COLS < min_cols or curses.LINES < min_rows:
+    if (
+        curses.COLS < hanoi_game.min_cols()
+        or curses.LINES < hanoi_game.min_rows()
+    ):
         stdscr.addstr(
             0,
             0,
-            f"Terminal too small! Min {min_cols} cols, {min_rows} rows needed.",
+            f"Terminal too small! Min {hanoi_game.min_cols()} cols, {hanoi_game.min_rows()} rows needed.",
         )
         stdscr.addstr(
             1,
@@ -92,13 +87,16 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
             f"Current: {curses.COLS} cols, {curses.LINES} rows. Resize and restart.",
         )
         stdscr.refresh()
-        while curses.COLS < min_cols or curses.LINES < min_rows:
+        while (
+            curses.COLS < hanoi_game.min_cols()
+            or curses.LINES < hanoi_game.min_rows()
+        ):
             time.sleep(0.1)
             stdscr.clear()
             stdscr.addstr(
                 0,
                 0,
-                f"Terminal too small! Min {min_cols} cols, {min_rows} rows needed.",
+                f"Terminal too small! Min {hanoi_game.min_cols()} cols, {hanoi_game.min_rows()} rows needed.",
             )
             stdscr.addstr(
                 1,
@@ -107,7 +105,7 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
             )
             stdscr.refresh()
         stdscr.clear()
-    start_x: int = (curses.COLS - total_game_content_width) // 2
+    start_x: int = (curses.COLS - hanoi_game.total_game_content_width()) // 2
     if start_x < 0:
         start_x = 0
     base_y: int = curses.LINES - 3  # Position for the base of the pegs
@@ -116,7 +114,9 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
 
     def peg_center_x(i) -> int:
         return (
-            start_x + i * (peg_visual_width + peg_gap) + peg_visual_width // 2
+            start_x
+            + i * (hanoi_game.peg_visual_width() + hanoi_game.peg_gap())
+            + hanoi_game.peg_visual_width() // 2
         )
 
     with stdscr_attr(stdscr, color_pair(2)):
@@ -138,16 +138,17 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
         for i in range(len(peg)):  # Iterate from bottom (index 0) to top
             # y-coordinate: base_y (bottom) - i (offset for disk's height)
             draw_disk(
+                game=hanoi_game,
                 stdscr=stdscr,
                 y=base_y - i,
                 x=peg_center_x(p_idx),
                 size=peg[i],
-                max_disk_size=max_disk_size,
+                max_disk_size=hanoi_game.max_disk_size(),
             )
 
     # Draw base line
     with stdscr_attr(stdscr, color_pair(2)):
-        base_str = "=" * total_game_content_width
+        base_str = "=" * hanoi_game.total_game_content_width()
         stdscr.addstr(base_y + 1, start_x, base_str)
 
     # Display moves
@@ -157,16 +158,24 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
 
 
 # --- Display Functions (Curses Specific) ---
-def draw_disk(stdscr: window, y: int, x: int, size: int, max_disk_size: int):
+def draw_disk(
+    game: HanoiGame,
+    stdscr: window,
+    y: int,
+    x: int,
+    size: int,
+    max_disk_size: int,
+):
     """Draws a single disk at the given coordinates."""
     if size == 0:
         return
-    disk_char_width: int = size * 2 - 1
-    peg_visual_width: int = max_disk_size * 2 - 1
-    padding_left: int = (peg_visual_width - disk_char_width) // 2
     with stdscr_attr(stdscr, color_pair(1)):
-        disk_str: str = "*" * disk_char_width
-        stdscr.addstr(y, x - (peg_visual_width // 2) + padding_left, disk_str)
+        disk_str: str = "*" * game.disk_char_width(size)
+        stdscr.addstr(
+            y,
+            x - (game.peg_visual_width() // 2) + game.padding_left(size),
+            disk_str,
+        )
 
 
 def display_message(stdscr: window, msg: str, row: int = 0):

@@ -112,3 +112,30 @@ class HanoiGame:
                     )
                 )
         return moves_to_return
+
+    def max_disk_size(self) -> int:
+        return self.num_disks
+
+    def peg_visual_width(self) -> int:
+        return self.max_disk_size() * 2 - 1
+
+    def peg_gap(self) -> int:
+        return 5
+
+    def total_game_content_width(self) -> int:
+        gap: int = self.peg_gap()
+        return (self.peg_visual_width() + gap) * 3 - gap
+
+    def min_cols(self) -> int:
+        return self.total_game_content_width() + 4  # A little padding
+
+    def min_rows(self) -> int:
+        return self.num_disks + 6  # Enough space for disks, base, messages
+
+    # disks
+
+    def disk_char_width(self, size: int) -> int:
+        return size * 2 - 1
+
+    def padding_left(self, size: int) -> int:
+        return (self.peg_visual_width() - self.disk_char_width(size)) // 2

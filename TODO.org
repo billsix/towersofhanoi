@@ -1,0 +1,13 @@
+* TODO Unit test UI elements in
+    - [ ]  max_disk_size
+    - [ ]  peg_visual_width
+    - [ ]  peg_gap
+    - [ ]  total_game_content_width
+    - [ ]  min_cols
+    - [ ]  min_rows
+    - [ ]  disk_char_width
+    - [ ]  padding_left
+* TODO Make CLI
+* TODO Make scriptable moves
+    - [ ]  ability to save to filename
+    - [ ]  ability to replay filename
