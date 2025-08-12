@@ -25,7 +25,7 @@ class Move:
     to_peg: int  #: The peg on which the disk is placed
 
 
-def noop():
+def noop() -> None:
     pass
 
 
@@ -75,7 +75,7 @@ class HanoiGame:
         to-peg
         """
 
-        def is_valid_move(from_peg_idx: int, to_peg_idx: int):
+        def is_valid_move(from_peg_idx: int, to_peg_idx: int) -> bool:
             """Checks if a move is valid according to Towers of Hanoi rules."""
             if not self.towers[from_peg_idx]:  # Source peg empty
                 return False
@@ -97,8 +97,10 @@ class HanoiGame:
         ]:
             if is_valid_move(from_p, to_p):
 
-                def make_action(from_peg_idx: int, to_peg_idx: int):
-                    def f():
+                def make_action(
+                    from_peg_idx: int, to_peg_idx: int
+                ) -> Callable[[], None]:
+                    def f() -> None:
                         disk = self.towers[from_peg_idx].pop()
                         self.towers[to_peg_idx].append(disk)
                         self.current_moves += 1
