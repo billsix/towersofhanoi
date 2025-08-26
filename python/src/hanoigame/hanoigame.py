@@ -36,6 +36,7 @@ from curses import (
     start_color,
 )
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Callable, List
 
 from _curses import window
@@ -43,7 +44,25 @@ from hanoimodel import HanoiGame
 
 show_disks = True
 
+
+class Labelling(Enum):
+    ONE_TWO_THREE = auto()
+    ONE_THREE_TWO = auto()
+    TWO_ONE_THREE = auto()
+
+
 # --- Helper Classes ---
+
+labelling = Labelling.ONE_TWO_THREE
+
+
+def change_labels_on_pegs(tower_index):
+    if labelling == Labelling.ONE_TWO_THREE:
+        return [0, 1, 2][tower_index]
+    if labelling == Labelling.ONE_THREE_TWO:
+        return [0, 2, 1][tower_index]
+    if labelling == Labelling.TWO_ONE_THREE:
+        return [1, 0, 2][tower_index]
 
 
 @dataclass
@@ -124,7 +143,7 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
     with stdscr_attr(stdscr, color_pair(2)):
         for i in range(3):
             stdscr.addstr(
-                base_y + 2, peg_center_x(i), f"{i + 1}"
+                base_y + 2, peg_center_x(i), f"{change_labels_on_pegs(i) + 1}"
             )  # 1-indexed for user
 
     # Draw the pegs (vertical lines)
@@ -242,6 +261,34 @@ def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
             return MenuButton(
                 id="toggle", text="", x=0, y=0, action=toggle_show_discs
             )
+        elif key == ord("1"):
+
+            def set_labelling():
+                global labelling
+                labelling = Labelling.ONE_TWO_THREE
+
+            return MenuButton(
+                id="one_two_three", text="", x=0, y=0, action=set_labelling
+            )
+        elif key == ord("2"):
+
+            def set_labelling():
+                global labelling
+                labelling = Labelling.ONE_THREE_TWO
+
+            return MenuButton(
+                id="one_two_three", text="", x=0, y=0, action=set_labelling
+            )
+        elif key == ord("3"):
+
+            def set_labelling():
+                global labelling
+                labelling = Labelling.TWO_ONE_THREE
+
+            return MenuButton(
+                id="one_two_three", text="", x=0, y=0, action=set_labelling
+            )
+
         elif key == ord("q") or key == ord("Q"):  # Allow 'Q' to quit from menus
             return MenuButton(
                 id="quit", text="", x=0, y=0, action=lambda: sys.exit(0)
@@ -297,6 +344,8 @@ def main(stdscr: window):
             selected_disk.action()
         if selected_disk.id == "toggle":
             selected_disk.action()
+        if selected_disk.id == "one two three":
+            selected_disk.action()
         return selected_disk.action()
 
     def run_game_loop(number_of_disks) -> HanoiGame:
@@ -312,7 +361,7 @@ def main(stdscr: window):
                 move_buttons.append(
                     MenuButton(
                         id=(valid_move.move.from_peg, valid_move.move.to_peg),
-                        text=f"{valid_move.move.from_peg + 1} -> {valid_move.move.to_peg + 1}",
+                        text=f"{change_labels_on_pegs(valid_move.move.from_peg) + 1} -> {change_labels_on_pegs(valid_move.move.to_peg) + 1}",
                         x=0,
                         y=0,
                         action=valid_move.action,
