@@ -243,6 +243,16 @@ def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
             msg="Use UP/DOWN arrows, then ENTER to select. Press Q to quit",
             row=0,
         )  # Status message
+        display_message(
+            stdscr=stdscr,
+            msg="Press M to toggle showing discs",
+            row=1,
+        )  # Status message
+        display_message(
+            stdscr=stdscr,
+            msg="Press 1 2 or 3 to change labels",
+            row=2,
+        )  # Status message
         key: int = stdscr.getch()
         if key == KEY_UP:
             current_selection = (current_selection - 1 + len(buttons)) % len(
@@ -350,6 +360,8 @@ def main(stdscr: window):
 
     def run_game_loop(number_of_disks) -> HanoiGame:
         game: HanoiGame = HanoiGame(num_disks=number_of_disks)
+        global labelling
+        labelling = Labelling.ONE_TWO_THREE
         # --- Game Loop ---
         while not game.check_win_condition():
             draw_game_state(game, stdscr)  # Draw the game board first
