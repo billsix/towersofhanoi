@@ -20,3 +20,6 @@ where = ["src"]
 
 [tool.pytest]
 testpaths = ["tests"]
+
+[project.scripts]
+hanoi = "hanoigame.hanoigame:main"

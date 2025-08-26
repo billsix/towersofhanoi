@@ -306,7 +306,7 @@ def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
 
 
 # --- Main Game Loop (wrapped for safety) ---
-def main(stdscr: window):
+def _main(stdscr: window):
     if has_colors():
         start_color()
         # init pair(pair_number, fg, bg)
@@ -456,5 +456,9 @@ def main(stdscr: window):
         game_over(run_game_loop(select_number_of_disks()))
 
 
+def main():
+    curses.wrapper(_main)
+
+
 if __name__ == "__main__":
-    curses.wrapper(main)
+    main()
