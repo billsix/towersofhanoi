@@ -41,6 +41,8 @@ from typing import Callable, List
 from _curses import window
 from hanoimodel import HanoiGame
 
+show_disks = True
+
 # --- Helper Classes ---
 
 
@@ -137,14 +139,15 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
     for p_idx, peg in enumerate(hanoi_game.towers):
         for i in range(len(peg)):  # Iterate from bottom (index 0) to top
             # y-coordinate: base_y (bottom) - i (offset for disk's height)
-            draw_disk(
-                game=hanoi_game,
-                stdscr=stdscr,
-                y=base_y - i,
-                x=peg_center_x(p_idx),
-                size=peg[i],
-                max_disk_size=hanoi_game.max_disk_size(),
-            )
+            if show_disks:
+                draw_disk(
+                    game=hanoi_game,
+                    stdscr=stdscr,
+                    y=base_y - i,
+                    x=peg_center_x(p_idx),
+                    size=peg[i],
+                    max_disk_size=hanoi_game.max_disk_size(),
+                )
 
     # Draw base line
     with stdscr_attr(stdscr, color_pair(2)):
@@ -230,6 +233,15 @@ def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
             current_selection = (current_selection + 1) % len(buttons)
         elif key == KEY_ENTER or key == 10:  # Enter key
             return buttons[current_selection]
+        elif key == ord("m") or key == ord("M"):
+
+            def toggle_show_discs():
+                global show_disks
+                show_disks = not show_disks
+
+            return MenuButton(
+                id="toggle", text="", x=0, y=0, action=toggle_show_discs
+            )
         elif key == ord("q") or key == ord("Q"):  # Allow 'Q' to quit from menus
             return MenuButton(
                 id="quit", text="", x=0, y=0, action=lambda: sys.exit(0)
@@ -282,6 +294,8 @@ def main(stdscr: window):
         stdscr.refresh()
         selected_disk: MenuButton = get_button_choice(stdscr, disk_buttons)
         if selected_disk.id == "quit":
+            selected_disk.action()
+        if selected_disk.id == "toggle":
             selected_disk.action()
         return selected_disk.action()
 
@@ -339,6 +353,9 @@ def main(stdscr: window):
         return game
 
     def game_over(game):
+        global show_disks
+        show_disks = True
+
         # --- Game Over / Win Message ---
         draw_game_state(game, stdscr)  # Draw final state
         if game.check_win_condition():

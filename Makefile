@@ -10,11 +10,11 @@ FILES_TO_MOUNT = -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 all: shell ## Build the image and get a shell in it
 
 .PHONY: image
-image: ## Build a $(PODMAN_CMD) image in which to build the book
+image: ## Build a $(PODMAN_CMD)
 	$(PODMAN_CMD) build -t $(CONTAINER_NAME) .
 
 .PHONY: shell
-shell: image ## Get Shell into a ephermeral container made from the image
+shell:  ## Get Shell into a ephermeral container made from the image
 	$(PODMAN_CMD) run -it --rm \
 		--entrypoint /bin/bash \
 		$(FILES_TO_MOUNT) \
