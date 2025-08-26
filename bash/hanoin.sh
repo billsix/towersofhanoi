@@ -7,8 +7,8 @@ if [ "$n" -eq 1 ]; then
 fi
 
 # move a tower, sized n-1, from tower 1 to tower 2
-./hanoin.sh $((n-1)) | tr '123' '132'
+./hanoin.sh $((n-1)) | ./fromOneToTwo.sh
 # move a tower, sized 1, from tower 1 to tower 3
 ./hanoin.sh 1
 # move a tower, sized n-1, from tower 2 to tower 3
-./hanoin.sh $((n-1)) | tr '123' '213'
+./hanoin.sh $((n-1)) | ./fromTwoToThree.sh
