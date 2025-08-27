@@ -10,7 +10,8 @@ RUN dnf install -y python3 \
 		   ruff \
 		   python3-isort \
 		   python3-pysnooper \
-		   python3-pytest
+		   python3-pytest \
+                   python3-termcolor
 
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -8,6 +8,7 @@ dependencies = [
     "isort",
     "ruff",
     "pytest",
+    "termcolor",
 ]
 
 [build-system]
