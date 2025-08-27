@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from curses import (
     A_REVERSE,
     COLOR_BLACK,
+    COLOR_BLUE,
     COLOR_CYAN,
     COLOR_RED,
     COLOR_WHITE,
@@ -40,7 +41,8 @@ from enum import Enum, auto
 from typing import Callable, List
 
 from _curses import window
-from hanoimodel import HanoiGame
+
+from .hanoimodel import HanoiGame
 
 show_disks = True
 
@@ -63,6 +65,19 @@ def change_labels_on_pegs(tower_index):
         return [0, 2, 1][tower_index]
     if labelling == Labelling.TWO_ONE_THREE:
         return [1, 0, 2][tower_index]
+
+
+def peg_color(tower_index):
+    blue = 5
+    yellow = 3
+    red = 4
+
+    if labelling == Labelling.ONE_TWO_THREE:
+        return [blue, yellow, red][tower_index]
+    if labelling == Labelling.ONE_THREE_TWO:
+        return [blue, red, yellow][tower_index]
+    if labelling == Labelling.TWO_ONE_THREE:
+        return [yellow, blue, red][tower_index]
 
 
 @dataclass
@@ -142,9 +157,12 @@ def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
 
     with stdscr_attr(stdscr, color_pair(2)):
         for i in range(3):
-            stdscr.addstr(
-                base_y + 2, peg_center_x(i), f"{change_labels_on_pegs(i) + 1}"
-            )  # 1-indexed for user
+            with stdscr_attr(stdscr, color_pair(peg_color(i))):
+                stdscr.addstr(
+                    base_y + 2,
+                    peg_center_x(i),
+                    f"{change_labels_on_pegs(i) + 1}",
+                )  # 1-indexed for user
 
     # Draw the pegs (vertical lines)
     with stdscr_attr(stdscr, color_pair(2)):
@@ -314,6 +332,7 @@ def _main(stdscr: window):
         init_pair(2, COLOR_WHITE, COLOR_BLACK)  # Pegs/Base
         init_pair(3, COLOR_YELLOW, COLOR_BLACK)  # Messages/Highlight
         init_pair(4, COLOR_RED, COLOR_BLACK)  # Error messages
+        init_pair(5, COLOR_BLUE, COLOR_BLACK)
     curs_set(0)  # Hide cursor by default
 
     # Position buttons centrally
@@ -379,6 +398,7 @@ def _main(stdscr: window):
                         action=valid_move.action,
                     )
                 )
+                move_buttons.sort(key=lambda mb: mb.text)
             if not move_buttons:
                 # This should only happen when the game is won, but as a safeguard
                 display_message(
