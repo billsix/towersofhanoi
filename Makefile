@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-PODMAN_CMD = podman
+CONTAINER_CMD = podman
 CONTAINER_NAME = hanoi
 FILES_TO_MOUNT = -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 		-v ./python:/$(CONTAINER_NAME)/python:Z
@@ -10,12 +10,12 @@ FILES_TO_MOUNT = -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 all: shell ## Build the image and get a shell in it
 
 .PHONY: image
-image: ## Build a $(PODMAN_CMD)
-	$(PODMAN_CMD) build -t $(CONTAINER_NAME) .
+image: ## Build a $(CONTAINER_CMD)
+	$(CONTAINER_CMD) build -t $(CONTAINER_NAME) .
 
 .PHONY: shell
 shell:  ## Get Shell into a ephermeral container made from the image
-	$(PODMAN_CMD) run -it --rm \
+	$(CONTAINER_CMD) run -it --rm \
 		--entrypoint /bin/bash \
 		$(FILES_TO_MOUNT) \
 		-v ./entrypoint/shell.sh:/shell.sh:Z \
