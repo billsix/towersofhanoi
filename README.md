@@ -20,7 +20,7 @@ Once in the shell,
 
 Also,
 
-    cd ../bash
+    cd bash
     ./hanoi2.sh | ./fromOneToTwo.sh
     ./hanoi1.sh | ./fromOneToThree.sh
     ./hanoi2.sh | ./fromTwoToThree.sh
