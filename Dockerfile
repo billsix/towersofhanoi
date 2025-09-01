@@ -13,5 +13,6 @@ RUN dnf install -y python3 \
 		   python3-pytest \
                    python3-termcolor
 
+RUN echo "export PS1='>'" >> ~/.bashrc
 
 ENTRYPOINT ["/entrypoint.sh"]
