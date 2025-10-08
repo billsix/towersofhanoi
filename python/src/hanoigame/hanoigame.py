@@ -18,6 +18,7 @@
 import curses
 import sys
 import time
+from _curses import window
 from contextlib import contextmanager
 from curses import (
     A_REVERSE,
@@ -40,8 +41,6 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Callable, List
 
-from _curses import window
-
 from .hanoimodel import HanoiGame
 
 show_disks = True
@@ -58,7 +57,7 @@ class Labelling(Enum):
 labelling = Labelling.ONE_TWO_THREE
 
 
-def change_labels_on_pegs(tower_index):
+def change_labels_on_pegs(tower_index: int) -> int:
     if labelling == Labelling.ONE_TWO_THREE:
         return [0, 1, 2][tower_index]
     if labelling == Labelling.ONE_THREE_TWO:
@@ -67,7 +66,7 @@ def change_labels_on_pegs(tower_index):
         return [1, 0, 2][tower_index]
 
 
-def peg_color(tower_index):
+def peg_color(tower_index: int) -> int:
     blue = 5
     yellow = 3
     red = 4
