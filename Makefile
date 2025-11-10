@@ -14,7 +14,7 @@ image: ## Build a $(CONTAINER_CMD)
 	$(CONTAINER_CMD) build -t $(CONTAINER_NAME) .
 
 .PHONY: shell
-shell:  ## Get Shell into a ephermeral container made from the image
+shell:  image ## Get Shell into a ephermeral container made from the image
 	$(CONTAINER_CMD) run -it --rm \
 		--entrypoint /bin/bash \
 		$(FILES_TO_MOUNT) \
