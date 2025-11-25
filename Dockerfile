@@ -2,8 +2,15 @@ FROM registry.fedoraproject.org/fedora:43
 
 COPY .tmux.conf /root/.tmux.conf
 
-RUN dnf upgrade -y
-RUN dnf install -y python3 \
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     echo "keepcache=True" >> /etc/dnf/dnf.conf && \
+     dnf upgrade -y
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     echo "keepcache=True" >> /etc/dnf/dnf.conf && \
+     dnf install -y clear \
+                   python3 \
                    python3-pip \
                    tmux \
                    nano \
