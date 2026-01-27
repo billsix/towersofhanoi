@@ -12,6 +12,11 @@ documentation for details.
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
+   intro
+   byhand1
+   byhand2
+   byhand3
+   byhand4
