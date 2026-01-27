@@ -38,7 +38,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
                    texlive-dvipng \
                    texlive-dvisvgm \
                    texlive-standalone; \
-    fi ; \
+    fi ;
 
 
 COPY entrypoint/.bashrc /root/
