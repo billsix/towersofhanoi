@@ -1,5 +1,8 @@
 FROM registry.fedoraproject.org/fedora:43
 
+ARG BUILD_DOCS=0
+
+
 COPY .tmux.conf /root/.tmux.conf
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
@@ -18,7 +21,25 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 		   python3-isort \
 		   python3-pysnooper \
 		   python3-pytest \
-                   python3-termcolor
+                   python3-termcolor ; \
+    if [ "$BUILD_DOCS" = "1" ]; then \
+       dnf install -y \
+                   aspell \
+                   aspell-en \
+                   latexmk \
+                   make \
+                   mathjax \
+                   mathjax-main-fonts \
+                   mathjax-math-fonts \
+                   python3-furo \
+                   python3-sphinx_rtd_theme \
+                   texlive \
+                   texlive-anyfontsize \
+                   texlive-dvipng \
+                   texlive-dvisvgm \
+                   texlive-standalone; \
+    fi ; \
+
 
 COPY entrypoint/.bashrc /root/
 COPY entrypoint/format.sh /
