@@ -13,4 +13,46 @@
 Introduction
 ************
 
-aoesutnh
+The Towers of Hanoi is a puzzle with three pegs and a stack of disks of different sizes.
+
+Setup
+-----
+
+All the disks start stacked on one peg, with the largest on the bottom and smallest on top. The other two pegs are empty.
+
+::
+
+         |              |              |
+        [*]             |              |
+       [***]            |              |
+      [*****]           |              |
+     [*******]          |              |
+    [*********]         |              |
+   ==============  ==============  ==============
+       Peg 1           Peg 2           Peg 3
+
+Goal
+----
+
+Move all the disks from the starting peg to one of the other pegs.
+
+::
+
+         |              |                |
+         |              |               [*]
+         |              |              [***]
+         |              |             [*****]
+         |              |            [*******]
+         |              |           [*********]
+   ==============  ==============  ==============
+       Peg 1           Peg 2           Peg 3
+
+
+Rules
+-----
+
+1. Move one disk at a time
+2. Only take the top disk from any peg
+3. Never place a larger disk on top of a smaller disk
+
+That's it! You keep moving disks between the three pegs, following those rules, until you've successfully moved the entire stack to a different peg.
