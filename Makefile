@@ -5,7 +5,8 @@ BUILD_DOCS ?= 1
 
 CONTAINER_CMD = podman
 CONTAINER_NAME = hanoi
-FILES_TO_MOUNT = -v $(shell pwd):/$(CONTAINER_NAME):Z
+FILES_TO_MOUNT = -v $(shell pwd):/$(CONTAINER_NAME):Z \
+		-v ./output/:/output/:Z \
 #                 -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 #		 -v ./python:/$(CONTAINER_NAME)/python:Z
 
@@ -28,6 +29,15 @@ shell:  image ## Get Shell into a ephermeral container made from the image
 		-v ./entrypoint/.bashrc:/root/.bashrc:Z \
 		$(CONTAINER_NAME) \
 		shell.sh
+
+.PHONY: docs
+docs:  image ## Get Shell into a ephermeral container made from the image
+	$(CONTAINER_CMD) run -it --rm \
+		$(FILES_TO_MOUNT) \
+		-v ./entrypoint/shell.sh:/shell.sh:Z \
+		-v ./entrypoint/.bashrc:/root/.bashrc:Z \
+		$(CONTAINER_NAME) \
+
 
 
 .PHONY: help

@@ -32,6 +32,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
                    mathjax-main-fonts \
                    mathjax-math-fonts \
                    python3-furo \
+                   python3-sphinx-latex \
                    python3-sphinx_rtd_theme \
                    texlive \
                    texlive-anyfontsize \
@@ -42,6 +43,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 
 
 COPY entrypoint/.bashrc /root/
+COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /
 
 RUN echo "export PS1='>'" >> ~/.bashrc
