@@ -4,10 +4,12 @@ version = "0.0.1"
 authors = [{name="William Emerison Six", email="billsix@gmail.com"}]
 description = "Towers of hanoi game"
 
-dependencies = [
-    "pytest",
-    "termcolor",
-]
+
+dynamic = ['dependencies']
+
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [build-system]
 requires = ["setuptools", "wheel"]

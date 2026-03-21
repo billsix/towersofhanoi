@@ -14,14 +14,15 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      dnf install -y clear \
                    python3 \
-                   python3-pip \
                    tmux \
                    nano \
 		   ruff \
 		   python3-isort \
 		   python3-pysnooper \
 		   python3-pytest \
-                   python3-termcolor ; \
+                   python3-termcolor \
+                   uv \
+                   ty ; \
     if [ "$BUILD_DOCS" = "1" ]; then \
        dnf install -y \
                    aspell \
@@ -41,6 +42,11 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
                    texlive-standalone; \
     fi ;
 
+
+COPY python/requirements.txt /requirements.txt
+RUN  uv pip install --system setuptools && \
+     uv pip install --system -r /requirements.txt && \
+     rm /requirements.txt
 
 COPY entrypoint/.bashrc /root/
 COPY entrypoint/entrypoint.sh /entrypoint.sh

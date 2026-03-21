@@ -1,4 +1,4 @@
 cd /hanoi/python
-python3 -m pip install -e .  --root-user-action=ignore
+uv pip install --no-deps --no-index --no-build-isolation --system -e .
 cd ..
 exec bash
