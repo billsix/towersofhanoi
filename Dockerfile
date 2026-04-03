@@ -2,9 +2,6 @@ FROM registry.fedoraproject.org/fedora:43
 
 ARG BUILD_DOCS=0
 
-
-COPY .tmux.conf /root/.tmux.conf
-
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \

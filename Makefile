@@ -3,12 +3,19 @@
 BUILD_DOCS ?= 1
 
 
+TMUX_FILE := $(HOME)/.tmux.conf
+TMUX_REAL_PATH := $(shell readlink -f $(TMUX_FILE))
+TMUX_MOUNT := $(shell if [ -f $(TMUX_REAL_PATH) ]; then echo "-v $(TMUX_REAL_PATH):/root/.tmux.conf:Z" ; fi)
+
 CONTAINER_CMD = podman
 CONTAINER_NAME = hanoi
 FILES_TO_MOUNT = -v $(shell pwd):/$(CONTAINER_NAME):Z \
-		-v ./output/:/output/:Z \
+		 -v ./output/:/output/:Z \
+                 $(TMUX_MOUNT)
 #                 -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 #		 -v ./python:/$(CONTAINER_NAME)/python:Z
+
+
 
 
 .PHONY: all
@@ -21,7 +28,7 @@ image: ## Build a $(CONTAINER_CMD)
                          -t $(CONTAINER_NAME) .
 
 .PHONY: shell
-shell:  image ## Get Shell into a ephermeral container made from the image
+shell:  ## Get Shell into a ephermeral container made from the image
 	$(CONTAINER_CMD) run -it --rm \
 		--entrypoint /bin/bash \
 		$(FILES_TO_MOUNT) \
