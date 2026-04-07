@@ -37,7 +37,8 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
                    texlive-dvipng \
                    texlive-dvisvgm \
                    texlive-standalone; \
-    fi ;
+    fi ; \
+    echo "hanoi" >> ~/.bash_history
 
 
 COPY python/requirements.txt /requirements.txt
