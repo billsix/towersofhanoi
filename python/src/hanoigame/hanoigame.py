@@ -50,6 +50,9 @@ class Labelling(Enum):
     ONE_TWO_THREE = auto()
     ONE_THREE_TWO = auto()
     TWO_ONE_THREE = auto()
+    TWO_THREE_ONE = auto()
+    THREE_ONE_TWO = auto()
+    THREE_TWO_ONE = auto()
 
 
 # --- Helper Classes ---
@@ -58,12 +61,19 @@ labelling = Labelling.ONE_TWO_THREE
 
 
 def change_labels_on_pegs(tower_index: int) -> int:
-    if labelling == Labelling.ONE_TWO_THREE:
-        return [0, 1, 2][tower_index]
-    if labelling == Labelling.ONE_THREE_TWO:
-        return [0, 2, 1][tower_index]
-    if labelling == Labelling.TWO_ONE_THREE:
-        return [1, 0, 2][tower_index]
+    match labelling:
+        case Labelling.ONE_TWO_THREE:
+            return [0, 1, 2][tower_index]
+        case Labelling.ONE_THREE_TWO:
+            return [0, 2, 1][tower_index]
+        case Labelling.TWO_ONE_THREE:
+            return [1, 0, 2][tower_index]
+        case Labelling.TWO_THREE_ONE:
+            return [1, 2, 0][tower_index]
+        case Labelling.THREE_ONE_TWO:
+            return [2, 0, 1][tower_index]
+        case Labelling.THREE_TWO_ONE:
+            return [2, 1, 0][tower_index]
 
 
 def peg_color(tower_index: int) -> int:
@@ -71,12 +81,19 @@ def peg_color(tower_index: int) -> int:
     yellow = 3
     red = 4
 
-    if labelling == Labelling.ONE_TWO_THREE:
-        return [blue, yellow, red][tower_index]
-    if labelling == Labelling.ONE_THREE_TWO:
-        return [blue, red, yellow][tower_index]
-    if labelling == Labelling.TWO_ONE_THREE:
-        return [yellow, blue, red][tower_index]
+    match labelling:
+        case Labelling.ONE_TWO_THREE:
+            return [blue, yellow, red][tower_index]
+        case Labelling.ONE_THREE_TWO:
+            return [blue, red, yellow][tower_index]
+        case Labelling.TWO_ONE_THREE:
+            return [yellow, blue, red][tower_index]
+        case Labelling.TWO_THREE_ONE:
+            return [yellow, red, blue][tower_index]
+        case Labelling.THREE_ONE_TWO:
+            return [red, blue, yellow][tower_index]
+        case Labelling.THREE_TWO_ONE:
+            return [red, yellow, blue][tower_index]
 
 
 @dataclass
@@ -311,6 +328,33 @@ def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
             def set_labelling():
                 global labelling
                 labelling = Labelling.TWO_ONE_THREE
+
+            return MenuButton(
+                id="one_two_three", text="", x=0, y=0, action=set_labelling
+            )
+        elif key == ord("4"):
+
+            def set_labelling():
+                global labelling
+                labelling = Labelling.TWO_THREE_ONE
+
+            return MenuButton(
+                id="one_two_three", text="", x=0, y=0, action=set_labelling
+            )
+        elif key == ord("5"):
+
+            def set_labelling():
+                global labelling
+                labelling = Labelling.THREE_ONE_TWO
+
+            return MenuButton(
+                id="one_two_three", text="", x=0, y=0, action=set_labelling
+            )
+        elif key == ord("6"):
+
+            def set_labelling():
+                global labelling
+                labelling = Labelling.THREE_TWO_ONE
 
             return MenuButton(
                 id="one_two_three", text="", x=0, y=0, action=set_labelling
