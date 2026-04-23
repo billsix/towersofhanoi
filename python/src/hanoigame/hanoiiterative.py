@@ -16,26 +16,7 @@
 # Boston, MA 02111-1307, USA.
 
 
-# @snoop()
 def swap_temporary_and_goal(s: str) -> str:
-    """Remap temporary and goal
-    transform 1 to 1
-    tronsform 2 to 3
-    transform 3 to 2
-
-    >>> swap_temporary_and_goal("1 -> 2")
-    '1 -> 3'
-    >>> swap_temporary_and_goal("1 -> 3")
-    '1 -> 2'
-    >>> swap_temporary_and_goal("2 -> 3")
-    '3 -> 2'
-    >>> swap_temporary_and_goal("2 -> 1")
-    '3 -> 1'
-    >>> swap_temporary_and_goal("3 -> 1")
-    '2 -> 1'
-    >>> swap_temporary_and_goal("3 -> 2")
-    '2 -> 3'
-    """
     result: str = ""
     i: int
 
@@ -52,26 +33,7 @@ def swap_temporary_and_goal(s: str) -> str:
     return result
 
 
-# @snoop()
 def swap_initial_and_temporary(s: str) -> str:
-    """Remap temporary and initial
-    transform 1 to 2
-    transform 2 to 1
-    transform 3 to 3
-
-    >>> swap_initial_and_temporary("1 -> 2")
-    '2 -> 1'
-    >>> swap_initial_and_temporary("1 -> 3")
-    '2 -> 3'
-    >>> swap_initial_and_temporary("2 -> 3")
-    '1 -> 3'
-    >>> swap_initial_and_temporary("2 -> 1")
-    '1 -> 2'
-    >>> swap_initial_and_temporary("3 -> 1")
-    '3 -> 2'
-    >>> swap_initial_and_temporary("3 -> 2")
-    '3 -> 1'
-    """
     result: str = ""
     i: int
     for i in range(len(s)):
@@ -92,7 +54,7 @@ def hanoi(n: int):
     x = 2
     while x <= n:
         x_minus_1_i_to_t: str = swap_temporary_and_goal(moves)
-        big_peg_to_goal: str = moves
+        big_peg_to_goal: str = "1 -> 3"
         x_minus_1_t_to_g: str = swap_initial_and_temporary(moves)
 
         moves: str = (
@@ -103,5 +65,5 @@ def hanoi(n: int):
 
 
 if __name__ == "__main__":
-    print(hanoi(4))
+    print(hanoi(3))
     # unittest.main()
