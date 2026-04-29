@@ -14,9 +14,15 @@ Install podman and gnu make
     make image
     make shell
 
-Once in the shell,
+Once in the shell, pick a front-end:
 
-    hanoigame
+    hanoigame      # ncurses (text in the terminal)
+    hanoi-cli      # plain stdin/stdout (good for pipes and screen readers)
+    hanoi-gui      # wxPython window (needs an X display)
+
+To run the GUI from inside the podman/docker container, mount your
+X socket and forward DISPLAY when starting the shell — typically
+`-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:Z` for Linux hosts.
 
 Also,
 

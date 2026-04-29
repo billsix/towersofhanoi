@@ -30,3 +30,5 @@ select = ["E", "F", "I"]
 
 [project.scripts]
 hanoi = "hanoigame.hanoigame:main"
+hanoi-cli = "hanoigame.hanoicli:main"
+hanoi-gui = "hanoigame.hanoigui:main"

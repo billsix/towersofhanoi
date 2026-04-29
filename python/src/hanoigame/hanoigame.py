@@ -15,511 +15,367 @@
 # Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
 
+"""Curses front-end for HanoiGame.
+
+Same command grammar and dispatcher as the CLI — the user types `1 -> 3`,
+`relabel 1 3 2`, `apply foo`, `help`, `quit`, etc. into a prompt at the
+bottom of the screen. The board is drawn in colour above; the most recent
+result/error message sits just above the prompt.
+"""
+
 import curses
-import sys
-import time
-from _curses import window
 from contextlib import contextmanager
 from curses import (
-    A_REVERSE,
     COLOR_BLACK,
     COLOR_BLUE,
     COLOR_CYAN,
     COLOR_RED,
     COLOR_WHITE,
     COLOR_YELLOW,
-    KEY_DOWN,
-    KEY_ENTER,
-    KEY_UP,
     color_pair,
     curs_set,
     has_colors,
     init_pair,
     start_color,
 )
-from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Callable, List
+from typing import List, Optional
 
-from .hanoimodel import HanoiGame
+from . import presenter
+from .commands import parse
+from .engine import GameSession
+from .presenter import Labelling, change_labels_on_pegs, peg_color
+from .recipe import RecipeRegistry
 
-show_disks = True
+MAX_DISKS = 10
+MSG_AREA_LINES = 6  # max message lines shown between board and hint
+HINT_AREA_LINES = 2  # rows reserved for hint text above the prompt
 
+# Default hint shown during play. The first line spells out the move
+# syntax explicitly so a brand-new user knows what to type without having
+# to discover the 'help' command first.
+DEFAULT_HINT = [
+    "Move: type 'from -> to' (e.g. '1 -> 3')",
+    "Other: relabel a b c | apply <name> | show <name> | list | help | quit",
+]
 
-class Labelling(Enum):
-    ONE_TWO_THREE = auto()
-    ONE_THREE_TWO = auto()
-    TWO_ONE_THREE = auto()
-    TWO_THREE_ONE = auto()
-    THREE_ONE_TWO = auto()
-    THREE_TWO_ONE = auto()
-
-
-# --- Helper Classes ---
-
-labelling = Labelling.ONE_TWO_THREE
-
-
-def change_labels_on_pegs(tower_index: int) -> int:
-    match labelling:
-        case Labelling.ONE_TWO_THREE:
-            return [0, 1, 2][tower_index]
-        case Labelling.ONE_THREE_TWO:
-            return [0, 2, 1][tower_index]
-        case Labelling.TWO_ONE_THREE:
-            return [1, 0, 2][tower_index]
-        case Labelling.TWO_THREE_ONE:
-            return [1, 2, 0][tower_index]
-        case Labelling.THREE_ONE_TWO:
-            return [2, 0, 1][tower_index]
-        case Labelling.THREE_TWO_ONE:
-            return [2, 1, 0][tower_index]
-
-
-def peg_color(tower_index: int) -> int:
-    blue = 5
-    yellow = 3
-    red = 4
-
-    match labelling:
-        case Labelling.ONE_TWO_THREE:
-            return [blue, yellow, red][tower_index]
-        case Labelling.ONE_THREE_TWO:
-            return [blue, red, yellow][tower_index]
-        case Labelling.TWO_ONE_THREE:
-            return [yellow, blue, red][tower_index]
-        case Labelling.TWO_THREE_ONE:
-            return [yellow, red, blue][tower_index]
-        case Labelling.THREE_ONE_TWO:
-            return [red, blue, yellow][tower_index]
-        case Labelling.THREE_TWO_ONE:
-            return [red, yellow, blue][tower_index]
-
-
-@dataclass
-class MenuButton:
-    """Represents a button in a curses menu."""
-
-    id: any
-    text: str
-    x: int
-    y: int
-    action: Callable
-
-    def __post_init__(self):
-        if not self.action:
-            self.action = lambda: id
+# Curses colour-pair numbers
+PAIR_DISC = 1
+PAIR_DEFAULT = 2
+PAIR_MESSAGE = 3
+PAIR_ERROR = 4
+PAIR_BLUE = 5  # also used by presenter.peg_color
 
 
 @contextmanager
-def stdscr_attr(stdscr: window, x: int):
-    stdscr.attron(x)
+def stdscr_attr(stdscr, attr):
+    stdscr.attron(attr)
     try:
         yield
     finally:
-        stdscr.attroff(x)
+        stdscr.attroff(attr)
 
 
-def draw_game_state(hanoi_game: HanoiGame, stdscr: window):
-    """Clears the screen and draws the current state of the game."""
+# --- Drawing primitives ---------------------------------------------------
+
+
+def _required_rows(num_disks: int) -> int:
+    """Minimum LINES needed: board (n+4 worst-case) + 1 gap + msg area +
+    hint area + prompt."""
+    return (num_disks + 4) + 1 + MSG_AREA_LINES + HINT_AREA_LINES + 1
+
+
+def _required_cols(num_disks: int) -> int:
+    return presenter.total_width(num_disks) + 4
+
+
+def _check_size(stdscr, num_disks: int) -> bool:
+    return curses.LINES >= _required_rows(
+        num_disks
+    ) and curses.COLS >= _required_cols(num_disks)
+
+
+def _show_too_small(stdscr, num_disks: int) -> None:
     stdscr.clear()
+    stdscr.addstr(
+        0,
+        0,
+        f"Terminal too small. Need at least "
+        f"{_required_rows(num_disks)} rows x "
+        f"{_required_cols(num_disks)} cols. "
+        f"Have {curses.LINES} x {curses.COLS}.",
+    )
+    stdscr.addstr(1, 0, "Resize the window and press any key.")
+    stdscr.refresh()
+    stdscr.getch()
 
-    if (
-        curses.COLS < hanoi_game.min_cols()
-        or curses.LINES < hanoi_game.min_rows()
-    ):
-        stdscr.addstr(
-            0,
-            0,
-            f"Terminal too small! Min {hanoi_game.min_cols()} cols, {hanoi_game.min_rows()} rows needed.",
-        )
-        stdscr.addstr(
-            1,
-            0,
-            f"Current: {curses.COLS} cols, {curses.LINES} rows. Resize and restart.",
-        )
-        stdscr.refresh()
-        while (
-            curses.COLS < hanoi_game.min_cols()
-            or curses.LINES < hanoi_game.min_rows()
-        ):
-            time.sleep(0.1)
-            stdscr.clear()
-            stdscr.addstr(
-                0,
-                0,
-                f"Terminal too small! Min {hanoi_game.min_cols()} cols, {hanoi_game.min_rows()} rows needed.",
-            )
-            stdscr.addstr(
-                1,
-                0,
-                f"Current: {curses.COLS} cols, {curses.LINES} rows. Resize and restart.",
-            )
-            stdscr.refresh()
-        stdscr.clear()
-    start_x: int = (curses.COLS - hanoi_game.total_game_content_width()) // 2
-    if start_x < 0:
-        start_x = 0
-    base_y: int = curses.LINES - 3  # Position for the base of the pegs
 
-    # Draw peg labels
+def _draw_board(stdscr, session: GameSession) -> None:
+    """Draw the board centred horizontally with the bottom of the base
+    above the message area."""
+    n = session.num_disks
+    labelling = session.labelling
+    relabelled = labelling != Labelling.ONE_TWO_THREE
 
-    def peg_center_x(i) -> int:
-        return (
-            start_x
-            + i * (hanoi_game.peg_visual_width() + hanoi_game.peg_gap())
-            + hanoi_game.peg_visual_width() // 2
-        )
+    start_x = max(0, (curses.COLS - presenter.total_width(n)) // 2)
+    # base_y is the bottom row of disc slots. Below that:
+    #   base_y + 1: base line
+    #   base_y + 2: active label row
+    #   base_y + 3: default reference row (only when relabelled)
+    # Then MSG_AREA_LINES + HINT_AREA_LINES + 1 (prompt) at the bottom.
+    bottom_reserved = MSG_AREA_LINES + HINT_AREA_LINES + 1
+    extra_label_row = 1 if relabelled else 0
+    base_y = curses.LINES - 1 - bottom_reserved - 1 - extra_label_row - 1
 
-    with stdscr_attr(stdscr, color_pair(2)):
-        for i in range(3):
-            with stdscr_attr(stdscr, color_pair(peg_color(i))):
-                stdscr.addstr(
-                    base_y + 2,
-                    peg_center_x(i),
-                    f"{change_labels_on_pegs(i) + 1}",
-                )  # 1-indexed for user
+    def cx(i: int) -> int:
+        return start_x + presenter.peg_center_x(n, i)
 
-    # Draw the pegs (vertical lines)
-    with stdscr_attr(stdscr, color_pair(2)):
+    # Vertical pegs
+    with stdscr_attr(stdscr, color_pair(PAIR_DEFAULT)):
         for p_idx in range(3):
-            for i in range(
-                hanoi_game.num_disks + 1
-            ):  # +1 for the top of the peg
-                stdscr.addstr(base_y - i, peg_center_x(p_idx), "|")
+            for i in range(n + 1):
+                stdscr.addstr(base_y - i, cx(p_idx), "|")
 
-    # Draw disks - CORRECTION HERE: Iterate from bottom (index 0) to top of stack
-    for p_idx, peg in enumerate(hanoi_game.towers):
-        for i in range(len(peg)):  # Iterate from bottom (index 0) to top
-            # y-coordinate: base_y (bottom) - i (offset for disk's height)
-            if show_disks:
-                draw_disk(
-                    game=hanoi_game,
-                    stdscr=stdscr,
-                    y=base_y - i,
-                    x=peg_center_x(p_idx),
-                    size=peg[i],
-                    max_disk_size=hanoi_game.max_disk_size(),
-                )
+    # Discs
+    pvw = presenter.peg_visual_width(n)
+    for p_idx, peg in enumerate(session.game.towers):
+        for i, size in enumerate(peg):
+            disc_str = "*" * presenter.disk_char_width(size)
+            x = cx(p_idx) - pvw // 2 + presenter.padding_left(n, size)
+            with stdscr_attr(stdscr, color_pair(PAIR_DISC)):
+                stdscr.addstr(base_y - i, x, disc_str)
 
-    # Draw base line
-    with stdscr_attr(stdscr, color_pair(2)):
-        base_str = "=" * hanoi_game.total_game_content_width()
-        stdscr.addstr(base_y + 1, start_x, base_str)
+    # Base line
+    with stdscr_attr(stdscr, color_pair(PAIR_DEFAULT)):
+        stdscr.addstr(base_y + 1, start_x, "=" * presenter.total_width(n))
 
-    # Display moves
-    with stdscr_attr(stdscr, color_pair(3)):
-        stdscr.addstr(curses.LINES - 1, 0, f"Moves: {hanoi_game.current_moves}")
-    stdscr.refresh()
+    # Active labels (coloured by current label per peg)
+    for i in range(3):
+        with stdscr_attr(stdscr, color_pair(peg_color(labelling, i))):
+            stdscr.addstr(
+                base_y + 2,
+                cx(i),
+                str(change_labels_on_pegs(labelling, i) + 1),
+            )
 
-
-# --- Display Functions (Curses Specific) ---
-def draw_disk(
-    game: HanoiGame,
-    stdscr: window,
-    y: int,
-    x: int,
-    size: int,
-    max_disk_size: int,
-):
-    """Draws a single disk at the given coordinates."""
-    if size == 0:
-        return
-    with stdscr_attr(stdscr, color_pair(1)):
-        disk_str: str = "*" * game.disk_char_width(size)
-        stdscr.addstr(
-            y,
-            x - (game.peg_visual_width() // 2) + game.padding_left(size),
-            disk_str,
-        )
+    # Default-reference row when relabelled
+    if relabelled:
+        for i in range(3):
+            with stdscr_attr(
+                stdscr, color_pair(peg_color(Labelling.ONE_TWO_THREE, i))
+            ):
+                stdscr.addstr(base_y + 3, cx(i), str(i + 1))
 
 
-def display_message(stdscr: window, msg: str, row: int = 0):
-    """Displays a message at a specific row, clearing the line first."""
-    stdscr.move(row, 0)
+def _draw_top_status(stdscr, session: GameSession) -> None:
+    """One-line status at row 0: disc count, current labelling, move count."""
+    a, b, c = (
+        change_labels_on_pegs(session.labelling, i) + 1 for i in range(3)
+    )
+    text = (
+        f" Discs: {session.num_disks}    "
+        f"Labelling: {a} {b} {c}    "
+        f"Moves: {session.current_moves}    "
+        f"Recipes: {len(session.registry)} "
+    )
+    stdscr.move(0, 0)
     stdscr.clrtoeol()
-    with stdscr_attr(stdscr, color_pair(3)):
-        stdscr.addstr(row, 0, msg)
+    with stdscr_attr(stdscr, color_pair(PAIR_MESSAGE)):
+        stdscr.addstr(0, 0, text[: curses.COLS - 1])
+
+
+def _draw_messages(stdscr, lines: List[str]) -> None:
+    """Display up to MSG_AREA_LINES of message text just above the hint
+    area. Long outputs are truncated to the last lines."""
+    visible = lines[-MSG_AREA_LINES:]
+    # Sit above the hint area + prompt: one row for the prompt, plus
+    # HINT_AREA_LINES for the hint, then MSG_AREA_LINES going up.
+    msg_top = curses.LINES - 1 - HINT_AREA_LINES - MSG_AREA_LINES
+    for i in range(MSG_AREA_LINES):
+        stdscr.move(msg_top + i, 0)
+        stdscr.clrtoeol()
+    for i, line in enumerate(visible):
+        with stdscr_attr(stdscr, color_pair(PAIR_MESSAGE)):
+            stdscr.addstr(msg_top + i, 0, line[: curses.COLS - 1])
+
+
+def _draw_hint(stdscr, hint_lines: Optional[List[str]] = None) -> None:
+    """Draw HINT_AREA_LINES rows of hint text just above the prompt.
+    Shorter inputs are top-padded with empty lines."""
+    if hint_lines is None:
+        hint_lines = DEFAULT_HINT
+    # Pad with empty lines at the top so single-line hints (post-win
+    # prompts) sit right above the prompt rather than floating.
+    padded = [""] * (HINT_AREA_LINES - len(hint_lines)) + list(hint_lines)
+    padded = padded[-HINT_AREA_LINES:]
+    top = curses.LINES - 1 - HINT_AREA_LINES
+    for i in range(HINT_AREA_LINES):
+        y = top + i
+        stdscr.move(y, 0)
+        stdscr.clrtoeol()
+        with stdscr_attr(stdscr, color_pair(PAIR_DEFAULT)):
+            stdscr.addstr(y, 0, padded[i][: curses.COLS - 1])
+
+
+def _redraw(
+    stdscr,
+    session: GameSession,
+    msg_lines: List[str],
+    hint: Optional[List[str]] = None,
+) -> None:
+    stdscr.clear()
+    _draw_top_status(stdscr, session)
+    _draw_board(stdscr, session)
+    _draw_messages(stdscr, msg_lines)
+    _draw_hint(stdscr, hint)
     stdscr.refresh()
 
 
-def display_menu(
-    stdscr: window, buttons: List[MenuButton], current_selection: int
-):
-    """Draws a list of buttons, highlighting the selected one."""
+# --- Input ---------------------------------------------------------------
 
-    for i, button in enumerate(buttons):
-        with stdscr_attr(
-            stdscr,
-            (A_REVERSE | color_pair(3))
-            if (i == current_selection)
-            else color_pair(2),
-        ):
-            # Clear the line before drawing button text to ensure no artifacts from previous highlights
-            stdscr.move(button.y, button.x)
-            stdscr.clrtoeol()
-            stdscr.addstr(button.y, button.x, button.text)
+
+def _read_line(stdscr, prompt: str = "> ") -> Optional[str]:
+    """Read one line of input at the bottom row. Returns the typed string,
+    or None if Ctrl-C / EOF."""
+    y = curses.LINES - 1
+    stdscr.move(y, 0)
+    stdscr.clrtoeol()
+    stdscr.addstr(y, 0, prompt)
     stdscr.refresh()
 
-
-def get_button_choice(stdscr: window, buttons: List[MenuButton]) -> MenuButton:
-    """Allows user to navigate and select a button using arrow keys and Enter."""
-    current_selection: int = 0
-    # Ensure button positions are set correctly before initial display
-    # (This is handled by the calling function before calling get_button_choice)
-    while True:
-        # We don't clear() here as draw_game_state() is responsible for that in the game loop
-        # and we want the menu to appear on top of the game board.
-        # Display buttons
-        display_menu(stdscr, buttons, current_selection)
-        display_message(
-            stdscr=stdscr,
-            msg="Use UP/DOWN arrows, then ENTER to select. Press Q to quit",
-            row=0,
-        )  # Status message
-        display_message(
-            stdscr=stdscr,
-            msg="Press M to toggle showing discs",
-            row=1,
-        )  # Status message
-        display_message(
-            stdscr=stdscr,
-            msg="Press 1 2 or 3 to change labels",
-            row=2,
-        )  # Status message
-        key: int = stdscr.getch()
-        if key == KEY_UP:
-            current_selection = (current_selection - 1 + len(buttons)) % len(
-                buttons
-            )
-        elif key == KEY_DOWN:
-            current_selection = (current_selection + 1) % len(buttons)
-        elif key == KEY_ENTER or key == 10:  # Enter key
-            return buttons[current_selection]
-        elif key == ord("m") or key == ord("M"):
-
-            def toggle_show_discs():
-                global show_disks
-                show_disks = not show_disks
-
-            return MenuButton(
-                id="toggle", text="", x=0, y=0, action=toggle_show_discs
-            )
-        elif key == ord("1"):
-
-            def set_labelling():
-                global labelling
-                labelling = Labelling.ONE_TWO_THREE
-
-            return MenuButton(
-                id="one_two_three", text="", x=0, y=0, action=set_labelling
-            )
-        elif key == ord("2"):
-
-            def set_labelling():
-                global labelling
-                labelling = Labelling.ONE_THREE_TWO
-
-            return MenuButton(
-                id="one_two_three", text="", x=0, y=0, action=set_labelling
-            )
-        elif key == ord("3"):
-
-            def set_labelling():
-                global labelling
-                labelling = Labelling.TWO_ONE_THREE
-
-            return MenuButton(
-                id="one_two_three", text="", x=0, y=0, action=set_labelling
-            )
-        elif key == ord("4"):
-
-            def set_labelling():
-                global labelling
-                labelling = Labelling.TWO_THREE_ONE
-
-            return MenuButton(
-                id="one_two_three", text="", x=0, y=0, action=set_labelling
-            )
-        elif key == ord("5"):
-
-            def set_labelling():
-                global labelling
-                labelling = Labelling.THREE_ONE_TWO
-
-            return MenuButton(
-                id="one_two_three", text="", x=0, y=0, action=set_labelling
-            )
-        elif key == ord("6"):
-
-            def set_labelling():
-                global labelling
-                labelling = Labelling.THREE_TWO_ONE
-
-            return MenuButton(
-                id="one_two_three", text="", x=0, y=0, action=set_labelling
-            )
-
-        elif key == ord("q") or key == ord("Q"):  # Allow 'Q' to quit from menus
-            return MenuButton(
-                id="quit", text="", x=0, y=0, action=lambda: sys.exit(0)
-            )
+    buf: List[str] = []
+    curs_set(1)
+    try:
+        while True:
+            try:
+                ch = stdscr.getch()
+            except KeyboardInterrupt:
+                return None
+            if ch == curses.KEY_RESIZE:
+                # Caller will handle redraw on the next loop.
+                continue
+            if ch in (10, 13, curses.KEY_ENTER):
+                return "".join(buf)
+            if ch in (curses.KEY_BACKSPACE, 127, 8):
+                if buf:
+                    buf.pop()
+                    cy, cx = stdscr.getyx()
+                    if cx > len(prompt):
+                        stdscr.move(cy, cx - 1)
+                        stdscr.delch()
+                        stdscr.refresh()
+                continue
+            if 32 <= ch < 127:
+                buf.append(chr(ch))
+                stdscr.addch(ch)
+                stdscr.refresh()
+    finally:
+        curs_set(0)
 
 
-# --- Main Game Loop (wrapped for safety) ---
-def _main(stdscr: window):
+# --- Top-level flow ------------------------------------------------------
+
+
+def _setup_colours() -> None:
     if has_colors():
         start_color()
-        # init pair(pair_number, fg, bg)
-        init_pair(1, COLOR_CYAN, COLOR_BLACK)  # Disks
-        init_pair(2, COLOR_WHITE, COLOR_BLACK)  # Pegs/Base
-        init_pair(3, COLOR_YELLOW, COLOR_BLACK)  # Messages/Highlight
-        init_pair(4, COLOR_RED, COLOR_BLACK)  # Error messages
-        init_pair(5, COLOR_BLUE, COLOR_BLACK)
-    curs_set(0)  # Hide cursor by default
+        init_pair(PAIR_DISC, COLOR_CYAN, COLOR_BLACK)
+        init_pair(PAIR_DEFAULT, COLOR_WHITE, COLOR_BLACK)
+        init_pair(PAIR_MESSAGE, COLOR_YELLOW, COLOR_BLACK)
+        init_pair(PAIR_ERROR, COLOR_RED, COLOR_BLACK)
+        init_pair(PAIR_BLUE, COLOR_BLUE, COLOR_BLACK)
 
-    # Position buttons centrally
 
-    def select_number_of_disks() -> int:
-        stdscr.clear()
-
-        # --- Disk Selection Menu ---
-        disk_buttons: List[MenuButton] = [
-            MenuButton(id=1, text="1 Disks", x=0, y=0, action=lambda: 1),
-            MenuButton(id=2, text="2 Disks", x=0, y=0, action=lambda: 2),
-            MenuButton(id=3, text="3 Disks", x=0, y=0, action=lambda: 3),
-            MenuButton(id=4, text="4 Disks", x=0, y=0, action=lambda: 4),
-            MenuButton(id=5, text="5 Disks", x=0, y=0, action=lambda: 5),
-            MenuButton(id=6, text="6 Disks", x=0, y=0, action=lambda: 6),
-            MenuButton(id=7, text="7 Disks", x=0, y=0, action=lambda: 7),
-            MenuButton(id=8, text="8 Disks", x=0, y=0, action=lambda: 8),
-            MenuButton(id=9, text="9 Disks", x=0, y=0, action=lambda: 9),
-            MenuButton(id=10, text="10 Disks", x=0, y=0, action=lambda: 10),
-        ]
-
-        def prompt_select_number_of_disks() -> None:
-            menu_start_y: int = (curses.LINES // 2) - (len(disk_buttons) // 2)
-            max_text_width: int = max(len(btn.text) for btn in disk_buttons)
-            menu_start_x: int = (curses.COLS // 2) - (max_text_width // 2)
-            # Adjust button positions for display_menu
-            for i, btn in enumerate(disk_buttons):
-                btn.y = menu_start_y + i
-                btn.x = menu_start_x
-            stdscr.addstr(
-                menu_start_y - 2, menu_start_x - 5, "Select Number of Disks:"
-            )
-
-        prompt_select_number_of_disks()
-        stdscr.refresh()
-        selected_disk: MenuButton = get_button_choice(stdscr, disk_buttons)
-        if selected_disk.id == "quit":
-            selected_disk.action()
-        if selected_disk.id == "toggle":
-            selected_disk.action()
-        if selected_disk.id == "one two three":
-            selected_disk.action()
-        return selected_disk.action()
-
-    def run_game_loop(number_of_disks) -> HanoiGame:
-        game: HanoiGame = HanoiGame(num_disks=number_of_disks)
-        global labelling
-        labelling = Labelling.ONE_TWO_THREE
-        # --- Game Loop ---
-        while not game.check_win_condition():
-            draw_game_state(game, stdscr)  # Draw the game board first
-            # Generate valid move buttons dynamically
-            move_buttons: List = []
-
-            # for (from_p, to_p), action in game.move_options():
-            for valid_move in game.move_options():
-                move_buttons.append(
-                    MenuButton(
-                        id=(valid_move.move.from_peg, valid_move.move.to_peg),
-                        text=f"{change_labels_on_pegs(valid_move.move.from_peg) + 1} -> {change_labels_on_pegs(valid_move.move.to_peg) + 1}",
-                        x=0,
-                        y=0,
-                        action=valid_move.action,
-                    )
-                )
-                move_buttons.sort(key=lambda mb: mb.text)
-            if not move_buttons:
-                # This should only happen when the game is won, but as a safeguard
-                display_message(
-                    stdstr=stdscr,
-                    msg="No valid moves available! (Perhaps game is won?)",
-                    row=1,
-                )
-                stdscr.getch()  # Wait for user to acknowledge
-                continue
-
-            move_menu_start_y = (
-                curses.LINES - 1 + 2
-            )  # Two lines below move count
-            if move_menu_start_y + len(move_buttons) >= curses.LINES:
-                move_menu_start_y = 4
-            max_move_text_width: int = max(
-                len(btn.text) for btn in move_buttons
-            )
-            move_menu_start_x: int = (curses.COLS // 2) - (
-                max_move_text_width // 2
-            )
-            # Adjust button positions for get_button_choice
-            for i, btn in enumerate(move_buttons):
-                btn.y = move_menu_start_y + i
-                btn.x = move_menu_start_x
-            selected_move_tuple: MenuButton = get_button_choice(
-                stdscr, move_buttons
-            )
-            if selected_move_tuple.id == "quit":
-                break
-            selected_move_tuple.action()
-            time.sleep(0.1)  # Small delay for visual effect of move
-        return game
-
-    def game_over(game):
-        global show_disks
-        show_disks = True
-
-        # --- Game Over / Win Message ---
-        draw_game_state(game, stdscr)  # Draw final state
-        if game.check_win_condition():
-            min_moves: int = (2**game.num_disks) - 1
-            display_message(
-                stdscr=stdscr, msg="Congratulations! You solved it!", row=0
-            )
-            display_message(
-                stdscr=stdscr,
-                msg=f"Total Moves: {game.current_moves}. Minimum moves: {min_moves}",
-                row=1,
-            )
-            if game.current_moves == min_moves:
-                display_message(
-                    stdscr=stdscr,
-                    msg="You achieved the optimal solution!",
-                    row=2,
-                )
-            else:
-                display_message(
-                    stdscr=stdscr,
-                    msg=f"You took {game.current_moves - min_moves} more moves than the optimum.",
-                    row=2,
-                )
-        else:
-            display_message(
-                stdscr=stdscr, msg="Game ended. Thanks for playing!", row=0
-            )
-        display_message(
-            stdscr=stdscr,
-            msg="Press any key to go to the main screen...",
-            row=curses.LINES - 1,
-        )
-        stdscr.getch()
-
+def _prompt_disc_count(stdscr) -> Optional[int]:
+    """Modal: ask for disc count on a clean screen. None = quit."""
     while True:
-        game_over(run_game_loop(select_number_of_disks()))
+        stdscr.clear()
+        with stdscr_attr(stdscr, color_pair(PAIR_MESSAGE)):
+            stdscr.addstr(1, 2, "Towers of Hanoi — type 'help' for commands.")
+        with stdscr_attr(stdscr, color_pair(PAIR_DEFAULT)):
+            stdscr.addstr(3, 2, f"How many discs? (1-{MAX_DISKS}, or 'quit')")
+        stdscr.refresh()
+        line = _read_line(stdscr, prompt="> ")
+        if line is None:
+            return None
+        s = line.strip().lower()
+        if s in ("quit", "q", "exit"):
+            return None
+        if s.isdigit():
+            n = int(s)
+            if 1 <= n <= MAX_DISKS:
+                return n
+        # invalid — loop and re-prompt
 
 
-def main():
+def _play_game(stdscr, n: int, registry: RecipeRegistry) -> bool:
+    """Returns True if the user wants to play again, False to exit."""
+    if not _check_size(stdscr, n):
+        _show_too_small(stdscr, n)
+        if not _check_size(stdscr, n):
+            return False
+
+    session = GameSession(num_disks=n, registry=registry)
+    msg_lines: List[str] = []
+
+    while not session.is_won():
+        _redraw(stdscr, session, msg_lines)
+        text = _read_line(stdscr)
+        if text is None:
+            return False
+        result = session.dispatch(parse(text))
+        if result.quit:
+            return False
+        if result.lines:
+            msg_lines = result.lines
+        else:
+            msg_lines = []
+
+    # Won
+    min_moves = session.min_moves()
+    banner = [f"Solved! {session.current_moves} moves (minimum {min_moves})."]
+    if session.current_moves == min_moves:
+        banner.append("Optimal solution!")
+    else:
+        extra = session.current_moves - min_moves
+        banner.append(f"{extra} more than the minimum.")
+    _redraw(
+        stdscr,
+        session,
+        banner,
+        hint=["Save this solution? Type a name, or press Enter to skip."],
+    )
+    name = _read_line(stdscr)
+    if name and name.strip():
+        msg = session.save_recipe(name.strip())
+        _redraw(
+            stdscr,
+            session,
+            banner + [msg],
+            hint=["Play again? (y/n)"],
+        )
+    else:
+        _redraw(stdscr, session, banner, hint=["Play again? (y/n)"])
+    again = _read_line(stdscr)
+    if again is None:
+        return False
+    return again.strip().lower().startswith("y")
+
+
+def _main(stdscr) -> None:
+    _setup_colours()
+    curs_set(0)
+    stdscr.keypad(True)
+
+    registry = RecipeRegistry()
+    while True:
+        n = _prompt_disc_count(stdscr)
+        if n is None:
+            return
+        if not _play_game(stdscr, n, registry):
+            return
+
+
+def main() -> None:
     curses.wrapper(_main)
 
 

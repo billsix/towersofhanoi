@@ -18,6 +18,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 		   python3-pysnooper \
 		   python3-pytest \
                    python3-termcolor \
+                   python3-wxpython4 \
                    uv \
                    ty ; \
     if [ "$BUILD_DOCS" = "1" ]; then \
