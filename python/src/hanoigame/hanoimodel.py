@@ -15,8 +15,9 @@
 # Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, List
+from typing import List
 
 
 @dataclass

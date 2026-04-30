@@ -23,8 +23,9 @@ the layout helpers and the labelling table directly so it can colour cells
 itself; the CLI front-end (step 2) consumes `render()` output unchanged.
 """
 
+from collections.abc import Sequence
 from enum import Enum, auto
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
 
 from .hanoimodel import HanoiGame
 

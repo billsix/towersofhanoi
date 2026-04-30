@@ -45,8 +45,9 @@ calling `record` — the helper `labels_to_towers` from `presenter` does the
 work.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from .hanoimodel import HanoiGame
 from .presenter import Labelling, labels_to_towers
