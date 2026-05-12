@@ -4,12 +4,12 @@ Companion to `NOTES.md` (which has the *why*). This file is the *order of
 work* — checkbox-driven so a future session can skim it, see where we left
 off, and resume.
 
-**Current step:** steps 6 (XRC extraction) and 7 (UI redesign — menu
-bar, status bar, big moves counter, deleted redundant chrome) both
-implemented; awaiting Bill smoke-test. 112 tests still pass. Steps 8
-and 9 (graphics + OpenGL board renderers) are planned but not started.
-Optional follow-on polish lives in the "What's left" section at the
-bottom.
+**Current step:** steps 6 (XRC), 7 (UI redesign, with several follow-on
+iterations — see step 7's "Further iterations" subsection), and 8
+(graphics renderer + renderer ABC) all implemented; awaiting Bill
+smoke-test. 112 tests still pass. Step 9 (OpenGL) was attempted in this
+session and reverted — see step 9's note. Optional follow-on polish
+lives in the "What's left" section at the bottom.
 
 ---
 
@@ -374,11 +374,64 @@ About box) — `wx.MessageBox` covers it. If a richer About dialog is
 wanted later, `wx.adv.AboutDialogInfo` + `wx.adv.AboutBox` is the
 upgrade path.
 
+### Further iterations (post-initial-redesign)
+
+After the original step 7 landed, Bill asked for more cuts and the
+layout iterated several more times. Final state at end-of-session:
+
+- [x] **Moves counter moved into the status bar** as a right-aligned
+      field (`SetFieldsCount(2)`, `SetStatusWidths([-1, 140])`). The
+      big 22pt `moves_label` was deleted. Status bar field 0 carries
+      action feedback; field 1 carries `Moves: N`.
+- [x] **Silent on New Game and Relabel.** Both used to write to the
+      status bar; now they don't, since the result is visible on the
+      board / in the menu radio check.
+- [x] **Horizontal landscape layout.** Top-level XRC sizer is now a
+      two-column horizontal split: left column holds the board (still
+      proportion=1) plus the Move buttons; right sidebar holds the
+      Recipes panel. Window default is `(1100, 650)` — wider but
+      shorter, better fit for typical displays.
+- [x] **Move buttons grouped 3×2 by source peg.** Move box is a
+      horizontal sizer of three vertical sub-sizers; column 1 has
+      `1→2` over `1→3`, column 2 has `2→1` over `2→3`, column 3 has
+      `3→1` over `3→2`. Positional layout matches the board.
+- [x] **Relabel moved to the menu bar.** No more in-frame relabel
+      widget. `Relabel pegs` top-level menu with six radio items
+      (`1 2 3`, `1 3 2`, …, `3 2 1`); the active permutation is
+      checked. Bill explicitly chose this over the dropdown after
+      trying both; can revert to a dropdown by restoring the
+      `relabel_choice` `wxChoice` in XRC if it ever bites.
+- [x] **Recipe Show became a non-modal `wx.Dialog`** with a `wx.ListBox`
+      of step lines sized for ~10 visible rows. Replaces the prior
+      `wx.MessageBox` which choked on long recipes. Non-modal so the
+      user can keep playing while inspecting a recipe; multiple
+      dialogs can be open at once. Double-clicking a recipe in the
+      list is bound to the same handler.
+- [x] **No auto-prompt on win.** The `wx.MessageDialog` save prompt
+      that popped over the board on win is gone. Instead, the status
+      bar carries the hint (`Solved in N moves — Optimal! Click 'Save
+      Current Solution' to keep it as a recipe.`) and the
+      `Save Current Solution` button in the recipe sidebar lights up
+      (`_refresh` does `save_btn.Enable(won)`). Bill specifically
+      wanted to see the winning board state instead of having it
+      hidden by a modal. `_save_recipe_with_prompt()` still does the
+      name-entry dialog when the button is clicked.
+
+### Final XRC structure
+
+12 named controls: `HanoiPanel`, `board_slot` (renderer slot — see
+step 8), `recipe_list`, `recipe_save`, `recipe_apply`, `recipe_show`,
+six `move_*`. No `moves_label`, no `relabel_choice`, no
+`relabel_<perm>` buttons, no `message` panel, no `status_label`, no
+top-toolbar controls.
+
 ---
 
 ## Step 8 — Graphics board renderer (2D)
 
-**Status:** not started.
+**Status:** implemented (112 tests still pass; awaiting Bill smoke-test).
+**Graphics is the default board view** at startup; Text remains
+available via `View → Board Style → Text`.
 
 **Goal:** A genuinely good-looking GUI board view without breaking
 CLI / curses parity. ASCII stays the cross-frontend default; the GUI
@@ -407,33 +460,37 @@ class GraphicsBoardRenderer:   # wx.Panel + EVT_PAINT + wx.GraphicsContext
 current widget and inserts the new one into the Board sizer slot.
 `HanoiGame` and `presenter`'s color palette are untouched.
 
-### Tasks
+### What landed
 
-- [ ] New `hanoigame/board_renderers.py`: `BoardRenderer` ABC,
-      `TextBoardRenderer` (lifted from current `_update_board` +
-      the `wx.TextCtrl` it owns), `GraphicsBoardRenderer`.
-- [ ] `GraphicsBoardRenderer`:
-      - `wx.Panel` subclass with `EVT_PAINT` and `EVT_SIZE`.
-      - Three vertical rounded-rect pegs centered horizontally,
-        stretching to fill panel height.
-      - Each disc as a horizontally-graded rounded rectangle, width
-        proportional to size, color from `presenter.peg_color` (or
-        a parallel palette so curses ↔ graphics colors track).
-      - Subtle drop shadow per disc; if `wx.GraphicsContext.SetShadow`
-        is unavailable on Fedora's wx build, fall back to a darker
-        rounded-rect drawn 2px offset below.
-      - No animation; `update()` invalidates the full panel.
-      - No click-to-move; existing Move buttons remain the input.
-- [ ] `View` menu in hanoigui.py menu bar with radio items
-      `Text` / `Graphics`. Selection calls `_swap_renderer(cls)`.
-- [ ] `_swap_renderer`: detach the current renderer's widget from
-      the Board sizer, destroy it, instantiate the new renderer,
-      attach its widget, `Layout()`.
-- [ ] XRC: replace the named `board` `wxTextCtrl` with a placeholder
-      `wxPanel` named `board_slot`. The text path moves inside
-      `TextBoardRenderer`'s constructor.
-- [ ] Smoke-test (Bill, X-forwarding): toggle Text ↔ Graphics mid-
-      game; verify state matches in both; verify resize.
+- [x] New `hanoigame/board_renderers.py` with `BoardRenderer` ABC,
+      `TextBoardRenderer`, and `GraphicsBoardRenderer`.
+- [x] `TextBoardRenderer` wraps the original `wx.TextCtrl` + centred
+      `presenter.render` path; owns its own `EVT_SIZE` binding.
+- [x] `GraphicsBoardRenderer`: `wx.Panel` + `EVT_PAINT` +
+      `wx.GraphicsContext`. Vertical-gradient background (dark navy
+      to nearly-black), wood-toned cylindrical pegs with a horizontal
+      gradient, gradient-shaded rounded-rect discs, manual drop
+      shadows under each disc, circular colored label badges below
+      the base. Smallest disc is 1/3 the width of the largest (linear
+      interp); board redraws on `EVT_SIZE`.
+- [x] **Disc colour follows disc size**, not the peg's label.
+      `_DISC_COLOURS` is a 10-element palette (red → orange → amber →
+      lime → emerald → sky → blue → violet → magenta → bronze).
+      Discs keep their colour identity as they move between pegs.
+- [x] **Label badge colour follows the label**, mirroring the
+      curses palette (blue/yellow/red). Relabel swaps badge colours.
+- [x] **Default 1-2-3 reference row** appears in small neutral grey
+      below the active labelled badges whenever `labelling !=
+      ONE_TWO_THREE` — same affordance the text presenter uses via
+      `default_label_row()`. Label band auto-grows from 36px → 60px.
+- [x] XRC's `wxTextCtrl name="board"` replaced with
+      `wxPanel name="board_slot"`. The active renderer's widget is
+      added to `board_slot`'s sizer at startup.
+- [x] `View → Board Style → Text / Graphics` radio submenu added to
+      the menu bar. `_swap_renderer(cls)` clears `board_slot`'s
+      children, instantiates the new renderer, attaches its widget,
+      and pushes the current game state through `update()`.
+- [x] Graphics is the startup default; `style_graphics_item.Check(True)`.
 
 ### Out of scope
 
@@ -453,58 +510,36 @@ build, the manual-offset fallback above works everywhere.
 
 ## Step 9 — OpenGL board renderer
 
-**Status:** not started; gated on Step 8 landing.
+**Status:** attempted in this session and reverted by Bill via git.
+Do not re-attempt without an explicit ask, and probably with a
+different visual direction.
 
-**Goal:** A 3D board view alongside Text and Graphics in
-`View → Board Style`. Cylindrical pegs, disc geometry with normals,
-perspective camera, basic Phong lighting.
+**What was tried (now removed from the tree):** A separate
+`gl_board_renderer.py` module implementing `GLBoardRenderer` via
+`wx.glcanvas.GLCanvas` + a `GLContextAttrs().CoreProfile()
+.OGLVersion(3, 3)` context; a procedurally-generated 48-sided
+cylinder mesh (positions + normals) used for both pegs and discs;
+Blinn-Phong fragment shader with one directional key light, 4× MSAA,
+`shaders.compileProgram(..., validate=False)`. Pure-numpy 4×4 matrix
+helpers. The OpenGL menu item was wired through the same
+`_swap_renderer` path. `python3-pyopengl` + `python3-numpy` were
+added to the Dockerfile dnf install; `PyOpenGL` + `numpy` were added
+to `requirements.txt`.
 
-**Why gated on Step 8:** Phase 1 (Step 8) validates the renderer-
-swap architecture and the menu UX. If that boundary is wrong, the
-heavier OpenGL path surfaces it more painfully. Land Step 8 first.
+**Why Bill reverted:** "I don't like this" — the visual direction
+wasn't right. Wasn't a build or correctness issue; the look itself
+didn't land. If revisiting, the deltas worth considering before
+writing any code: text labels in the 3D view (skipped here for v1),
+ground-plane treatment, lighting direction and intensity, peg/disc
+proportions, possibly a less-3D camera (slight isometric instead of
+strong perspective).
 
-**Why it's worth doing at all:** Bill's domain professionally, and a
-Hanoi viewer that looks like one of the MVP demos doubles as a
-teaching artifact for modern OpenGL on its own.
-
-### Tasks (rough — refine when Step 8 is done)
-
-- [ ] `GLBoardRenderer(BoardRenderer)` using `wx.glcanvas.GLCanvas`
-      + `wx.glcanvas.GLContext` (PyOpenGL already available).
-- [ ] Cylindrical pegs as triangle-strip meshes; copy the cylinder
-      helper pattern from mvpVisualization rather than importing
-      it (this is a hanoi project, not a cross-project link).
-- [ ] Disc geometry: short cylinders with top/bottom caps and a
-      per-disc color uniform.
-- [ ] Perspective camera tilted slightly so discs read as 3D;
-      orthographic fallback is OK if perspective setup eats time.
-- [ ] One directional light; per-vertex normals; basic Phong shader.
-- [ ] Core-profile boilerplate: VAO, VBO, shader program,
-      glDrawArrays. macOS gotchas don't apply here (Fedora target),
-      but if Bill ever runs this on Apple, the always-bound VAO and
-      no-validate-with-multi-samplers patterns from existing memory
-      are the answer.
-- [ ] No animation in v1; `update()` triggers a full re-render.
-- [ ] `View` menu gains a third radio item `OpenGL`.
-- [ ] Smoke-test under X-forwarding: GL context creates; state
-      matches Text/Graphics views; menu radio behavior unbroken.
-
-### Risks specific to OpenGL
-
-- **GL context under X-forwarding** is the known soft spot in the
-  container workflow. If `wx.glcanvas` can't create a context, log
-  the error and grey out the menu item — no clever fallbacks.
-- **Mesa quirks** — multiple existing memories
-  (`feedback_mesa_image_load_store`, `feedback_query_uniform_locations`)
-  document past Mesa-vs-real-driver divergences. They almost
-  certainly don't bite a basic-geometry-and-lighting renderer, but
-  the playbook is in those notes if they do.
-
-### Out of scope
-
-- Disc-move animation (a possible Step 10).
-- Click-to-move via pick buffer (a possible Step 11).
-- Textured discs / shadow mapping / fancy lighting.
+**Reverted artifacts** — `gl_board_renderer.py` deleted; the lazy
+import block, the `style_gl_item` menu radio, and its event binding
+removed from `hanoigui.py`; `numpy` and `PyOpenGL` removed from
+`requirements.txt`; `python3-pyopengl` and `python3-numpy` removed
+from the `Dockerfile` dnf install. `View → Board Style` is back to
+just `Text` and `Graphics`.
 
 ---
 
@@ -518,8 +553,9 @@ teaching artifact for modern OpenGL on its own.
 
 ## What's left
 
-Steps 1–7 are implemented (5 signed off; 6 and 7 awaiting smoke-test).
-Optional follow-on work, in roughly descending order of value:
+Steps 1–8 are implemented (1–5 signed off; 6, 7, 8 awaiting Bill
+smoke-test). Step 9 attempted and reverted (see step 9). Optional
+follow-on work, in roughly descending order of value:
 
 1. **Recipe persistence to disk.** `TODO.org`'s "scriptable moves: save
    to filename / replay filename". The in-memory `RecipeRegistry` is the
