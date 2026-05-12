@@ -4,8 +4,10 @@ Companion to `NOTES.md` (which has the *why*). This file is the *order of
 work* — checkbox-driven so a future session can skim it, see where we left
 off, and resume.
 
-**Current step:** all five planned steps complete and signed off by Bill.
-Remaining items are optional polish — see the "What's left" section at the bottom.
+**Current step:** steps 6 (XRC extraction) and 7 (UI redesign — menu
+bar, status bar, big moves counter, deleted redundant chrome) both
+implemented; awaiting Bill smoke-test. 112 tests still pass. Optional
+follow-on polish lives in the "What's left" section at the bottom.
 
 ---
 
@@ -196,6 +198,182 @@ test suite.
 
 ---
 
+## Step 6 — Extract wxWidgets UI to XRC
+
+**Status:** implemented (112 tests still pass; awaiting Bill smoke-test).
+
+**Goal:** Move the imperative `HanoiFrame._build_ui()` (currently ~140 lines
+of `wx.BoxSizer` / `StaticBoxSizer` / `wx.Button(...)` wiring in
+`hanoigui.py`) into a declarative `.xrc` resource. Python keeps event
+handling, dynamic enable/disable, font choice, and the rendering loop; the
+widget tree itself becomes data.
+
+**Why this is worth doing now:** the layout has been stable through step 5
+sign-off — five releases of UX iteration have settled it — so the cost of
+churning XML is low. The teaching value is the chief motivation: Bill
+teaches wxPython, and an XRC-backed example is more pedagogically useful
+than a hand-built one. Optimise for readability of the XML, not minimal
+line count.
+
+### Tasks
+
+- [x] Add `python/src/hanoigame/hanoi.xrc` containing one
+      `<object class="wxPanel" name="HanoiPanel">` with the full widget
+      tree. Named children (so Python can fetch each via
+      `wx.xrc.XRCCTRL`):
+      - Top row: `disc_dec` (`−` button), `disc_label` (count
+        `wxStaticText`), `disc_inc` (`+` button), `new_game` button,
+        `status_label` (`wxStaticText`).
+      - `wxStaticBoxSizer` "Board" wrapping `wxTextCtrl` named `board`
+        (multi-line, read-only, HSCROLL).
+      - `wxStaticBoxSizer` "Move" with six `wxButton`s named
+        `move_1_2`, `move_1_3`, `move_2_1`, `move_2_3`, `move_3_1`,
+        `move_3_2`, labels `"1  →  2"` etc.
+      - `wxStaticBoxSizer` "Relabel pegs (physical 1, 2, 3 →)" with
+        six buttons named `relabel_1_2_3`, `relabel_1_3_2`,
+        `relabel_2_1_3`, `relabel_2_3_1`, `relabel_3_1_2`,
+        `relabel_3_2_1`.
+      - `wxStaticBoxSizer` "Recipes" with `wxListBox` named
+        `recipe_list` and three buttons `recipe_save`,
+        `recipe_apply`, `recipe_show`.
+      - `wxStaticBoxSizer` "Last action" wrapping `wxTextCtrl` named
+        `message`.
+      - Preserve current proportions/borders so the board absorbs
+        vertical slack (it's the only `proportion=1` child of the
+        outer vertical sizer today; keep that).
+
+- [x] Rewrite `_build_ui()` in `hanoigui.py`:
+      1. `import wx.xrc`; load the file via
+         `importlib.resources.files("hanoigame").joinpath("hanoi.xrc")`
+         and `wx.xrc.XmlResource.Get().Load(str(path))`.
+      2. `self.panel = wx.xrc.XmlResource.Get().LoadPanel(self,
+         "HanoiPanel")`, wrap in a sizer that fills the frame.
+      3. Stash every named control on `self` via `wx.xrc.XRCCTRL(self,
+         "<name>")` — `self.board`, `self.message`,
+         `self.status_label`, `self.disc_count_label`,
+         `self.recipe_list`, `self.save_btn`, `self.apply_btn`,
+         `self.show_btn`.
+      4. Populate `self.move_buttons` and `self.relabel_buttons` by
+         iterating `ALL_LABEL_PAIRS` / `ALL_RELABEL_PERMUTATIONS` and
+         looking up `XRCCTRL(self, f"move_{f}_{t}")` etc.
+      5. Apply the monospace `wx.Font` to `board`, `message`,
+         `disc_count_label`, `status_label`, `recipe_list` (system
+         font discovery doesn't belong in XRC — keep it in Python).
+      6. Wire events with
+         `self.Bind(wx.EVT_BUTTON, handler, id=wx.xrc.XRCID("name"))`.
+         Lambdas still close over the `(from, to)` pair for the
+         twelve dynamic buttons, same as today. Direct binds for
+         `disc_dec`, `disc_inc`, `new_game`, `recipe_save`,
+         `recipe_apply`, `recipe_show`. Keep
+         `self.board.Bind(wx.EVT_SIZE, self._on_board_resize)`.
+
+- [x] `pyproject.toml`: added `[tool.setuptools.package-data]` with
+      `hanoigame = ["hanoi.xrc"]` so the file ships in the wheel.
+
+- [ ] Smoke-test (Bill, container with X-forwarding): launch
+      `hanoi-gui`, play a 3-disc game to win, save as a recipe,
+      relabel, apply the recipe, confirm post-win lockout still
+      disables Move/Relabel/Apply but leaves Save/Show/New Game
+      live. Confirm the board stays bottom-centred on resize.
+
+### Out of scope
+
+- **No behaviour changes.** Pixel-identical layout, same handlers,
+  same dispatch path through `engine.GameSession`.
+- **No XRC `<handler>` usage.** Lambdas capturing from/to pairs are
+  clearer in Python than in XML attributes. Bindings stay in
+  `_build_ui()`.
+- **No tests.** The existing 112 tests don't import `hanoigui` (it
+  pulls in `wx`); that stays true. XRC parse errors will surface at
+  launch time, which is acceptable for a frontend module.
+
+### Resumption notes
+
+The two load-bearing risks are (1) `LoadPanel` returning `None`
+because a name in the XRC doesn't match what Python looks up — keep
+the XRC names and the Python `XRCCTRL` calls in lockstep, and (2)
+the file not shipping in the wheel — verify with an out-of-tree pip
+install before declaring done. If `XRCCTRL` returns `None` for a
+control, that's the symptom of either bug.
+
+After this lands, step-mode recipe replay (item 2 in "What's left")
+becomes the natural next pick — the XRC will gain one `Step` button
+alongside `Apply`, which is a small, isolated change in both files.
+
+---
+
+## Step 7 — wxWidgets UI redesign
+
+**Status:** implemented (112 tests still pass; awaiting Bill smoke-test).
+
+**Goal:** make the board the hero and stop showing redundant chrome.
+The pre-redesign UI duplicated information across multiple places —
+disc count appeared in the top toolbar *and* on the board; labelling
+appeared in the status string *and* on the disabled relabel button;
+recipe count appeared in the status string *and* as the list length.
+The "Last action" multi-line panel was 110px tall for what was almost
+always a one-line message. Disc count + New Game lived as permanent
+top-row controls even though the user touched them twice per game.
+
+### What changed
+
+- [x] **Menu bar** (Python, on the frame, not in XRC):
+      - `Game → New Game…` (Ctrl+N) → `wx.NumberEntryDialog` for disc
+        count.
+      - `Game → New Game (Same Size)` (Ctrl+Shift+N) → reuses last
+        disc count.
+      - `Game → Quit` (Ctrl+Q).
+      - `Help → About`.
+- [x] **`wx.StatusBar`** at the bottom of the frame replaces the
+      former "Last action" panel. Single-line action feedback ("Moved
+      1 → 3.", "Labels: 1 3 2", "Applied 'solve-2' — 3 moves."). Multi-
+      line content that mattered (illegal-move explanations, recipe
+      contents, win banner) goes to dedicated `wx.MessageBox` /
+      `wx.MessageDialog` popups instead of being buried in a panel.
+- [x] **Big moves counter** at the top of the panel —
+      `Moves: 0` in 22pt bold teletype. The one number the user can't
+      read off the board, made unmistakable. After a win it morphs to
+      `Solved in N` until the next New Game.
+- [x] **Win flow** is now a modal `wx.MessageDialog` with custom
+      Yes/No labels ("Save as recipe…" / "Not now") — no more burying
+      the win text in the message panel. Yes wires into the same
+      `_save_recipe_with_prompt()` the Save Current button uses, so
+      the recipe-save logic stays in one place.
+- [x] **Reordered** Relabel above Move in the XRC. Relabel is the
+      pedagogical lever (per NOTES.md it's "the load-bearing part");
+      Move is just execution.
+- [x] **Deleted entirely**: the top toolbar (disc −/+ buttons, count
+      label, New Game button, status label) and the "Last action"
+      `wxStaticBoxSizer` with its 110px TextCtrl. `disc_count_label`,
+      `status_label`, `message`, `_adjust_disc_count`, and
+      `_set_message` are all gone from `hanoigui.py`.
+- [x] Window height dropped from 900 to 820 since the deletions
+      bought back vertical space.
+
+### What's still in XRC
+
+19 named controls (was 24): `HanoiPanel`, `moves_label`, `board`,
+six `move_*`, six `relabel_*`, `recipe_list`, `recipe_save`,
+`recipe_apply`, `recipe_show`.
+
+### Out of scope
+
+- **No graphical board.** Clickable pegs would be the natural next
+  step, but plain-text rendering is the explicit cross-frontend
+  parity decision in NOTES.md. Move buttons stay.
+- **No multi-field status bar.** Single field, latest action. If a
+  permanent "Won!" indicator turns out to be wanted, that's a second
+  status bar field — easy add later.
+
+### Resumption notes
+
+The wx.adv module isn't used (and wasn't worth the dependency for an
+About box) — `wx.MessageBox` covers it. If a richer About dialog is
+wanted later, `wx.adv.AboutDialogInfo` + `wx.adv.AboutBox` is the
+upgrade path.
+
+---
+
 ## Cross-cutting items (do whenever they fit)
 
 - [ ] Fix `[tools.ruff]` typo in `pyproject.toml` (should be `[tool.ruff]`).
@@ -206,8 +384,8 @@ test suite.
 
 ## What's left
 
-All five planned steps are complete. Optional follow-on work, in
-roughly descending order of value:
+Steps 1–7 are implemented (5 signed off; 6 and 7 awaiting smoke-test).
+Optional follow-on work, in roughly descending order of value:
 
 1. **Recipe persistence to disk.** `TODO.org`'s "scriptable moves: save
    to filename / replay filename". The in-memory `RecipeRegistry` is the

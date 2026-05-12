@@ -20,13 +20,17 @@
 Plain-text board (monospace `wx.TextCtrl`) plus a button-driven control
 panel: six move buttons (auto-enabled from `game.move_options()`), six
 relabel permutation buttons, and a recipe list with Save / Apply / Show.
-Same `engine.GameSession` dispatcher as the CLI and curses, so behaviour
-stays consistent across all three frontends.
+Disc count and New Game live on the frame's menu bar; per-action
+feedback lives on the frame's status bar. Same `engine.GameSession`
+dispatcher as the CLI and curses, so behaviour stays consistent across
+all three frontends.
 """
 
+import importlib.resources
 from typing import Optional, Tuple
 
 import wx
+import wx.xrc
 
 from . import presenter
 from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
@@ -58,19 +62,86 @@ ALL_RELABEL_PERMUTATIONS: Tuple[Tuple[int, int, int], ...] = (
 
 class HanoiFrame(wx.Frame):
     def __init__(self) -> None:
-        super().__init__(None, title="Towers of Hanoi", size=(900, 900))
+        super().__init__(None, title="Towers of Hanoi", size=(1100, 650))
         self.registry = RecipeRegistry()
         self.session: Optional[GameSession] = None
+        self.disc_count_value = DEFAULT_DISKS
         self.move_buttons: dict = {}
-        self.relabel_buttons: dict = {}
+        self._build_menu_bar()
+        self.CreateStatusBar(2)
+        # Field 0 stretches (action feedback); field 1 is fixed-width for
+        # the moves counter so it sits at the right edge of the bar.
+        self.SetStatusWidths([-1, 140])
         self._build_ui()
         self._new_game(DEFAULT_DISKS)
 
     # --- UI construction --------------------------------------------------
 
+    def _build_menu_bar(self) -> None:
+        menubar = wx.MenuBar()
+
+        game_menu = wx.Menu()
+        new_item = game_menu.Append(
+            wx.ID_NEW, "&New Game…\tCtrl+N", "Start a new game"
+        )
+        new_same_item = game_menu.Append(
+            wx.ID_ANY,
+            "New Game (Same &Size)\tCtrl+Shift+N",
+            "Start a new game with the same disc count",
+        )
+        game_menu.AppendSeparator()
+        quit_item = game_menu.Append(wx.ID_EXIT, "&Quit\tCtrl+Q", "Quit")
+        menubar.Append(game_menu, "&Game")
+
+        # Relabel: one radio item per permutation. The currently-active
+        # labelling is checked, set in _refresh().
+        relabel_menu = wx.Menu()
+        self.relabel_menu_items: dict = {}
+        for labels in ALL_RELABEL_PERMUTATIONS:
+            label_text = f"{labels[0]}    {labels[1]}    {labels[2]}"
+            item = relabel_menu.AppendRadioItem(wx.ID_ANY, label_text)
+            self.relabel_menu_items[labels] = item
+            self.Bind(
+                wx.EVT_MENU,
+                lambda _evt, lab=labels: self._on_relabel_menu(lab),
+                item,
+            )
+        menubar.Append(relabel_menu, "&Relabel pegs")
+
+        help_menu = wx.Menu()
+        about_item = help_menu.Append(wx.ID_ABOUT, "&About")
+        menubar.Append(help_menu, "&Help")
+
+        self.SetMenuBar(menubar)
+        self.Bind(wx.EVT_MENU, self._on_new_game_prompt, new_item)
+        self.Bind(wx.EVT_MENU, self._on_new_game_same, new_same_item)
+        self.Bind(wx.EVT_MENU, lambda _e: self.Close(), quit_item)
+        self.Bind(wx.EVT_MENU, self._on_about, about_item)
+
     def _build_ui(self) -> None:
-        self.panel = wx.Panel(self)
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        # Load the panel layout from hanoi.xrc. Fonts, event bindings, and
+        # dynamic enable/disable state are wired up in Python below; XRC
+        # only describes the static widget tree.
+        res = wx.xrc.XmlResource.Get()
+        with importlib.resources.as_file(
+            importlib.resources.files("hanoigame").joinpath("hanoi.xrc")
+        ) as xrc_path:
+            res.Load(str(xrc_path))
+        self.panel = res.LoadPanel(self, "HanoiPanel")
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(frame_sizer)
+
+        # Named controls
+        self.board = wx.xrc.XRCCTRL(self, "board")
+        self.recipe_list = wx.xrc.XRCCTRL(self, "recipe_list")
+        self.apply_btn = wx.xrc.XRCCTRL(self, "recipe_apply")
+        self.show_btn = wx.xrc.XRCCTRL(self, "recipe_show")
+
+        for from_label, to_label in ALL_LABEL_PAIRS:
+            self.move_buttons[(from_label, to_label)] = wx.xrc.XRCCTRL(
+                self, f"move_{from_label}_{to_label}"
+            )
 
         mono = wx.Font(
             12,
@@ -78,175 +149,189 @@ class HanoiFrame(wx.Frame):
             wx.FONTSTYLE_NORMAL,
             wx.FONTWEIGHT_NORMAL,
         )
+        for ctrl in (self.board, self.recipe_list):
+            ctrl.SetFont(mono)
 
-        # Top: disc count chooser + new game. Two explicit ± buttons
-        # straddling a count label — clearer than wx.SpinCtrl, whose
-        # tiny built-in arrows are easy to misread.
-        self.disc_count_value = DEFAULT_DISKS
-        top_row = wx.BoxSizer(wx.HORIZONTAL)
-        top_row.Add(
-            wx.StaticText(self.panel, label="Discs:"),
-            flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-            border=5,
+        # Recipe button bindings + double-click on the list as a Show
+        # shortcut so a curious user can flip through recipes quickly.
+        self.Bind(
+            wx.EVT_BUTTON, self._on_apply, id=wx.xrc.XRCID("recipe_apply")
         )
-        dec_btn = wx.Button(self.panel, label="−", size=(40, -1))
-        dec_btn.Bind(wx.EVT_BUTTON, lambda _evt: self._adjust_disc_count(-1))
-        top_row.Add(dec_btn, flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=4)
-        self.disc_count_label = wx.StaticText(
-            self.panel, label=str(DEFAULT_DISKS)
-        )
-        self.disc_count_label.SetFont(mono)
-        top_row.Add(
-            self.disc_count_label,
-            flag=wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT,
-            border=8,
-        )
-        inc_btn = wx.Button(self.panel, label="+", size=(40, -1))
-        inc_btn.Bind(wx.EVT_BUTTON, lambda _evt: self._adjust_disc_count(1))
-        top_row.Add(
-            inc_btn, flag=wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, border=10
-        )
-        new_btn = wx.Button(self.panel, label="New Game")
-        new_btn.Bind(wx.EVT_BUTTON, self._on_new_game)
-        top_row.Add(new_btn, flag=wx.ALIGN_CENTER_VERTICAL)
-        top_row.AddStretchSpacer()
-        self.status_label = wx.StaticText(self.panel, label="")
-        self.status_label.SetFont(mono)
-        top_row.Add(self.status_label, flag=wx.ALIGN_CENTER_VERTICAL)
-        sizer.Add(top_row, flag=wx.EXPAND | wx.ALL, border=8)
+        self.Bind(wx.EVT_BUTTON, self._on_show, id=wx.xrc.XRCID("recipe_show"))
+        self.recipe_list.Bind(wx.EVT_LISTBOX_DCLICK, self._on_show)
 
-        # Board — the only flexible row in the layout, so it absorbs any
-        # extra window height (important when the user picks 10 discs).
-        board_box = wx.StaticBoxSizer(wx.VERTICAL, self.panel, "Board")
-        self.board = wx.TextCtrl(
-            self.panel,
-            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL,
-            size=(-1, 280),
-        )
-        self.board.SetFont(mono)
-        # Re-centre the board contents whenever the panel resizes, so the
-        # game stays bottom-centred (matching the curses layout).
-        self.board.Bind(wx.EVT_SIZE, self._on_board_resize)
-        board_box.Add(
-            self.board, proportion=1, flag=wx.EXPAND | wx.ALL, border=4
-        )
-        sizer.Add(
-            board_box,
-            proportion=1,
-            flag=wx.EXPAND | wx.LEFT | wx.RIGHT,
-            border=8,
-        )
-
-        # Move buttons (always-visible 1x6 row, enabled per move_options)
-        move_box = wx.StaticBoxSizer(wx.HORIZONTAL, self.panel, "Move")
+        # Move button bindings — lambda captures the from/to pair.
         for from_label, to_label in ALL_LABEL_PAIRS:
-            btn = wx.Button(self.panel, label=f"{from_label}  →  {to_label}")
-            btn.Bind(
+            self.Bind(
                 wx.EVT_BUTTON,
-                lambda evt, f=from_label, t=to_label: self._on_move(f, t),
+                lambda _evt, f=from_label, t=to_label: self._on_move(f, t),
+                id=wx.xrc.XRCID(f"move_{from_label}_{to_label}"),
             )
-            move_box.Add(btn, proportion=1, flag=wx.EXPAND | wx.ALL, border=2)
-            self.move_buttons[(from_label, to_label)] = btn
-        sizer.Add(
-            move_box, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=8
-        )
 
-        # Relabel buttons
-        relabel_box = wx.StaticBoxSizer(
-            wx.HORIZONTAL, self.panel, "Relabel pegs (physical 1, 2, 3 →)"
-        )
-        for labels in ALL_RELABEL_PERMUTATIONS:
-            text = f"{labels[0]}  {labels[1]}  {labels[2]}"
-            btn = wx.Button(self.panel, label=text)
-            btn.Bind(
-                wx.EVT_BUTTON,
-                lambda evt, lab=labels: self._on_relabel(lab),
-            )
-            relabel_box.Add(
-                btn, proportion=1, flag=wx.EXPAND | wx.ALL, border=2
-            )
-            self.relabel_buttons[labels] = btn
-        sizer.Add(
-            relabel_box, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=8
-        )
-
-        # Recipes
-        recipe_box = wx.StaticBoxSizer(wx.VERTICAL, self.panel, "Recipes")
-        self.recipe_list = wx.ListBox(self.panel, size=(-1, 110))
-        self.recipe_list.SetFont(mono)
-        recipe_box.Add(
-            self.recipe_list, proportion=1, flag=wx.EXPAND | wx.ALL, border=4
-        )
-        recipe_btns = wx.BoxSizer(wx.HORIZONTAL)
-        self.save_btn = wx.Button(self.panel, label="Save Current Solution")
-        self.save_btn.Bind(wx.EVT_BUTTON, self._on_save)
-        self.apply_btn = wx.Button(self.panel, label="Apply Selected")
-        self.apply_btn.Bind(wx.EVT_BUTTON, self._on_apply)
-        self.show_btn = wx.Button(self.panel, label="Show Selected")
-        self.show_btn.Bind(wx.EVT_BUTTON, self._on_show)
-        for b in (self.save_btn, self.apply_btn, self.show_btn):
-            recipe_btns.Add(b, flag=wx.RIGHT, border=6)
-        recipe_box.Add(
-            recipe_btns, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=4
-        )
-        sizer.Add(
-            recipe_box, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=8
-        )
-
-        # Last action / messages
-        msg_box = wx.StaticBoxSizer(wx.VERTICAL, self.panel, "Last action")
-        self.message = wx.TextCtrl(
-            self.panel,
-            style=wx.TE_MULTILINE | wx.TE_READONLY,
-            size=(-1, 110),
-        )
-        self.message.SetFont(mono)
-        msg_box.Add(
-            self.message, proportion=1, flag=wx.EXPAND | wx.ALL, border=4
-        )
-        sizer.Add(msg_box, flag=wx.EXPAND | wx.ALL, border=8)
-
-        self.panel.SetSizer(sizer)
+        # Re-centre the board contents on resize (bottom-centred, matching
+        # the curses layout).
+        self.board.Bind(wx.EVT_SIZE, self._on_board_resize)
         self.Center()
 
     # --- Event handlers --------------------------------------------------
 
-    def _on_new_game(self, _evt) -> None:
+    def _on_new_game_prompt(self, _evt) -> None:
+        with wx.NumberEntryDialog(
+            self,
+            "How many discs?",
+            "Discs:",
+            "New Game",
+            self.disc_count_value,
+            1,
+            MAX_DISKS,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            self.disc_count_value = dlg.GetValue()
         self._new_game(self.disc_count_value)
-        self._set_message("New game.")
+        # Silent: the user just picked the disc count; the board renders
+        # the result. Nothing to tell them they don't already know.
+        self._set_status("")
 
-    def _adjust_disc_count(self, delta: int) -> None:
-        new = max(1, min(MAX_DISKS, self.disc_count_value + delta))
-        if new == self.disc_count_value:
-            return
-        self.disc_count_value = new
-        self.disc_count_label.SetLabel(str(new))
+    def _on_new_game_same(self, _evt) -> None:
+        self._new_game(self.disc_count_value)
+        self._set_status("")
+
+    def _on_about(self, _evt) -> None:
+        wx.MessageBox(
+            "Towers of Hanoi\n"
+            "\n"
+            "A teaching tool for solving Hanoi by hand: solve small, "
+            "relabel pegs, replay.\n"
+            "\n"
+            "Shared model + dispatcher with the CLI and curses frontends.",
+            "About Towers of Hanoi",
+            wx.OK | wx.ICON_INFORMATION,
+        )
 
     def _on_move(self, from_label: int, to_label: int) -> None:
         result = self.session.dispatch(MoveCmd(from_label, to_label))
-        self._set_message(
-            "\n".join(result.lines)
-            if result.lines
-            else f"Moved {from_label} → {to_label}."
-        )
+        if result.lines:
+            # Illegal-move message — single line in status, full text in
+            # a popup so the explanation isn't lost.
+            self._set_status(result.lines[0])
+            if len(result.lines) > 1:
+                wx.MessageBox(
+                    "\n".join(result.lines),
+                    "Illegal move",
+                    wx.OK | wx.ICON_WARNING,
+                )
+        else:
+            self._set_status(f"Moved {from_label} → {to_label}.")
         self._refresh()
         if self.session.is_won():
             self._on_win()
 
-    def _on_relabel(self, labels: Tuple[int, int, int]) -> None:
-        result = self.session.dispatch(RelabelCmd(labels))
-        self._set_message("\n".join(result.lines))
+    def _on_relabel_menu(self, labels: Tuple[int, int, int]) -> None:
+        self.session.dispatch(RelabelCmd(labels))
+        # Silent: the menu's own radio check + recoloured board confirm.
         self._refresh()
 
-    def _on_save(self, _evt) -> None:
-        if not self.session.is_won():
-            wx.MessageBox(
-                "Save Current only works after winning a game. "
-                "Keep playing — you'll be able to save once you finish.",
-                "Can't save yet",
-                wx.OK | wx.ICON_INFORMATION,
-            )
+    def _on_apply(self, _evt) -> None:
+        name = self._selected_recipe_name()
+        if not name:
+            self._set_status("Select a recipe first.")
             return
+        result = self.session.dispatch(ApplyCmd(name))
+        # Apply streams multiple "step N: from -> to" lines; the board
+        # animation already shows what happened, so summarise to a count.
+        step_lines = [ln for ln in result.lines if ln.startswith("step ")]
+        if step_lines:
+            self._set_status(f"Applied '{name}' — {len(step_lines)} moves.")
+        elif result.lines:
+            self._set_status(result.lines[-1])
+        self._refresh()
+        if self.session.is_won():
+            self._on_win()
+
+    def _on_show(self, _evt) -> None:
+        name = self._selected_recipe_name()
+        if not name:
+            self._set_status("Select a recipe first.")
+            return
+        result = self.session.dispatch(ShowCmd(name))
+        self._show_recipe_dialog(name, result.lines)
+
+    def _show_recipe_dialog(self, name: str, lines: list) -> None:
+        """Scrollable list of recipe steps — a `wx.MessageBox` chokes on
+        the multi-hundred-step recipes a large game can produce. The
+        dialog is non-modal so the user can keep playing (or open a
+        second recipe to compare) while it's on screen."""
+        dlg = wx.Dialog(
+            self,
+            title=f"Recipe '{name}'",
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        listbox = wx.ListBox(dlg, choices=lines, style=wx.LB_SINGLE)
+        listbox.SetFont(
+            wx.Font(
+                12,
+                wx.FONTFAMILY_TELETYPE,
+                wx.FONTSTYLE_NORMAL,
+                wx.FONTWEIGHT_NORMAL,
+            )
+        )
+        # Size the listbox to show ~10 rows; the dialog scrolls past
+        # that. GetCharHeight is the line-height in the listbox's font.
+        row_h = max(1, listbox.GetCharHeight())
+        listbox.SetMinSize((360, row_h * 10 + 8))
+
+        btn = wx.Button(dlg, wx.ID_CLOSE, "Close")
+        btn.Bind(wx.EVT_BUTTON, lambda _e: dlg.Destroy())
+        dlg.Bind(wx.EVT_CLOSE, lambda _e: dlg.Destroy())
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(listbox, proportion=1, flag=wx.EXPAND | wx.ALL, border=8)
+        sizer.Add(btn, flag=wx.ALIGN_CENTER | wx.BOTTOM, border=8)
+        dlg.SetSizerAndFit(sizer)
+        dlg.Show()
+
+    # --- State helpers ---------------------------------------------------
+
+    def _new_game(self, n: int) -> None:
+        self.session = GameSession(num_disks=n, registry=self.registry)
+        self._refresh()
+
+    def _on_win(self) -> None:
+        """Lock down play actions, then offer to save the solution as a
+        recipe. New Game / Show stay reachable from the menu and the
+        recipe sidebar. (`_refresh` already disables Move buttons,
+        Apply, and the Relabel menu items when `won` is true; this is
+        belt-and-braces in case anything is called out of order.)"""
+        for btn in self.move_buttons.values():
+            btn.Disable()
+        for item in self.relabel_menu_items.values():
+            item.Enable(False)
+        self.apply_btn.Disable()
+
+        min_moves = self.session.min_moves()
+        moves = self.session.current_moves
+        if moves == min_moves:
+            verdict = "Optimal!"
+        else:
+            verdict = f"{moves - min_moves} more than the minimum ({min_moves})."
+        self._set_status(f"Solved in {moves} moves — {verdict}")
+
+        dlg = wx.MessageDialog(
+            self,
+            f"Solved in {moves} moves.\n{verdict}\n\n"
+            "Save this solution as a recipe so you can apply it later?",
+            "Solved!",
+            wx.YES_NO | wx.ICON_INFORMATION,
+        )
+        dlg.SetYesNoLabels("Save as recipe…", "Not now")
+        try:
+            if dlg.ShowModal() == wx.ID_YES:
+                self._save_recipe_with_prompt()
+        finally:
+            dlg.Destroy()
+
+    def _save_recipe_with_prompt(self) -> None:
         with wx.TextEntryDialog(
             self,
             "Recipe name:",
@@ -259,57 +344,8 @@ class HanoiFrame(wx.Frame):
             if not name:
                 return
             msg = self.session.save_recipe(name)
-            self._set_message(msg)
+            self._set_status(msg)
             self._refresh_recipes(select=name)
-
-    def _on_apply(self, _evt) -> None:
-        name = self._selected_recipe_name()
-        if not name:
-            self._set_message("Select a recipe first.")
-            return
-        result = self.session.dispatch(ApplyCmd(name))
-        self._set_message("\n".join(result.lines))
-        self._refresh()
-        if self.session.is_won():
-            self._on_win()
-
-    def _on_show(self, _evt) -> None:
-        name = self._selected_recipe_name()
-        if not name:
-            self._set_message("Select a recipe first.")
-            return
-        result = self.session.dispatch(ShowCmd(name))
-        wx.MessageBox(
-            "\n".join(result.lines),
-            f"Recipe '{name}'",
-            wx.OK | wx.ICON_INFORMATION,
-        )
-
-    # --- State helpers ---------------------------------------------------
-
-    def _new_game(self, n: int) -> None:
-        self.session = GameSession(num_disks=n, registry=self.registry)
-        self._refresh()
-
-    def _on_win(self) -> None:
-        """Lock down play actions but keep New Game and Save Current
-        usable so the user can save the recipe or start over."""
-        for btn in self.move_buttons.values():
-            btn.Disable()
-        for btn in self.relabel_buttons.values():
-            btn.Disable()
-        self.apply_btn.Disable()
-        # Show Selected stays enabled — inspecting saved recipes is harmless
-        # at any point in the game, including after winning.
-        min_moves = self.session.min_moves()
-        moves = self.session.current_moves
-        text = f"Solved! {moves} moves (minimum {min_moves})."
-        if moves == min_moves:
-            text += "\nOptimal solution!"
-        else:
-            text += f"\n{moves - min_moves} more than the minimum."
-        text += "\nClick 'Save Current Solution' to keep this as a recipe."
-        self._set_message(text)
 
     def _on_board_resize(self, evt) -> None:
         evt.Skip()
@@ -339,20 +375,10 @@ class HanoiFrame(wx.Frame):
         self.board.SetValue("\n" * v_pad + "\n".join(centred))
 
     def _refresh(self) -> None:
-        # Board
         self._update_board()
-        # Status bar text
-        a, b, c = (
-            change_labels_on_pegs(self.session.labelling, i) + 1
-            for i in range(3)
-        )
-        self.status_label.SetLabel(
-            f"Discs: {self.session.num_disks}    "
-            f"Labelling: {a} {b} {c}    "
-            f"Moves: {self.session.current_moves}    "
-            f"Recipes: {len(self.registry)}"
-        )
-        # Re-enable everything (a New Game resets after a win lockout)
+        won = self.session.is_won()
+        self.SetStatusText(f"Moves: {self.session.current_moves}", 1)
+
         valid = set()
         for vm in self.session.game.move_options():
             f = (
@@ -364,17 +390,17 @@ class HanoiFrame(wx.Frame):
                 + 1
             )
             valid.add((f, t))
-        won = self.session.is_won()
         for pair, btn in self.move_buttons.items():
             btn.Enable(not won and pair in valid)
-        # Highlight the active labelling by disabling its button so the
-        # user can see which one they're under at a glance.
+
         current_labels = tuple(
             change_labels_on_pegs(self.session.labelling, i) + 1
             for i in range(3)
         )
-        for labels, btn in self.relabel_buttons.items():
-            btn.Enable(not won and labels != current_labels)
+        # Check the active radio item; sibling radios auto-uncheck.
+        self.relabel_menu_items[current_labels].Check(True)
+        for item in self.relabel_menu_items.values():
+            item.Enable(not won)
         self.apply_btn.Enable(not won)
         self.show_btn.Enable(True)
         self._refresh_recipes()
@@ -402,8 +428,8 @@ class HanoiFrame(wx.Frame):
             return None
         return self.recipe_list.GetClientData(idx)
 
-    def _set_message(self, text: str) -> None:
-        self.message.SetValue(text)
+    def _set_status(self, text: str) -> None:
+        self.SetStatusText(text)
 
 
 def main() -> None:
