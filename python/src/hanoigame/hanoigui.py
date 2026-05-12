@@ -160,6 +160,7 @@ class HanoiFrame(wx.Frame):
         # Named controls
         self.board_slot = wx.xrc.XRCCTRL(self, "board_slot")
         self.recipe_list = wx.xrc.XRCCTRL(self, "recipe_list")
+        self.save_btn = wx.xrc.XRCCTRL(self, "recipe_save")
         self.apply_btn = wx.xrc.XRCCTRL(self, "recipe_apply")
         self.show_btn = wx.xrc.XRCCTRL(self, "recipe_show")
 
@@ -191,6 +192,9 @@ class HanoiFrame(wx.Frame):
 
         # Recipe button bindings + double-click on the list as a Show
         # shortcut so a curious user can flip through recipes quickly.
+        # Save Current Solution is the post-win save path (no auto-modal
+        # — `_refresh` enables it iff `is_won()`).
+        self.Bind(wx.EVT_BUTTON, self._on_save, id=wx.xrc.XRCID("recipe_save"))
         self.Bind(
             wx.EVT_BUTTON, self._on_apply, id=wx.xrc.XRCID("recipe_apply")
         )
@@ -332,38 +336,25 @@ class HanoiFrame(wx.Frame):
         self._refresh()
 
     def _on_win(self) -> None:
-        """Lock down play actions, then offer to save the solution as a
-        recipe. New Game / Show stay reachable from the menu and the
-        recipe sidebar. (`_refresh` already disables Move buttons,
-        Apply, and the Relabel menu items when `won` is true; this is
-        belt-and-braces in case anything is called out of order.)"""
-        for btn in self.move_buttons.values():
-            btn.Disable()
-        for item in self.relabel_menu_items.values():
-            item.Enable(False)
-        self.apply_btn.Disable()
-
+        """Set the status-bar winning message. Button state (Move /
+        Relabel / Apply disabled, Save Current Solution enabled) is
+        already handled in `_refresh`. No modal — the board stays
+        visible and the user clicks Save Current Solution when they
+        want."""
         min_moves = self.session.min_moves()
         moves = self.session.current_moves
         if moves == min_moves:
             verdict = "Optimal!"
         else:
             verdict = f"{moves - min_moves} more than the minimum ({min_moves})."
-        self._set_status(f"Solved in {moves} moves — {verdict}")
-
-        dlg = wx.MessageDialog(
-            self,
-            f"Solved in {moves} moves.\n{verdict}\n\n"
-            "Save this solution as a recipe so you can apply it later?",
-            "Solved!",
-            wx.YES_NO | wx.ICON_INFORMATION,
+        self._set_status(
+            f"Solved in {moves} moves — {verdict}  "
+            "Click 'Save Current Solution' to keep it as a recipe."
         )
-        dlg.SetYesNoLabels("Save as recipe…", "Not now")
-        try:
-            if dlg.ShowModal() == wx.ID_YES:
-                self._save_recipe_with_prompt()
-        finally:
-            dlg.Destroy()
+
+    def _on_save(self, _evt) -> None:
+        # Button is only enabled when won; no need to re-check.
+        self._save_recipe_with_prompt()
 
     def _save_recipe_with_prompt(self) -> None:
         with wx.TextEntryDialog(
@@ -428,6 +419,7 @@ class HanoiFrame(wx.Frame):
             item.Enable(not won)
         self.apply_btn.Enable(not won)
         self.show_btn.Enable(True)
+        self.save_btn.Enable(won)
         self._refresh_recipes()
         self.panel.Layout()
 

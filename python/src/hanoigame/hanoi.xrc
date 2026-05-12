@@ -176,6 +176,13 @@
               <object class="sizeritem">
                 <flag>wxEXPAND|wxLEFT|wxRIGHT|wxTOP</flag>
                 <border>4</border>
+                <object class="wxButton" name="recipe_save">
+                  <label>Save Current Solution</label>
+                </object>
+              </object>
+              <object class="sizeritem">
+                <flag>wxEXPAND|wxLEFT|wxRIGHT|wxTOP</flag>
+                <border>4</border>
                 <object class="wxButton" name="recipe_apply">
                   <label>Apply Selected</label>
                 </object>
