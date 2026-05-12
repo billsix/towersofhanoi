@@ -36,7 +36,10 @@
             <object class="wxBoxSizer">
               <orient>wxVERTICAL</orient>
 
-              <!-- Board: the hero. proportion=1 absorbs vertical slack. -->
+              <!-- Board: the hero. proportion=1 absorbs vertical slack.
+                   `board_slot` is a placeholder wx.Panel that holds
+                   whichever renderer is active (text, graphics, …);
+                   see board_renderers.py and HanoiFrame._swap_renderer. -->
               <object class="sizeritem">
                 <option>1</option>
                 <flag>wxEXPAND|wxALL</flag>
@@ -48,8 +51,7 @@
                     <option>1</option>
                     <flag>wxEXPAND|wxALL</flag>
                     <border>4</border>
-                    <object class="wxTextCtrl" name="board">
-                      <style>wxTE_MULTILINE|wxTE_READONLY|wxHSCROLL</style>
+                    <object class="wxPanel" name="board_slot">
                       <size>-1,280</size>
                     </object>
                   </object>

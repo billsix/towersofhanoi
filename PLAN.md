@@ -6,8 +6,10 @@ off, and resume.
 
 **Current step:** steps 6 (XRC extraction) and 7 (UI redesign — menu
 bar, status bar, big moves counter, deleted redundant chrome) both
-implemented; awaiting Bill smoke-test. 112 tests still pass. Optional
-follow-on polish lives in the "What's left" section at the bottom.
+implemented; awaiting Bill smoke-test. 112 tests still pass. Steps 8
+and 9 (graphics + OpenGL board renderers) are planned but not started.
+Optional follow-on polish lives in the "What's left" section at the
+bottom.
 
 ---
 
@@ -371,6 +373,138 @@ The wx.adv module isn't used (and wasn't worth the dependency for an
 About box) — `wx.MessageBox` covers it. If a richer About dialog is
 wanted later, `wx.adv.AboutDialogInfo` + `wx.adv.AboutBox` is the
 upgrade path.
+
+---
+
+## Step 8 — Graphics board renderer (2D)
+
+**Status:** not started.
+
+**Goal:** A genuinely good-looking GUI board view without breaking
+CLI / curses parity. ASCII stays the cross-frontend default; the GUI
+gets a `View → Board Style → Text / Graphics` toggle that swaps in
+a procedurally-drawn `wx.Panel`.
+
+**Why this over SVG:** Towers are procedurally-defined shapes — a
+10-tall stack with per-size colors is two for-loops, not 10 SVG
+assets. `wx.GraphicsContext` already gives antialiased rounded
+rectangles, gradients, and shadows. No new dependencies.
+
+### Architecture — explicit renderer abstraction
+
+Avoids `if mode == "graphics"` branches inside `_update_board`.
+
+```python
+class BoardRenderer:                  # ABC
+    def widget(self) -> wx.Window: ...
+    def update(self, game, labelling) -> None: ...
+
+class TextBoardRenderer:       # wraps today's wx.TextCtrl path
+class GraphicsBoardRenderer:   # wx.Panel + EVT_PAINT + wx.GraphicsContext
+```
+
+`HanoiFrame` holds one `self.board_renderer`. Swapping destroys the
+current widget and inserts the new one into the Board sizer slot.
+`HanoiGame` and `presenter`'s color palette are untouched.
+
+### Tasks
+
+- [ ] New `hanoigame/board_renderers.py`: `BoardRenderer` ABC,
+      `TextBoardRenderer` (lifted from current `_update_board` +
+      the `wx.TextCtrl` it owns), `GraphicsBoardRenderer`.
+- [ ] `GraphicsBoardRenderer`:
+      - `wx.Panel` subclass with `EVT_PAINT` and `EVT_SIZE`.
+      - Three vertical rounded-rect pegs centered horizontally,
+        stretching to fill panel height.
+      - Each disc as a horizontally-graded rounded rectangle, width
+        proportional to size, color from `presenter.peg_color` (or
+        a parallel palette so curses ↔ graphics colors track).
+      - Subtle drop shadow per disc; if `wx.GraphicsContext.SetShadow`
+        is unavailable on Fedora's wx build, fall back to a darker
+        rounded-rect drawn 2px offset below.
+      - No animation; `update()` invalidates the full panel.
+      - No click-to-move; existing Move buttons remain the input.
+- [ ] `View` menu in hanoigui.py menu bar with radio items
+      `Text` / `Graphics`. Selection calls `_swap_renderer(cls)`.
+- [ ] `_swap_renderer`: detach the current renderer's widget from
+      the Board sizer, destroy it, instantiate the new renderer,
+      attach its widget, `Layout()`.
+- [ ] XRC: replace the named `board` `wxTextCtrl` with a placeholder
+      `wxPanel` named `board_slot`. The text path moves inside
+      `TextBoardRenderer`'s constructor.
+- [ ] Smoke-test (Bill, X-forwarding): toggle Text ↔ Graphics mid-
+      game; verify state matches in both; verify resize.
+
+### Out of scope
+
+- **Animation** (disc tween between pegs). Easy to bolt on later.
+- **Click-to-move** (hit-testing). Move buttons stay.
+- **Per-disc artwork** beyond solid color + gradient.
+- **CLI / curses changes** — those keep the presenter unchanged.
+
+### Resumption notes
+
+The renderer ABC is the load-bearing piece. Once it exists, Step 9
+(OpenGL) plugs in as a third subclass with no further refactoring.
+If `wx.GraphicsContext` shadow support is missing on the target
+build, the manual-offset fallback above works everywhere.
+
+---
+
+## Step 9 — OpenGL board renderer
+
+**Status:** not started; gated on Step 8 landing.
+
+**Goal:** A 3D board view alongside Text and Graphics in
+`View → Board Style`. Cylindrical pegs, disc geometry with normals,
+perspective camera, basic Phong lighting.
+
+**Why gated on Step 8:** Phase 1 (Step 8) validates the renderer-
+swap architecture and the menu UX. If that boundary is wrong, the
+heavier OpenGL path surfaces it more painfully. Land Step 8 first.
+
+**Why it's worth doing at all:** Bill's domain professionally, and a
+Hanoi viewer that looks like one of the MVP demos doubles as a
+teaching artifact for modern OpenGL on its own.
+
+### Tasks (rough — refine when Step 8 is done)
+
+- [ ] `GLBoardRenderer(BoardRenderer)` using `wx.glcanvas.GLCanvas`
+      + `wx.glcanvas.GLContext` (PyOpenGL already available).
+- [ ] Cylindrical pegs as triangle-strip meshes; copy the cylinder
+      helper pattern from mvpVisualization rather than importing
+      it (this is a hanoi project, not a cross-project link).
+- [ ] Disc geometry: short cylinders with top/bottom caps and a
+      per-disc color uniform.
+- [ ] Perspective camera tilted slightly so discs read as 3D;
+      orthographic fallback is OK if perspective setup eats time.
+- [ ] One directional light; per-vertex normals; basic Phong shader.
+- [ ] Core-profile boilerplate: VAO, VBO, shader program,
+      glDrawArrays. macOS gotchas don't apply here (Fedora target),
+      but if Bill ever runs this on Apple, the always-bound VAO and
+      no-validate-with-multi-samplers patterns from existing memory
+      are the answer.
+- [ ] No animation in v1; `update()` triggers a full re-render.
+- [ ] `View` menu gains a third radio item `OpenGL`.
+- [ ] Smoke-test under X-forwarding: GL context creates; state
+      matches Text/Graphics views; menu radio behavior unbroken.
+
+### Risks specific to OpenGL
+
+- **GL context under X-forwarding** is the known soft spot in the
+  container workflow. If `wx.glcanvas` can't create a context, log
+  the error and grey out the menu item — no clever fallbacks.
+- **Mesa quirks** — multiple existing memories
+  (`feedback_mesa_image_load_store`, `feedback_query_uniform_locations`)
+  document past Mesa-vs-real-driver divergences. They almost
+  certainly don't bite a basic-geometry-and-lighting renderer, but
+  the playbook is in those notes if they do.
+
+### Out of scope
+
+- Disc-move animation (a possible Step 10).
+- Click-to-move via pick buffer (a possible Step 11).
+- Textured discs / shadow mapping / fancy lighting.
 
 ---
 

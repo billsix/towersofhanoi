@@ -27,12 +27,16 @@ all three frontends.
 """
 
 import importlib.resources
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Type
 
 import wx
 import wx.xrc
 
-from . import presenter
+from .board_renderers import (
+    BoardRenderer,
+    GraphicsBoardRenderer,
+    TextBoardRenderer,
+)
 from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
 from .engine import GameSession
 from .presenter import change_labels_on_pegs
@@ -108,6 +112,17 @@ class HanoiFrame(wx.Frame):
             )
         menubar.Append(relabel_menu, "&Relabel pegs")
 
+        # View: board-style radio submenu. Text view stays pixel-identical
+        # to CLI / curses; Graphics is a procedurally-drawn 2D view.
+        view_menu = wx.Menu()
+        style_menu = wx.Menu()
+        self.style_text_item = style_menu.AppendRadioItem(wx.ID_ANY, "&Text")
+        self.style_graphics_item = style_menu.AppendRadioItem(
+            wx.ID_ANY, "&Graphics"
+        )
+        view_menu.AppendSubMenu(style_menu, "Board &Style")
+        menubar.Append(view_menu, "&View")
+
         help_menu = wx.Menu()
         about_item = help_menu.Append(wx.ID_ABOUT, "&About")
         menubar.Append(help_menu, "&Help")
@@ -117,6 +132,16 @@ class HanoiFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_new_game_same, new_same_item)
         self.Bind(wx.EVT_MENU, lambda _e: self.Close(), quit_item)
         self.Bind(wx.EVT_MENU, self._on_about, about_item)
+        self.Bind(
+            wx.EVT_MENU,
+            lambda _e: self._swap_renderer(TextBoardRenderer),
+            self.style_text_item,
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            lambda _e: self._swap_renderer(GraphicsBoardRenderer),
+            self.style_graphics_item,
+        )
 
     def _build_ui(self) -> None:
         # Load the panel layout from hanoi.xrc. Fonts, event bindings, and
@@ -133,7 +158,7 @@ class HanoiFrame(wx.Frame):
         self.SetSizer(frame_sizer)
 
         # Named controls
-        self.board = wx.xrc.XRCCTRL(self, "board")
+        self.board_slot = wx.xrc.XRCCTRL(self, "board_slot")
         self.recipe_list = wx.xrc.XRCCTRL(self, "recipe_list")
         self.apply_btn = wx.xrc.XRCCTRL(self, "recipe_apply")
         self.show_btn = wx.xrc.XRCCTRL(self, "recipe_show")
@@ -143,14 +168,26 @@ class HanoiFrame(wx.Frame):
                 self, f"move_{from_label}_{to_label}"
             )
 
-        mono = wx.Font(
-            12,
-            wx.FONTFAMILY_TELETYPE,
-            wx.FONTSTYLE_NORMAL,
-            wx.FONTWEIGHT_NORMAL,
+        self.recipe_list.SetFont(
+            wx.Font(
+                12,
+                wx.FONTFAMILY_TELETYPE,
+                wx.FONTSTYLE_NORMAL,
+                wx.FONTWEIGHT_NORMAL,
+            )
         )
-        for ctrl in (self.board, self.recipe_list):
-            ctrl.SetFont(mono)
+
+        # board_slot holds whichever BoardRenderer is active. Graphics
+        # is the default — text view remains available under View →
+        # Board Style for parity with CLI / curses output.
+        self.board_slot.SetSizer(wx.BoxSizer(wx.VERTICAL))
+        self.board_renderer: BoardRenderer = GraphicsBoardRenderer(
+            self.board_slot
+        )
+        self.board_slot.GetSizer().Add(
+            self.board_renderer.widget(), proportion=1, flag=wx.EXPAND
+        )
+        self.style_graphics_item.Check(True)
 
         # Recipe button bindings + double-click on the list as a Show
         # shortcut so a curious user can flip through recipes quickly.
@@ -168,9 +205,6 @@ class HanoiFrame(wx.Frame):
                 id=wx.xrc.XRCID(f"move_{from_label}_{to_label}"),
             )
 
-        # Re-centre the board contents on resize (bottom-centred, matching
-        # the curses layout).
-        self.board.Bind(wx.EVT_SIZE, self._on_board_resize)
         self.Center()
 
     # --- Event handlers --------------------------------------------------
@@ -347,35 +381,26 @@ class HanoiFrame(wx.Frame):
             self._set_status(msg)
             self._refresh_recipes(select=name)
 
-    def _on_board_resize(self, evt) -> None:
-        evt.Skip()
-        if self.session is not None:
-            self._update_board()
-
-    def _update_board(self) -> None:
-        """Render the board into the panel, centred horizontally and
-        bottom-aligned vertically (so it sits like the curses layout)."""
-        lines = presenter.render(self.session.game, self.session.labelling)
-        if not lines:
-            self.board.SetValue("")
+    def _swap_renderer(self, renderer_cls: Type[BoardRenderer]) -> None:
+        """Tear down the current board renderer and install a new one in
+        the same slot. Game state is unchanged; the new renderer gets a
+        fresh `update()` so it shows the current board immediately."""
+        if isinstance(self.board_renderer, renderer_cls):
             return
-        panel_w_px, panel_h_px = self.board.GetSize()
-        char_w = max(1, self.board.GetCharWidth())
-        line_h = max(1, self.board.GetCharHeight())
-        visible_cols = max(1, panel_w_px // char_w)
-        visible_rows = max(1, panel_h_px // line_h)
-
-        line_width = len(
-            lines[0]
-        )  # presenter pads every line to the same width
-        h_pad = max(0, (visible_cols - line_width) // 2)
-        centred = [(" " * h_pad + line) for line in lines]
-        # -1 of slack so the bottom line isn't sitting under the scrollbar
-        v_pad = max(0, visible_rows - len(centred) - 1)
-        self.board.SetValue("\n" * v_pad + "\n".join(centred))
+        sizer = self.board_slot.GetSizer()
+        sizer.Clear(delete_windows=True)
+        self.board_renderer = renderer_cls(self.board_slot)
+        sizer.Add(
+            self.board_renderer.widget(), proportion=1, flag=wx.EXPAND
+        )
+        self.board_slot.Layout()
+        if self.session is not None:
+            self.board_renderer.update(
+                self.session.game, self.session.labelling
+            )
 
     def _refresh(self) -> None:
-        self._update_board()
+        self.board_renderer.update(self.session.game, self.session.labelling)
         won = self.session.is_won()
         self.SetStatusText(f"Moves: {self.session.current_moves}", 1)
 
