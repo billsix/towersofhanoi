@@ -37,6 +37,14 @@ shell:  ## Get Shell into a ephermeral container made from the image
 		$(CONTAINER_NAME) \
 		shell.sh
 
+.PHONY: format
+format: image ## Format the Python source with ruff (entrypoint/format.sh)
+	$(CONTAINER_CMD) run -it --rm \
+		--entrypoint /bin/bash \
+		$(FILES_TO_MOUNT) \
+		$(CONTAINER_NAME) \
+		/format.sh
+
 .PHONY: docs
 docs:  image ## Get Shell into a ephermeral container made from the image
 	$(CONTAINER_CMD) run -it --rm \
