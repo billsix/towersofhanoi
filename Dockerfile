@@ -8,7 +8,6 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      dnf upgrade -y
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
-     echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      dnf install -y clear \
                    python3 \
                    tmux \
