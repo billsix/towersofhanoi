@@ -152,7 +152,7 @@ Sketch:
   session-local registry; no disk persistence needed for v1.
 - A new player command — `apply <recipe-name>` — replays the moves under
   the **current** peg labelling, not the labelling that was active when the
-  recipe was captured. This is the load-bearing pedagogical moment: the
+  recipe was captured. This is the pedagogical moment the whole design aims at: the
   student is partway through a bigger problem, swaps two labels on a hunch,
   realises *this is something I already solved*, and applies the saved recipe
   to watch it work. Concretely, a 2-disc recipe captured under `1 2 3` and

@@ -158,7 +158,7 @@ wanted.
 - [ ] Window-resize handling (currently just ignores `KEY_RESIZE`).
 
 **Resumption notes:** The shared dispatcher (`engine.GameSession`) is the
-load-bearing piece. Step 5 (wxWidgets) plugs into the same `dispatch(cmd)`
+piece everything else plugs into. Step 5 (wxWidgets) uses the same `dispatch(cmd)`
 entry point — buttons emit `Command` values, dispatcher applies them.
 
 ---
@@ -194,7 +194,7 @@ entry point — buttons emit `Command` values, dispatcher applies them.
 **Resumption notes:** No automated tests — wx requires a display.
 Module imports `wx` at top level; that's fine because nothing else
 imports `hanoigui` (CLI tests don't need it). The shared `GameSession`
-is what's load-bearing here, not the GUI plumbing — visual bugs are
+is what matters here, not the GUI plumbing — visual bugs are
 easy to spot but the dispatch contract is already covered by the CLI
 test suite.
 
@@ -291,7 +291,7 @@ line count.
 
 ### Resumption notes
 
-The two load-bearing risks are (1) `LoadPanel` returning `None`
+The two real risks are (1) `LoadPanel` returning `None`
 because a name in the XRC doesn't match what Python looks up — keep
 the XRC names and the Python `XRCCTRL` calls in lockstep, and (2)
 the file not shipping in the wheel — verify with an out-of-tree pip
@@ -433,7 +433,7 @@ top-toolbar controls.
 **Graphics is the default board view** at startup; Text remains
 available via `View → Board Style → Text`.
 
-**Goal:** A genuinely good-looking GUI board view without breaking
+**Goal:** An actually good-looking GUI board view without breaking
 CLI / curses parity. ASCII stays the cross-frontend default; the GUI
 gets a `View → Board Style → Text / Graphics` toggle that swaps in
 a procedurally-drawn `wx.Panel`.
@@ -501,7 +501,7 @@ current widget and inserts the new one into the Board sizer slot.
 
 ### Resumption notes
 
-The renderer ABC is the load-bearing piece. Once it exists, Step 9
+The renderer ABC is the enabling piece. Once it exists, Step 9
 (OpenGL) plugs in as a third subclass with no further refactoring.
 If `wx.GraphicsContext` shadow support is missing on the target
 build, the manual-offset fallback above works everywhere.
