@@ -102,8 +102,6 @@ In-flight work (see `tasks/`):
 - [`tasks/container-build-cleanup.md`](tasks/container-build-cleanup.md) — the
   Makefile `docs:` target is malformed (no command), and `entrypoint.sh` touches
   `/output/modelviewprojection/.nojekyll` (should be `towersofhanoi`).
-- [`tasks/image-export-import-targets.md`](tasks/image-export-import-targets.md)
-  — add the standard `image-export` / `image-import` Makefile pair.
 
 Optional follow-ons (descoped from the completed roadmap): recipe persistence
 to disk, a step-mode replay UI, a curses pass 2.
