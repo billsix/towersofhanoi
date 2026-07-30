@@ -27,7 +27,7 @@ all three frontends.
 """
 
 import importlib.resources
-from typing import Optional, Tuple, Type
+from typing import Optional
 
 import wx
 import wx.xrc
@@ -45,7 +45,7 @@ from .recipe import RecipeRegistry
 MAX_DISKS = 10
 DEFAULT_DISKS = 3
 
-ALL_LABEL_PAIRS: Tuple[Tuple[int, int], ...] = (
+ALL_LABEL_PAIRS: tuple[tuple[int, int], ...] = (
     (1, 2),
     (1, 3),
     (2, 1),
@@ -54,7 +54,7 @@ ALL_LABEL_PAIRS: Tuple[Tuple[int, int], ...] = (
     (3, 2),
 )
 
-ALL_RELABEL_PERMUTATIONS: Tuple[Tuple[int, int, int], ...] = (
+ALL_RELABEL_PERMUTATIONS: tuple[tuple[int, int, int], ...] = (
     (1, 2, 3),
     (1, 3, 2),
     (2, 1, 3),
@@ -265,7 +265,7 @@ class HanoiFrame(wx.Frame):
         if self.session.is_won():
             self._on_win()
 
-    def _on_relabel_menu(self, labels: Tuple[int, int, int]) -> None:
+    def _on_relabel_menu(self, labels: tuple[int, int, int]) -> None:
         self.session.dispatch(RelabelCmd(labels))
         # Silent: the menu's own radio check + recoloured board confirm.
         self._refresh()
@@ -374,7 +374,7 @@ class HanoiFrame(wx.Frame):
             self._set_status(msg)
             self._refresh_recipes(select=name)
 
-    def _swap_renderer(self, renderer_cls: Type[BoardRenderer]) -> None:
+    def _swap_renderer(self, renderer_cls: type[BoardRenderer]) -> None:
         """Tear down the current board renderer and install a new one in
         the same slot. Game state is unchanged; the new renderer gets a
         fresh `update()` so it shows the current board immediately."""

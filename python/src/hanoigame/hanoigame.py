@@ -38,7 +38,7 @@ from curses import (
     init_pair,
     start_color,
 )
-from typing import List, Optional
+from typing import Optional
 
 from . import presenter
 from .commands import parse
@@ -183,7 +183,7 @@ def _draw_top_status(stdscr, session: GameSession) -> None:
         stdscr.addstr(0, 0, text[: curses.COLS - 1])
 
 
-def _draw_messages(stdscr, lines: List[str]) -> None:
+def _draw_messages(stdscr, lines: list[str]) -> None:
     """Display up to MSG_AREA_LINES of message text just above the hint
     area. Long outputs are truncated to the last lines."""
     visible = lines[-MSG_AREA_LINES:]
@@ -198,7 +198,7 @@ def _draw_messages(stdscr, lines: List[str]) -> None:
             stdscr.addstr(msg_top + i, 0, line[: curses.COLS - 1])
 
 
-def _draw_hint(stdscr, hint_lines: Optional[List[str]] = None) -> None:
+def _draw_hint(stdscr, hint_lines: Optional[list[str]] = None) -> None:
     """Draw HINT_AREA_LINES rows of hint text just above the prompt.
     Shorter inputs are top-padded with empty lines."""
     if hint_lines is None:
@@ -219,8 +219,8 @@ def _draw_hint(stdscr, hint_lines: Optional[List[str]] = None) -> None:
 def _redraw(
     stdscr,
     session: GameSession,
-    msg_lines: List[str],
-    hint: Optional[List[str]] = None,
+    msg_lines: list[str],
+    hint: Optional[list[str]] = None,
 ) -> None:
     stdscr.clear()
     _draw_top_status(stdscr, session)
@@ -242,7 +242,7 @@ def _read_line(stdscr, prompt: str = "> ") -> Optional[str]:
     stdscr.addstr(y, 0, prompt)
     stdscr.refresh()
 
-    buf: List[str] = []
+    buf: list[str] = []
     curs_set(1)
     try:
         while True:
@@ -315,7 +315,7 @@ def _play_game(stdscr, n: int, registry: RecipeRegistry) -> bool:
             return False
 
     session = GameSession(num_disks=n, registry=registry)
-    msg_lines: List[str] = []
+    msg_lines: list[str] = []
 
     while not session.is_won():
         _redraw(stdscr, session, msg_lines)

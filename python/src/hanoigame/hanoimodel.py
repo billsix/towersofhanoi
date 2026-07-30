@@ -17,7 +17,6 @@
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import List
 
 
 @dataclass
@@ -44,7 +43,7 @@ class ValidMove:
 class HanoiGame:
     """Represents a Hanoi Game"""
 
-    towers: List = field(
+    towers: list = field(
         default_factory=lambda: [[] for _ in range(3)]
     )  #: The three towers, each of which implmented using a list as a stack
     num_disks: int = field(
@@ -87,7 +86,7 @@ class HanoiGame:
                 return False
             return True
 
-        moves_to_return: List[ValidMove] = []
+        moves_to_return: list[ValidMove] = []
         for from_p, to_p in [
             (0, 1),
             (0, 2),

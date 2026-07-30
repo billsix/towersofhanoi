@@ -16,8 +16,6 @@
 # Boston, MA 02111-1307, USA.
 
 
-from typing import List
-
 from hanoigame.hanoimodel import HanoiGame, Move
 
 
@@ -31,7 +29,7 @@ def test_postinit():
 def test_makemove():
     game = HanoiGame(num_disks=3)
 
-    def move_options(x) -> List:
+    def move_options(x) -> list:
         return list(map(lambda x: x.move, x))
 
     def make_move(ordinal):

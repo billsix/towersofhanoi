@@ -22,7 +22,6 @@ and wxWidgets front-ends can dispatch identically. Pure: no I/O, no state.
 """
 
 from dataclasses import dataclass
-from typing import Tuple, Union
 
 
 @dataclass(frozen=True)
@@ -39,7 +38,7 @@ class RelabelCmd:
     """Set the Labelling so that physical pegs 0,1,2 carry these
     1-indexed labels (a permutation of 1,2,3)."""
 
-    labels: Tuple[int, int, int]
+    labels: tuple[int, int, int]
 
 
 @dataclass(frozen=True)
@@ -90,18 +89,18 @@ class ParseError:
     message: str
 
 
-Command = Union[
-    MoveCmd,
-    RelabelCmd,
-    SaveCmd,
-    ApplyCmd,
-    ShowCmd,
-    ListCmd,
-    HelpCmd,
-    QuitCmd,
-    EmptyCmd,
-    ParseError,
-]
+Command = (
+    MoveCmd
+    | RelabelCmd
+    | SaveCmd
+    | ApplyCmd
+    | ShowCmd
+    | ListCmd
+    | HelpCmd
+    | QuitCmd
+    | EmptyCmd
+    | ParseError
+)
 
 
 HELP_TEXT = """\

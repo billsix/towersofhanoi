@@ -47,7 +47,7 @@ work.
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from .hanoimodel import HanoiGame
 from .presenter import Labelling, labels_to_towers
@@ -59,7 +59,7 @@ class Recipe:
 
     name: str
     disk_count: int
-    default_moves: Tuple[Tuple[int, int], ...]
+    default_moves: tuple[tuple[int, int], ...]
 
 
 @dataclass
@@ -71,7 +71,7 @@ class Recorder:
     +1 to each physical index.
     """
 
-    default_moves: List[Tuple[int, int]] = field(default_factory=list)
+    default_moves: list[tuple[int, int]] = field(default_factory=list)
 
     def record(self, from_default: int, to_default: int) -> None:
         """Record a move expressed as 1-indexed physical pegs (= the labels
@@ -101,7 +101,7 @@ class RecipeRegistry:
     def get(self, name: str) -> Optional[Recipe]:
         return self._by_name.get(name)
 
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return sorted(self._by_name.keys())
 
     def __len__(self) -> int:
@@ -183,7 +183,7 @@ def apply_iter(
 
 def apply(
     recipe: Recipe, game: HanoiGame, labelling: Labelling
-) -> List[StepResult]:
+) -> list[StepResult]:
     """Convenience wrapper: exhaust `apply_iter` and return all results."""
     return list(apply_iter(recipe, game, labelling))
 

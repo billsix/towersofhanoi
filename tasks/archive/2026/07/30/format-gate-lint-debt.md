@@ -1,8 +1,13 @@
 # Format gate lint debt: 17 ruff errors + 2 files of format drift
 
-**Status:** proposed — needs go-ahead (found 2026-07-29, the first time the
-format gate ever ran in-container — it was unrunnable until the wxPython image
-fix, `tasks/archive/2026/07/29/fix-image-wxpython-pip-build.md`)
+**Status:** DONE 2026-07-30. All 13 UP035 + 1 UP007 fixed by hand (List/Tuple/
+Type → builtins; the `Command` Union → a `|` chain); T201 suppressed via
+`per-file-ignores` scoped to the two solver demos (Bill approved the
+suppress-as-intentional-CLI-output recommendation), with the reason recorded in
+`python/pyproject.toml`. Verified in-container: `ruff check` all-pass, format
+gate exit 0 and idempotent (18 files unchanged on rerun), 112/112 tests pass,
+and all 10 package modules import (the wx GUI ones aren't test-covered, so
+imports were checked explicitly).
 
 ## Goal
 

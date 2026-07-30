@@ -33,6 +33,13 @@ select = [
        ]
 ignore = []
 
+[tool.ruff.lint.per-file-ignores]
+# The standalone solver demos print their move list to the terminal on
+# purpose -- that output IS the demo (Bill, 2026-07-30). The linter can't
+# see that context, so the suppression is scoped to just these two files.
+"src/hanoigame/hanoiiterative.py" = ["T201"]
+"src/hanoigame/hanoirecursive.py" = ["T201"]
+
 [project.scripts]
 hanoi = "hanoigame.hanoigame:main"
 hanoi-cli = "hanoigame.hanoicli:main"

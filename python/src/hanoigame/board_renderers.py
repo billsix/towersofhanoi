@@ -32,7 +32,7 @@ rest.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Optional
 
 import wx
 
@@ -110,7 +110,7 @@ class TextBoardRenderer(BoardRenderer):
 # Label badge colours (the small numbered circles below each peg) follow
 # the *label* — blue/yellow/red, matching the curses palette. Discs do
 # NOT follow the label; see `_DISC_COLOURS` below.
-_LABEL_COLOURS: List[wx.Colour] = [
+_LABEL_COLOURS: list[wx.Colour] = [
     wx.Colour(70, 130, 200),
     wx.Colour(230, 195, 70),
     wx.Colour(220, 90, 80),
@@ -119,7 +119,7 @@ _LABEL_COLOURS: List[wx.Colour] = [
 # Disc colour follows disc *size* (identity), not the peg it sits on, so
 # moving a disc never changes its appearance. Ten colours so a 10-disc
 # game stays readable; cycles harmlessly past that.
-_DISC_COLOURS: List[wx.Colour] = [
+_DISC_COLOURS: list[wx.Colour] = [
     wx.Colour(232, 80, 80),
     wx.Colour(232, 145, 70),
     wx.Colour(235, 200, 75),

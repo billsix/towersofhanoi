@@ -25,7 +25,7 @@ itself; the CLI front-end (step 2) consumes `render()` output unchanged.
 
 from collections.abc import Sequence
 from enum import Enum, auto
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from .hanoimodel import HanoiGame
 
@@ -167,7 +167,7 @@ def default_label_row(num_disks: int) -> str:
     return "".join(row)
 
 
-def render(game: HanoiGame, labelling: Labelling) -> List[str]:
+def render(game: HanoiGame, labelling: Labelling) -> list[str]:
     """Render the board top-to-bottom as plain ASCII lines.
 
     Layout:
@@ -185,7 +185,7 @@ def render(game: HanoiGame, labelling: Labelling) -> List[str]:
     if n == 0:
         return []
     width = total_width(n)
-    grid: List[List[str]] = [[" "] * width for _ in range(n + 3)]
+    grid: list[list[str]] = [[" "] * width for _ in range(n + 3)]
 
     # Vertical pegs (rows 0..n)
     for p_idx in range(3):
@@ -219,7 +219,7 @@ def render(game: HanoiGame, labelling: Labelling) -> List[str]:
     return lines
 
 
-def render_with_legend(game: HanoiGame, labelling: Labelling) -> List[str]:
+def render_with_legend(game: HanoiGame, labelling: Labelling) -> list[str]:
     """Same as `render`, but with a 'Moves: N' status line appended."""
     lines = render(game, labelling)
     lines.append(f"Moves: {game.current_moves}")
@@ -231,7 +231,7 @@ def render_with_legend(game: HanoiGame, labelling: Labelling) -> List[str]:
 
 def labels_to_towers(
     labelling: Labelling, from_label: int, to_label: int
-) -> Optional[Tuple[int, int]]:
+) -> Optional[tuple[int, int]]:
     """Translate a user-typed (from_label, to_label) pair (1-indexed labels
     under `labelling`) into physical tower indices. Returns None if either
     label is out of range."""

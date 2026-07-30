@@ -24,8 +24,6 @@ labels 2 and 3, lands the top two discs on physical peg 1 — the first
 "recursive" step of solving 3 discs.
 """
 
-from typing import Tuple
-
 from hanoigame.hanoimodel import HanoiGame
 from hanoigame.presenter import Labelling, labels_to_towers
 from hanoigame.recipe import (
@@ -40,7 +38,7 @@ from hanoigame.recipe import (
 def _play_labeled(
     game: HanoiGame,
     labelling: Labelling,
-    moves: list[Tuple[int, int]],
+    moves: list[tuple[int, int]],
     recorder: Recorder,
 ) -> None:
     """Apply a sequence of user-typed (label, label) moves to `game`,

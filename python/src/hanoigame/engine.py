@@ -28,7 +28,6 @@ so behaviour stays consistent across them.
 """
 
 from dataclasses import dataclass, field
-from typing import List
 
 from .commands import (
     HELP_TEXT,
@@ -59,7 +58,7 @@ class DispatchResult:
     """The fallout from `GameSession.dispatch`. The frontend renders `lines`
     in its message area and breaks its loop if `quit` is True."""
 
-    lines: List[str] = field(default_factory=list)
+    lines: list[str] = field(default_factory=list)
     quit: bool = False
 
 
@@ -149,7 +148,7 @@ class GameSession:
 
     # --- Per-command handlers --------------------------------------------
 
-    def _handle_move(self, cmd: MoveCmd) -> List[str]:
+    def _handle_move(self, cmd: MoveCmd) -> list[str]:
         physical = labels_to_towers(
             self.labelling, cmd.from_label, cmd.to_label
         )
@@ -178,7 +177,7 @@ class GameSession:
             ]
         return ["Invalid move."]
 
-    def _handle_relabel(self, cmd: RelabelCmd) -> List[str]:
+    def _handle_relabel(self, cmd: RelabelCmd) -> list[str]:
         new_labelling = labelling_for(cmd.labels)
         if new_labelling is None:
             return [f"No labelling matches {cmd.labels}."]
@@ -186,7 +185,7 @@ class GameSession:
         a, b, c = cmd.labels
         return [f"Relabelled: physical pegs 1,2,3 now show as {a},{b},{c}."]
 
-    def _handle_apply(self, cmd: ApplyCmd) -> List[str]:
+    def _handle_apply(self, cmd: ApplyCmd) -> list[str]:
         recipe = self.registry.get(cmd.name)
         if recipe is None:
             return [
@@ -211,7 +210,7 @@ class GameSession:
         lines.append("Done.")
         return lines
 
-    def _handle_show(self, cmd: ShowCmd) -> List[str]:
+    def _handle_show(self, cmd: ShowCmd) -> list[str]:
         recipe = self.registry.get(cmd.name)
         if recipe is None:
             return [
@@ -228,7 +227,7 @@ class GameSession:
             lines.append(f"  step {i}: {a} -> {b}")
         return lines
 
-    def _handle_list(self) -> List[str]:
+    def _handle_list(self) -> list[str]:
         if len(self.registry) == 0:
             return ["No recipes saved yet."]
         lines = ["Saved recipes:"]
