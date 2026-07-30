@@ -346,7 +346,9 @@ class HanoiFrame(wx.Frame):
         if moves == min_moves:
             verdict = "Optimal!"
         else:
-            verdict = f"{moves - min_moves} more than the minimum ({min_moves})."
+            verdict = (
+                f"{moves - min_moves} more than the minimum ({min_moves})."
+            )
         self._set_status(
             f"Solved in {moves} moves — {verdict}  "
             "Click 'Save Current Solution' to keep it as a recipe."
@@ -381,9 +383,7 @@ class HanoiFrame(wx.Frame):
         sizer = self.board_slot.GetSizer()
         sizer.Clear(delete_windows=True)
         self.board_renderer = renderer_cls(self.board_slot)
-        sizer.Add(
-            self.board_renderer.widget(), proportion=1, flag=wx.EXPAND
-        )
+        sizer.Add(self.board_renderer.widget(), proportion=1, flag=wx.EXPAND)
         self.board_slot.Layout()
         if self.session is not None:
             self.board_renderer.update(

@@ -1,7 +1,9 @@
 # `make image` is broken: pip tries to source-build wxPython
 
-**Status:** proposed — needs go-ahead (found 2026-07-29 while trying to run the
-format gate; pre-existing, unrelated to that night's `format.sh` fix)
+**Status:** DONE 2026-07-29 — Bill approved; the Dockerfile now filters wxPython
+out of the pip install (dnf's `python3-wxpython4` owns it). Verified: `make image`
+completes and the format gate runs (found 17 pre-existing ruff errors — separate
+issue, not tracked by this task).
 
 ## The failure
 

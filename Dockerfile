@@ -43,8 +43,9 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 
 COPY python/requirements.txt /requirements.txt
 RUN  uv pip install --system setuptools && \
-     uv pip install --system -r /requirements.txt && \
-     rm /requirements.txt
+     grep -v -i wxpython /requirements.txt > /requirements-nowx.txt && \
+     uv pip install --system -r /requirements-nowx.txt && \
+     rm /requirements.txt /requirements-nowx.txt
 
 COPY entrypoint/.bashrc /root/
 COPY entrypoint/entrypoint.sh /entrypoint.sh

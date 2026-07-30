@@ -263,7 +263,9 @@ class GraphicsBoardRenderer(BoardRenderer):
         # Active label badges — colour mirrors the curses peg colour for
         # this label, so the colour ↔ label binding stays legible across
         # frontends.
-        active_label_y = base_y + base_h + (18 if has_reference else label_band_h / 2)
+        active_label_y = (
+            base_y + base_h + (18 if has_reference else label_band_h / 2)
+        )
         badge_font = wx.Font(
             13,
             wx.FONTFAMILY_DEFAULT,
