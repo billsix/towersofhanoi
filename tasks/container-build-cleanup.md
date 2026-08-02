@@ -1,6 +1,8 @@
 # Fix container build: docs target + entrypoint output path
 
 **Status:** proposed — not started
+**Priority:** 5
+**Difficulty:** 2
 **Created:** 2026-06-13
 
 ## Goal
