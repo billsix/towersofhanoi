@@ -46,14 +46,10 @@ format: image ## Format the Python source with ruff (entrypoint/format.sh)
 		/format.sh
 
 .PHONY: docs
-docs:  image ## Get Shell into a ephermeral container made from the image
-	$(CONTAINER_CMD) run -it --rm \
+docs: image ## Build the Sphinx book (html/pdf/epub) into ./output/towersofhanoi/
+	$(CONTAINER_CMD) run --rm \
 		$(FILES_TO_MOUNT) \
-		-v ./entrypoint/shell.sh:/shell.sh:Z \
-		-v ./entrypoint/.bashrc:/root/.bashrc:Z \
-		$(CONTAINER_NAME) \
-
-
+		$(CONTAINER_NAME)
 
 .PHONY: image-export
 image-export: ## export the OCI image to a timestamped tar in the repo root

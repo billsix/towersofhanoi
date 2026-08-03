@@ -20,7 +20,7 @@ mkdir -p /output/towersofhanoi/
 cp -r * /output/towersofhanoi/
 # see if this fixes github issue with unscores in
 # filenames created by sphinx
-touch /output/modelviewprojection/.nojekyll
+touch /output/towersofhanoi/.nojekyll
 
 
 cd /hanoi/docs
