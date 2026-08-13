@@ -2,43 +2,18 @@ FROM registry.fedoraproject.org/fedora:44
 
 ARG BUILD_DOCS=0
 
+# System-package installation lives in per-group scripts (entrypoint/0N-install-*.sh),
+# host-runnable with no container runtime; the scripts take no options -- WHICH optional
+# groups run is decided here by the ARG `if` blocks. The dnf cache mount + keepcache stay
+# in the Dockerfile (build plumbing). 01-install-base.sh also does `dnf upgrade`.
+COPY entrypoint/01-install-base.sh entrypoint/02-install-docs.sh /usr/local/bin/
+
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
-     dnf upgrade -y
-RUN  --mount=type=cache,target=/var/cache/libdnf5 \
-     --mount=type=cache,target=/var/lib/dnf \
-     dnf install -y clear \
-                   python3 \
-                   tmux \
-                   nano \
-		   ruff \
-		   python3-isort \
-		   python3-pysnooper \
-		   python3-pytest \
-                   python3-termcolor \
-                   python3-wxpython4 \
-                   uv \
-                   ty ; \
-    if [ "$BUILD_DOCS" = "1" ]; then \
-       dnf install -y \
-                   aspell \
-                   aspell-en \
-                   latexmk \
-                   make \
-                   mathjax \
-                   mathjax-main-fonts \
-                   mathjax-math-fonts \
-                   python3-furo \
-                   python3-sphinx-latex \
-                   python3-sphinx_rtd_theme \
-                   texlive \
-                   texlive-anyfontsize \
-                   texlive-dvipng \
-                   texlive-dvisvgm \
-                   texlive-standalone; \
-    fi ; \
-    echo "hanoi" >> ~/.bash_history
+     /usr/local/bin/01-install-base.sh && \
+     if [ "$BUILD_DOCS" = "1" ]; then /usr/local/bin/02-install-docs.sh; fi && \
+     echo "hanoi" >> ~/.bash_history
 
 
 COPY python/requirements.txt /requirements.txt
