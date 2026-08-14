@@ -1,6 +1,6 @@
 #!/bin/env bash
 
-cd /hanoi || exit 1
+[ -d /hanoi ] && cd /hanoi
 
 # Every step runs, but the script exits nonzero if ANY step failed --
 # otherwise the exit code is the LAST command's alone, and a `ruff check`
