@@ -98,7 +98,13 @@ different medium:
   attempted and reverted) and the original design-notes doc (`NOTES.md`) were
   archived here once their content was folded into README/CLAUDE.
 
-No in-flight work under `tasks/` at present.
+**In-flight tasks (added 2026-08-27):** `record-recipe-bindings-and-show-rebinding.md`
+and `latex-workbook-solve-1-5.md` (both `blocked` on maintainer answers), plus
+`wire-or-remove-orphaned-presenter-helpers.md` (`proposed`). See `tasks/`.
+
+**Reference docs:** `tasks/reference/architecture-overview.md` — the dispatch data-flow
+across the three frontends + the default-label-space recipe invariant; read it before
+touching the engine/recipe subsystem.
 
 Optional follow-ons (descoped from the completed roadmap): recipe persistence
 to disk, a step-mode replay UI, a curses pass 2.
