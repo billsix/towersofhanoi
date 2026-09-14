@@ -50,7 +50,12 @@ from .presenter import (
     labelling_for,
     labels_to_towers,
 )
-from .recipe import RecipeRegistry, Recorder, apply_iter
+from .recipe import (
+    RecipeRegistry,
+    Recorder,
+    apply_iter,
+    format_rebinding_table,
+)
 
 
 @dataclass
@@ -101,6 +106,29 @@ class GameSession:
         pairs.sort()
         return (
             "Valid moves: " + ", ".join(pairs) if pairs else "No valid moves."
+        )
+
+    def move_teaching_lines(
+        self, cmd: Command, result: "DispatchResult"
+    ) -> list[str]:
+        """Extra teaching lines a TEXT frontend should print after a plain
+        move: the three-column rebinding table for that single move, but only
+        when the move actually happened (a `MoveCmd` whose dispatch produced no
+        lines — an illegal move produces an error line) AND a relabelling is
+        active. Empty otherwise, including under the default labelling.
+
+        This lives beside dispatch rather than inside `_handle_move` on purpose:
+        the GUI treats a non-empty `result.lines` from a move as an *error* and
+        pops an "Illegal move" box, so folding teaching text into the move's
+        lines would misfire there. The GUI instead shows its own dialog; the CLI
+        and curses frontends call this to get the same table inline.
+        """
+        if not isinstance(cmd, MoveCmd) or result.lines:
+            return []
+        return format_rebinding_table(
+            [(cmd.from_label, cmd.to_label)],
+            self.labelling,
+            left_header="Move (your labels)",
         )
 
     # --- Recipe save (post-win, frontend triggers explicitly) -------------
@@ -196,6 +224,16 @@ class GameSession:
             f"Applying recipe {recipe.name!r} "
             f"({len(recipe.default_moves)} moves):"
         ]
+        # Teaching step: when replayed under a relabelling, show the three-panel
+        # rebinding as aligned columns -- the recipe's own-label moves, the
+        # label->peg key, and the moves rebound onto physical pegs. Empty under
+        # the default labelling. The GUI shows the same three panels as scroll
+        # lists. See tasks/record-recipe-bindings-and-show-rebinding.md.
+        table = format_rebinding_table(recipe.default_moves, self.labelling)
+        if table:
+            lines.append("")
+            lines.extend(table)
+            lines.append("")
         for step, result in enumerate(
             apply_iter(recipe, self.game, self.labelling), start=1
         ):

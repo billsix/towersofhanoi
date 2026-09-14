@@ -198,6 +198,40 @@ def _draw_messages(stdscr, lines: list[str]) -> None:
             stdscr.addstr(msg_top + i, 0, line[: curses.COLS - 1])
 
 
+def _show_pager(stdscr, lines: list[str]) -> None:
+    """Full-screen scrollable view for output taller than the message area
+    (e.g. the ~11-line recipe rebinding table, which the 6-line message area
+    would otherwise truncate). Up/Down or j/k scroll a line; PgUp/PgDn or
+    space a page; Home/End jump; q or Enter closes and returns to the board."""
+    body = list(lines)
+    footer = "[Up/Down PgUp/PgDn Home/End scroll - q or Enter to close]"
+    top = 0
+    while True:
+        stdscr.erase()
+        view_h = max(1, curses.LINES - 1)  # keep the last row for the footer
+        maxtop = max(0, len(body) - view_h)
+        top = max(0, min(top, maxtop))
+        for i in range(min(view_h, len(body) - top)):
+            stdscr.addstr(i, 0, body[top + i][: curses.COLS - 1])
+        stdscr.addstr(curses.LINES - 1, 0, footer[: curses.COLS - 1])
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key in (ord("q"), ord("Q"), 10, 13, curses.KEY_ENTER):
+            return
+        if key in (curses.KEY_DOWN, ord("j")):
+            top += 1
+        elif key in (curses.KEY_UP, ord("k")):
+            top -= 1
+        elif key in (curses.KEY_NPAGE, ord(" ")):
+            top += view_h
+        elif key == curses.KEY_PPAGE:
+            top -= view_h
+        elif key == curses.KEY_HOME:
+            top = 0
+        elif key == curses.KEY_END:
+            top = maxtop
+
+
 def _draw_hint(stdscr, hint_lines: Optional[list[str]] = None) -> None:
     """Draw HINT_AREA_LINES rows of hint text just above the prompt.
     Shorter inputs are top-padded with empty lines."""
@@ -322,13 +356,22 @@ def _play_game(stdscr, n: int, registry: RecipeRegistry) -> bool:
         text = _read_line(stdscr)
         if text is None:
             return False
-        result = session.dispatch(parse(text))
+        cmd = parse(text)
+        result = session.dispatch(cmd)
         if result.quit:
             return False
-        if result.lines:
-            msg_lines = result.lines
-        else:
+        # A plain move under a relabelling gets the same three-column rebinding
+        # table `apply` shows (empty otherwise — see move_teaching_lines).
+        show_lines = list(result.lines) + session.move_teaching_lines(
+            cmd, result
+        )
+        if len(show_lines) > MSG_AREA_LINES:
+            # Taller than the message area (e.g. the apply table) — page it in a
+            # scrollable overlay instead of truncating, then clear the area.
+            _show_pager(stdscr, show_lines)
             msg_lines = []
+        else:
+            msg_lines = show_lines
 
     # Won
     min_moves = session.min_moves()

@@ -45,12 +45,12 @@ calling `record` — the helper `labels_to_towers` from `presenter` does the
 work.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Optional
 
 from .hanoimodel import HanoiGame
-from .presenter import Labelling, labels_to_towers
+from .presenter import Labelling, label_to_tower, labels_to_towers
 
 
 @dataclass(frozen=True)
@@ -186,6 +186,107 @@ def apply(
 ) -> list[StepResult]:
     """Convenience wrapper: exhaust `apply_iter` and return all results."""
     return list(apply_iter(recipe, game, labelling))
+
+
+# --- The rebinding: recipe's local labels -> global (physical) pegs ---------
+#
+# The teaching moment (see tasks/record-recipe-bindings-and-show-rebinding.md):
+# a recipe's moves are written in its own labels 1,2,3. Replaying under a
+# relabelling reinterprets each label as "the peg currently wearing it", so
+# label l lands on physical peg label_to_tower(labelling, l) + 1. A student
+# must SEE that local->global rebinding when a recipe is replayed in a
+# relabelled context -- it is why the sub-solution's labels change.
+
+
+def rebinding(labelling: Labelling) -> tuple[tuple[int, int], ...]:
+    """For each recipe label in 1..3, the 1-indexed physical peg it resolves
+    to under `labelling`. Identity ((1,1),(2,2),(3,3)) under ONE_TWO_THREE."""
+    pairs: list[tuple[int, int]] = []
+    for label in (1, 2, 3):
+        peg: Optional[int] = label_to_tower(labelling, label)
+        assert peg is not None  # a label in 1..3 always resolves to a peg
+        pairs.append((label, peg + 1))
+    return tuple(pairs)
+
+
+def format_rebinding(labelling: Labelling) -> list[str]:
+    """Human-readable rebinding lines for the text (CLI/curses) frontends.
+    Empty under the default labelling -- there is no rebinding to show."""
+    if labelling == Labelling.ONE_TWO_THREE:
+        return []
+    body: str = ",  ".join(
+        f"label {label} -> peg {peg}" for label, peg in rebinding(labelling)
+    )
+    return [
+        "  Rebinding (this recipe's labels -> physical pegs, because you "
+        "relabelled):",
+        f"    {body}",
+        "    Each move below is the recorded label, rebound to the peg after "
+        "'->'.",
+    ]
+
+
+def rebound_moves(
+    moves: Sequence[tuple[int, int]], labelling: Labelling
+) -> tuple[tuple[int, int], ...]:
+    """Each move (a ``(from_label, to_label)`` pair) rewritten onto 1-indexed
+    physical pegs under `labelling` -- the move rebound to where it actually
+    happens. Pure (no game state); identity under ONE_TWO_THREE. Used for both
+    a recipe's stored moves and a single just-typed move."""
+    out: list[tuple[int, int]] = []
+    for from_label, to_label in moves:
+        fp: Optional[int] = label_to_tower(labelling, from_label)
+        tp: Optional[int] = label_to_tower(labelling, to_label)
+        assert fp is not None and tp is not None  # labels are 1..3
+        out.append((fp + 1, tp + 1))
+    return tuple(out)
+
+
+def format_rebinding_table(
+    moves: Sequence[tuple[int, int]],
+    labelling: Labelling,
+    left_header: str = "Recipe (its labels)",
+) -> list[str]:
+    """Three aligned text columns -- the text-frontend equivalent of the GUI's
+    three-panel rebinding view:
+
+        <left_header> | Rebinding (label -> peg) | Rebound (physical pegs)
+
+    Left and right run one row per move and line up move-for-move; the middle is
+    the 3-row label->peg key. Empty under the default labelling. `left_header`
+    lets a single typed move say "Move (your labels)" while a recipe keeps the
+    default -- the same table serves both `apply` and a plain move.
+    """
+    if labelling == Labelling.ONE_TWO_THREE:
+        return []
+    left: list[str] = [
+        f"{i}: {a} -> {b}" for i, (a, b) in enumerate(moves, 1)
+    ]
+    mid: list[str] = [
+        f"label {label} -> peg {peg}" for label, peg in rebinding(labelling)
+    ]
+    right: list[str] = [
+        f"{i}: {fp} -> {tp}"
+        for i, (fp, tp) in enumerate(rebound_moves(moves, labelling), 1)
+    ]
+    lhdr, mhdr, rhdr = left_header, "Rebinding", "Rebound (pegs)"
+    lw: int = max([len(lhdr), *(len(s) for s in left)])
+    mw: int = max([len(mhdr), *(len(s) for s in mid)])
+    rows: int = max(len(left), len(mid), len(right))
+
+    def cell(col: list[str], i: int, width: int) -> str:
+        return (col[i] if i < len(col) else "").ljust(width)
+
+    lines: list[str] = [
+        f"  {lhdr.ljust(lw)}   {mhdr.ljust(mw)}   {rhdr}",
+        f"  {'-' * lw}   {'-' * mw}   {'-' * len(rhdr)}",
+    ]
+    for i in range(rows):
+        lines.append(
+            f"  {cell(left, i, lw)}   {cell(mid, i, mw)}   "
+            f"{cell(right, i, 0)}"
+        )
+    return lines
 
 
 def _explain_illegal(

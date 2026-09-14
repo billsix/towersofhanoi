@@ -24,6 +24,8 @@ labels 2 and 3, lands the top two discs on physical peg 1 — the first
 "recursive" step of solving 3 discs.
 """
 
+from hanoigame.commands import MoveCmd, RelabelCmd
+from hanoigame.engine import GameSession
 from hanoigame.hanoimodel import HanoiGame
 from hanoigame.presenter import Labelling, labels_to_towers
 from hanoigame.recipe import (
@@ -32,6 +34,10 @@ from hanoigame.recipe import (
     Recorder,
     apply,
     apply_iter,
+    format_rebinding,
+    format_rebinding_table,
+    rebinding,
+    rebound_moves,
 )
 
 
@@ -57,6 +63,115 @@ def _play_labeled(
                 f"move {from_label}->{to_label} is illegal here"
             )
         recorder.record(fp + 1, tp + 1)
+
+
+# --- The recipe -> physical-peg rebinding (the teaching step) -------------
+
+
+def test_rebinding_identity_under_default():
+    assert rebinding(Labelling.ONE_TWO_THREE) == ((1, 1), (2, 2), (3, 3))
+
+
+def test_rebinding_under_relabel():
+    # ONE_THREE_TWO: physical pegs 0,1,2 carry labels 1,3,2, so recipe
+    # label 1 -> peg 1, label 2 -> peg 3, label 3 -> peg 2.
+    assert rebinding(Labelling.ONE_THREE_TWO) == ((1, 1), (2, 3), (3, 2))
+
+
+def test_rebinding_covers_all_six_labellings():
+    # Every labelling yields a permutation of pegs {1,2,3}, one per label.
+    for lab in Labelling:
+        pairs = rebinding(lab)
+        assert [label for label, _ in pairs] == [1, 2, 3]
+        assert sorted(peg for _, peg in pairs) == [1, 2, 3]
+
+
+def test_format_rebinding_empty_under_default():
+    # No relabelling -> nothing to teach, so no lines are emitted.
+    assert format_rebinding(Labelling.ONE_TWO_THREE) == []
+
+
+def test_format_rebinding_shows_the_mapping_when_relabelled():
+    joined = "\n".join(format_rebinding(Labelling.ONE_THREE_TWO))
+    assert "label 2 -> peg 3" in joined
+    assert "label 3 -> peg 2" in joined
+
+
+def test_rebound_moves_identity_under_default():
+    moves = ((1, 2), (1, 3), (2, 3))
+    assert rebound_moves(moves, Labelling.ONE_TWO_THREE) == (
+        (1, 2),
+        (1, 3),
+        (2, 3),
+    )
+
+
+def test_rebound_moves_under_relabel():
+    # ONE_THREE_TWO: label 1->peg 1, 2->peg 3, 3->peg 2. So each move's
+    # labels are rewritten to the pegs those labels currently sit on.
+    moves = ((1, 2), (1, 3), (2, 3))
+    assert rebound_moves(moves, Labelling.ONE_THREE_TWO) == (
+        (1, 3),
+        (1, 2),
+        (3, 2),
+    )
+
+
+def test_rebound_moves_single_typed_move():
+    # The same helper serves a single just-typed move (current-label pair).
+    assert rebound_moves([(2, 3)], Labelling.ONE_THREE_TWO) == ((3, 2),)
+
+
+def test_format_rebinding_table_empty_under_default():
+    moves = ((1, 2), (1, 3), (2, 3))
+    assert format_rebinding_table(moves, Labelling.ONE_TWO_THREE) == []
+
+
+def test_format_rebinding_table_has_all_three_panels():
+    moves = ((1, 2), (1, 3), (2, 3))
+    joined = "\n".join(format_rebinding_table(moves, Labelling.ONE_THREE_TWO))
+    # the three panel headers
+    assert "Recipe (its labels)" in joined
+    assert "Rebinding" in joined
+    assert "Rebound (pegs)" in joined
+    # recipe move 1 (left), a key row (middle), and its rebound move (right)
+    assert "1: 1 -> 2" in joined
+    assert "label 2 -> peg 3" in joined
+    assert "1: 1 -> 3" in joined
+
+
+def test_format_rebinding_table_custom_left_header_for_a_move():
+    # A single typed move reuses the same table with its own header.
+    joined = "\n".join(
+        format_rebinding_table(
+            [(2, 3)], Labelling.ONE_THREE_TWO, left_header="Move (your labels)"
+        )
+    )
+    assert "Move (your labels)" in joined
+    assert "1: 2 -> 3" in joined  # left: as typed
+    assert "1: 3 -> 2" in joined  # right: rebound to pegs
+
+
+def test_move_teaching_lines_only_for_a_relabelled_successful_move():
+    reg = RecipeRegistry()
+    # Default labelling: a move gets no teaching table.
+    s = GameSession(num_disks=3, registry=reg)
+    cmd = MoveCmd(1, 2)
+    assert s.move_teaching_lines(cmd, s.dispatch(cmd)) == []
+
+    # Relabelled + a legal move: the three-column table, headed "Move ...".
+    s2 = GameSession(num_disks=3, registry=reg)
+    s2.dispatch(RelabelCmd((1, 3, 2)))
+    good = MoveCmd(1, 2)
+    lines = s2.move_teaching_lines(good, s2.dispatch(good))
+    assert any("Move (your labels)" in ln for ln in lines)
+
+    # Relabelled but an illegal move (from an empty peg): no teaching, because
+    # dispatch produced an error line.
+    s3 = GameSession(num_disks=3, registry=reg)
+    s3.dispatch(RelabelCmd((1, 3, 2)))
+    bad = MoveCmd(2, 3)  # label 2 is an empty peg on a fresh board
+    assert s3.move_teaching_lines(bad, s3.dispatch(bad)) == []
 
 
 # --- Recorder + Recipe basics --------------------------------------------

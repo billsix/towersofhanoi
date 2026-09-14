@@ -1,9 +1,80 @@
 # Record recipe bindings + played state, and show the rebinding on save
 
-**Status:** actionable — design decided 2026-09-14 (see "Decisions" below); ready to implement.
+**Status:** In progress — the recipe-rebinding display is shipped, working, and iterated to a
+**three-panel view** (2026-09-14). The maintainer likes it and wants the task **kept open (do NOT
+archive yet)** in case the display gets further polish. 121 tests pass; touched files ty/ruff-clean.
 **Priority:** 5
 **Difficulty:** 4
 **Started:** 2026-08-27
+
+## What shipped (2026-09-14)
+
+The rebinding is shown as an **in-session teaching step** in all three frontends, no persistence,
+driven by shared pure helpers so the logic is written and tested once.
+
+**First cut** — a rebinding block + per-move `(pegs a -> b)` on each step.
+
+**Then iterated (maintainer's request) to a three-panel view** — modelled on the GUI's numbered
+recipe-steps list: **left** = the recipe's moves in its own labels, **middle** = the label→peg
+rebinding key, **right** = the same moves rebound onto physical pegs. Left and right line up
+move-for-move.
+
+- **`recipe.py`** (pure, shared, tested):
+  - `rebinding(labelling)` — each recipe label 1..3 → the 1-indexed physical peg it resolves to (the
+    full labelling permutation; identity under `ONE_TWO_THREE`). The **middle** panel.
+  - `rebound_moves(recipe, labelling)` — each recipe move rewritten onto physical pegs. The **right**
+    panel. Pure (no game state).
+  - `format_rebinding_table(recipe, labelling)` — the three columns as aligned text (the text-frontend
+    equivalent of the GUI panels); empty under the default labelling. (`format_rebinding` — the
+    middle-only text — is retained.)
+- **`engine.py` `_handle_apply`** (shared by CLI + curses) — under a relabelling, inserts the
+  three-column `format_rebinding_table` above the live step log; default-labelling output unchanged.
+- **`hanoigui.py` `_show_rebinding_dialog`** (wx) — a non-modal three-panel dialog: two monospace
+  scroll `ListBox`es (recipe moves | rebound-to-pegs) flanking the rebinding key, with **synced
+  selection** (clicking a move on one side highlights the matching move on the other). Replaced the
+  earlier `MessageBox`. (Also fixed `_on_apply`'s pre-existing step-count filter — it matched
+  `"step "` but the lines are indented `"  step "`.)
+- **Tests** — `test_recipe.py` covers `rebinding`/`format_rebinding` (identity, a relabel case, all
+  six labellings, empty-under-default) and the new `rebound_moves`/`format_rebinding_table`
+  (identity, relabel, empty-under-default, all-three-panels-present, single-move). Existing CLI apply
+  assertions still pass (substring `in output` checks, robust to the added table lines).
+
+### GUI refinements (2026-09-14, later)
+
+- **wx sizer-flag crash fixed:** `wx.ALIGN_CENTER_VERTICAL` was used in a *vertical* sizer (illegal —
+  only horizontal alignment is valid there); the middle key now uses `ALIGN_CENTER_HORIZONTAL` with
+  the stretch spacers doing the vertical centering.
+- **Scroll alignment:** selecting a move now selects *and scrolls* both lists so the matched rows
+  line up (both have the same row count, so pinning the same first item aligns them; `SetFirstItem`
+  with an `EnsureVisible` fallback, guarded).
+- **Dialog on every relabelled move:** `_show_rebinding_dialog` was generalized to take any move list
+  (`rebound_moves` now takes a move Sequence, not a `Recipe`), and `_on_move` fires it for the single
+  just-made move whenever a relabelling is active — so the student is forced to see typed-label →
+  physical-peg on each move, not only on `apply`. One dialog is reused (previous closed first) so
+  repeated moves don't stack windows.
+- **Still unverified by the agent:** the wx rendering — wxPython isn't importable in the agent's
+  sandbox, so the dialog layout/scroll/close behaviour needs a human run to confirm.
+
+### CLI + TUI parity (2026-09-14, later)
+
+Brought the text frontends up to the GUI's "teach on every move, not just apply":
+
+- **Shared helper** — `format_rebinding_table` now takes a move `Sequence` + a `left_header` (so one
+  table serves both a recipe and a single move), and `GameSession.move_teaching_lines(cmd, result)`
+  returns that table for a plain move **only when it's a `MoveCmd` that succeeded (no error lines)
+  under a relabelling**. It lives beside `dispatch` (not inside `_handle_move`) on purpose: the GUI
+  treats a move's non-empty `result.lines` as an *error*, so folding teaching text into the move's
+  lines would misfire there — the GUI keeps its dialog; the text frontends call this helper.
+- **CLI** (`hanoicli._play_game`) prints the table after a relabelled move — verified: typing
+  `1 -> 2` under labelling (1,3,2) shows the same three-column table headed "Move (your labels)".
+- **TUI** (`hanoigame`) does the same, and — since the message area is only `MSG_AREA_LINES` (6) tall
+  and the `apply` table is ~11 lines — long output now opens a **scrollable full-screen pager**
+  (`_show_pager`: Up/Down·PgUp/PgDn·Home/End·q, wired in `_play_game`) instead of truncating. The
+  single-move table (5 lines) still fits the message area. **Curses pager is agent-unverified** (no
+  tty here) — needs a human run.
+
+No `Recipe`/registry shape change and no disk persistence — the binding is captured for *display*
+only, so the apply/relabel invariant at recipe.py:37-39 is untouched.
 
 ## Decisions (maintainer, 2026-09-14)
 

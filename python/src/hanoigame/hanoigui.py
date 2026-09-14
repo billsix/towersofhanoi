@@ -27,6 +27,7 @@ all three frontends.
 """
 
 import importlib.resources
+from collections.abc import Sequence
 from typing import Optional
 
 import wx
@@ -39,8 +40,8 @@ from .board_renderers import (
 )
 from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
 from .engine import GameSession
-from .presenter import change_labels_on_pegs
-from .recipe import RecipeRegistry
+from .presenter import Labelling, change_labels_on_pegs
+from .recipe import RecipeRegistry, rebinding, rebound_moves
 
 MAX_DISKS = 10
 DEFAULT_DISKS = 3
@@ -248,6 +249,7 @@ class HanoiFrame(wx.Frame):
         )
 
     def _on_move(self, from_label: int, to_label: int) -> None:
+        relabelled = self.session.labelling != Labelling.ONE_TWO_THREE
         result = self.session.dispatch(MoveCmd(from_label, to_label))
         if result.lines:
             # Illegal-move message — single line in status, full text in
@@ -261,6 +263,21 @@ class HanoiFrame(wx.Frame):
                 )
         else:
             self._set_status(f"Moved {from_label} → {to_label}.")
+            # Teaching step: under a relabelling, show the same three-panel
+            # rebinding for the single move the user just made, so they are
+            # forced to see typed-label -> physical-peg. See
+            # tasks/record-recipe-bindings-and-show-rebinding.md.
+            if relabelled:
+                self._show_rebinding_dialog(
+                    title="Rebinding for your move",
+                    intro=(
+                        "You typed this move in the current (relabelled) "
+                        "labels.\nHere is how each label maps to a physical "
+                        "peg right now, and where your move actually went."
+                    ),
+                    left_header="Your move",
+                    moves=[(from_label, to_label)],
+                )
         self._refresh()
         if self.session.is_won():
             self._on_win()
@@ -275,17 +292,173 @@ class HanoiFrame(wx.Frame):
         if not name:
             self._set_status("Select a recipe first.")
             return
+        relabelled = self.session.labelling != Labelling.ONE_TWO_THREE
         result = self.session.dispatch(ApplyCmd(name))
         # Apply streams multiple "step N: from -> to" lines; the board
         # animation already shows what happened, so summarise to a count.
-        step_lines = [ln for ln in result.lines if ln.startswith("step ")]
+        step_lines = [
+            ln for ln in result.lines if ln.strip().startswith("step ")
+        ]
         if step_lines:
             self._set_status(f"Applied '{name}' — {len(step_lines)} moves.")
         elif result.lines:
             self._set_status(result.lines[-1])
+        # Teaching step: when the recipe was replayed under a relabelling, pop
+        # up the three-panel local->global rebinding so the student sees why the
+        # recorded solution's labels change. See
+        # tasks/record-recipe-bindings-and-show-rebinding.md.
+        recipe = self.session.registry.get(name)
+        if relabelled and recipe is not None:
+            self._show_rebinding_dialog(
+                title=f"Rebinding for '{name}'",
+                intro=(
+                    "This recipe is written in labels 1, 2, 3. Because you "
+                    "relabelled,\neach move is rebound to a physical peg — "
+                    "the same solution, new labels."
+                ),
+                left_header="Recipe moves",
+                moves=recipe.default_moves,
+            )
         self._refresh()
         if self.session.is_won():
             self._on_win()
+
+    def _show_rebinding_dialog(
+        self,
+        *,
+        title: str,
+        intro: str,
+        left_header: str,
+        moves: Sequence[tuple[int, int]],
+    ) -> None:
+        """Three-panel teaching view of moves made/replayed under a
+        relabelling: the moves in their typed/stored labels (left), the
+        label→peg rebinding key (middle), and the same moves rebound onto
+        physical pegs (right). Left and right are monospace scroll lists that
+        line up move-for-move — selecting a move on one side selects AND
+        scrolls the other to match. Non-modal and in-session only (nothing
+        persisted); a single dialog is reused so repeated moves don't pile up
+        windows. Used for both `apply` (a whole recipe) and a single move."""
+        # One reusable rebinding window: a fresh apply/move closes the previous
+        # one instead of stacking dialogs (a plain move fires this on every
+        # relabelled move, so stacking would bury the board in popups). The
+        # handle is tracked lazily via getattr — no __init__ change needed — and
+        # is None whenever none is open. Destroy() raises if the user already
+        # closed it, hence the guard.
+        prev = getattr(self, "_rebinding_dlg", None)
+        if prev is not None:
+            try:
+                prev.Destroy()
+            except RuntimeError:
+                pass
+            self._rebinding_dlg = None
+
+        labelling = self.session.labelling
+        left_items = [f"{i}: {a} → {b}" for i, (a, b) in enumerate(moves, 1)]
+        right_items = [
+            f"{i}: {fp} → {tp}"
+            for i, (fp, tp) in enumerate(rebound_moves(moves, labelling), 1)
+        ]
+        key = [
+            f"label {label} → peg {peg}"
+            for label, peg in rebinding(labelling)
+        ]
+
+        dlg = wx.Dialog(
+            self,
+            title=title,
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        mono = wx.Font(
+            12,
+            wx.FONTFAMILY_TELETYPE,
+            wx.FONTSTYLE_NORMAL,
+            wx.FONTWEIGHT_NORMAL,
+        )
+
+        def _list_panel(heading_text: str, items: list[str]) -> tuple:
+            col = wx.BoxSizer(wx.VERTICAL)
+            heading = wx.StaticText(dlg, label=heading_text)
+            heading.SetFont(heading.GetFont().Bold())
+            listbox = wx.ListBox(dlg, choices=items, style=wx.LB_SINGLE)
+            listbox.SetFont(mono)
+            row_h = max(1, listbox.GetCharHeight())
+            listbox.SetMinSize((210, row_h * 10 + 8))
+            col.Add(heading, 0, wx.BOTTOM, 4)
+            col.Add(listbox, 1, wx.EXPAND)
+            return col, listbox
+
+        left_col, left_lb = _list_panel(left_header, left_items)
+        right_col, right_lb = _list_panel("Rebound to pegs", right_items)
+
+        mid_col = wx.BoxSizer(wx.VERTICAL)
+        mid_head = wx.StaticText(dlg, label="Rebinding")
+        mid_head.SetFont(mid_head.GetFont().Bold())
+        mid_text = wx.StaticText(dlg, label="\n".join(key))
+        mid_text.SetFont(mono)
+        mid_col.Add(mid_head, 0, wx.BOTTOM, 4)
+        mid_col.AddStretchSpacer(1)
+        # Vertical sizer: only horizontal alignment is valid here (the stretch
+        # spacers above/below do the vertical centering).
+        mid_col.Add(mid_text, 0, wx.ALIGN_CENTER_HORIZONTAL)
+        mid_col.AddStretchSpacer(1)
+
+        # Selecting a move selects the matching one on the other side AND
+        # scrolls both so they line up. Both lists have the same number of
+        # rows, so pinning the same first item aligns them exactly. (Programmatic
+        # SetSelection does not fire EVT_LISTBOX, so there's no feedback loop.)
+        def _sync(src: wx.ListBox, dst: wx.ListBox):
+            def handler(_evt) -> None:
+                i = src.GetSelection()
+                if i == wx.NOT_FOUND:
+                    return
+                for lb in (src, dst):
+                    if i >= lb.GetCount():
+                        continue
+                    lb.SetSelection(i)
+                    # Scroll BOTH lists to put row i in the same place, so the
+                    # matched moves line up visually (the whole point). Both
+                    # lists have equal length, so pinning the same first row
+                    # aligns them exactly. SetFirstItem pins the top row, but
+                    # not every wx port exposes it — fall back to EnsureVisible
+                    # (just brings row i on-screen). getattr avoids crashing if
+                    # a method is absent (learned from the sizer-flag crash:
+                    # verify wx calls, don't assume).
+                    set_first = getattr(lb, "SetFirstItem", None)
+                    if set_first is not None:
+                        set_first(i)
+                    else:
+                        ensure = getattr(lb, "EnsureVisible", None)
+                        if ensure is not None:
+                            ensure(i)
+
+            return handler
+
+        left_lb.Bind(wx.EVT_LISTBOX, _sync(left_lb, right_lb))
+        right_lb.Bind(wx.EVT_LISTBOX, _sync(right_lb, left_lb))
+
+        cols = wx.BoxSizer(wx.HORIZONTAL)
+        cols.Add(left_col, 1, wx.EXPAND | wx.ALL, 6)
+        cols.Add(mid_col, 0, wx.EXPAND | wx.ALL, 6)
+        cols.Add(right_col, 1, wx.EXPAND | wx.ALL, 6)
+
+        intro_txt = wx.StaticText(dlg, label=intro)
+
+        def _close(_evt) -> None:
+            self._rebinding_dlg = None
+            dlg.Destroy()
+
+        btn = wx.Button(dlg, wx.ID_CLOSE, "Close")
+        btn.Bind(wx.EVT_BUTTON, _close)
+        dlg.Bind(wx.EVT_CLOSE, _close)
+
+        root = wx.BoxSizer(wx.VERTICAL)
+        root.Add(intro_txt, 0, wx.ALL, 10)
+        root.Add(cols, 1, wx.EXPAND)
+        root.Add(btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 8)
+        dlg.SetSizerAndFit(root)
+        dlg.Show()
+        self._rebinding_dlg = dlg
 
     def _on_show(self, _evt) -> None:
         name = self._selected_recipe_name()

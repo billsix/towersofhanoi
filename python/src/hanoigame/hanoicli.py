@@ -90,9 +90,15 @@ def _play_game(
         line = in_.readline()
         if not line:  # EOF
             return False
-        result = session.dispatch(parse(line))
+        cmd = parse(line)
+        result = session.dispatch(cmd)
         for output_line in result.lines:
             out.write(output_line + "\n")
+        # After a plain move under a relabelling, print the same three-column
+        # rebinding table `apply` shows — so a hand move teaches the local->
+        # global mapping too. Empty otherwise (see GameSession.move_teaching_lines).
+        for teaching_line in session.move_teaching_lines(cmd, result):
+            out.write(teaching_line + "\n")
         if result.quit:
             return False
 
