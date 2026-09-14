@@ -29,6 +29,27 @@ current labelling at apply time** — that relabel-and-replay is the teaching po
   `peg_color` follows the *label*, not the physical peg).
 - The recipe registry is **RAM-only** (`recipe.py:92`) — no persistence.
 
+### Making the rebinding visible (the teaching *display*, 2026-09-14)
+
+That relabel-and-replay is now *shown* to the student, not just performed, as an in-session step
+(no persistence). The pure logic is shared, in `recipe.py`:
+- `rebinding(labelling)` — each recipe label 1..3 → the physical peg it resolves to (the full
+  labelling permutation; identity under `ONE_TWO_THREE`).
+- `rebound_moves(moves, labelling)` — a move list rewritten onto physical pegs (works for a recipe's
+  moves *or* a single typed move).
+- `format_rebinding_table(moves, labelling, left_header=…)` — the three aligned text columns
+  (moves-in-their-labels │ label→peg key │ rebound-to-pegs); empty under the default labelling.
+
+Wiring, one behaviour across all three frontends: **CLI/curses** get it from the shared engine —
+`_handle_apply` prepends the table, and `GameSession.move_teaching_lines(cmd, result)` supplies it
+after a plain move. **Key architecture note:** `move_teaching_lines` lives beside `dispatch`, *not*
+inside `_handle_move`, because the **GUI treats a move's non-empty `result.lines` as an error**
+(illegal-move popup) — so teaching text must not ride a move's lines. The **wx GUI** instead shows a
+non-modal three-panel dialog (two synced scroll lists flanking the key) from `_show_rebinding_dialog`.
+The **curses** message area is only `MSG_AREA_LINES` tall, so output taller than it (the ~11-line
+apply table) opens a scrollable pager (`_show_pager`). Work record:
+`tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md`.
+
 ## Dead / orphaned / unwired code (grounds the follow-on)
 
 - **Orphaned presenter helpers:** `presenter.min_cols` (`presenter.py:138`), `min_rows` (`:143`), and

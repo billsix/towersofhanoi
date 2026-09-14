@@ -283,8 +283,12 @@ class HanoiFrame(wx.Frame):
             self._on_win()
 
     def _on_relabel_menu(self, labels: tuple[int, int, int]) -> None:
-        self.session.dispatch(RelabelCmd(labels))
-        # Silent: the menu's own radio check + recoloured board confirm.
+        # Surface the confirmation in the status bar (was silent) — so a menu
+        # click gives visible feedback that the relabelling took, and so it's
+        # obvious if the handler ever fails to fire.
+        result = self.session.dispatch(RelabelCmd(labels))
+        if result.lines:
+            self._set_status(result.lines[0])
         self._refresh()
 
     def _on_apply(self, _evt) -> None:
@@ -586,8 +590,12 @@ class HanoiFrame(wx.Frame):
             change_labels_on_pegs(self.session.labelling, i) + 1
             for i in range(3)
         )
-        # Check the active radio item; sibling radios auto-uncheck.
-        self.relabel_menu_items[current_labels].Check(True)
+        # Check the active radio item; sibling radios auto-uncheck. Only
+        # re-check when it isn't already checked — re-checking the item the user
+        # just clicked can, on GTK, re-emit the menu event and fight the click.
+        active_item = self.relabel_menu_items[current_labels]
+        if not active_item.IsChecked():
+            active_item.Check(True)
         for item in self.relabel_menu_items.values():
             item.Enable(not won)
         self.apply_btn.Enable(not won)

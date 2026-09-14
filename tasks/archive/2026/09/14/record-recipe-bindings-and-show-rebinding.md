@@ -1,8 +1,9 @@
 # Record recipe bindings + played state, and show the rebinding on save
 
-**Status:** In progress — the recipe-rebinding display is shipped, working, and iterated to a
-**three-panel view** (2026-09-14). The maintainer likes it and wants the task **kept open (do NOT
-archive yet)** in case the display gets further polish. 121 tests pass; touched files ty/ruff-clean.
+**Status:** Done — shipped, iterated to a **three-panel view**, and brought to CLI/TUI/GUI parity
+(2026-09-14). 124 tests pass; touched files ty/ruff-clean. Archived 2026-09-14 (maintainer declined a
+final GUI/curses human-verify; the wx dialog and curses pager remain agent-unverified — noted below).
+Durable design harvested to `tasks/reference/architecture-overview.md`.
 **Priority:** 5
 **Difficulty:** 4
 **Started:** 2026-08-27
