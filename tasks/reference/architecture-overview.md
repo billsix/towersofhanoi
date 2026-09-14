@@ -43,6 +43,48 @@ current labelling at apply time** — that relabel-and-replay is the teaching po
 `tasks/wire-or-remove-orphaned-presenter-helpers.md` — route the curses size check through
 `presenter.min_cols`/`min_rows` (or delete those helpers), and mark the teaching modules as non-wired.
 
+## Module map (teaching intent per file)
+
+Every artifact models the same "solve small, relabel, replay" idea in a
+different medium:
+
+- `python/src/hanoigame/hanoimodel.py` — pure game state (`HanoiGame`, `Move`,
+  `ValidMove`, `move_options()`). No I/O.
+- `python/src/hanoigame/hanoirecursive.py` — pedagogical recursion: hand-written
+  `hanoi_1..4` repeat the recursive shape four times before `hanoi_n`
+  generalises. `@snoop()`-decorated so a student can watch the call/return
+  trace; args named `i / t / g` (initial / temporary / goal) to match the RST
+  tutorial.
+- `python/src/hanoigame/hanoiiterative.py` — same algorithm, no recursion:
+  grows a move-list string by applying two label swaps
+  (`swap_temporary_and_goal` = 2↔3, `swap_initial_and_temporary` = 1↔2) to the
+  previous solution. The relabelling trick made fully explicit.
+- `python/src/hanoigame/` also holds `presenter` (render + 6 peg labellings),
+  `commands` (typed parser), `engine` (shared dispatcher), `recipe`
+  (record/replay in label-space), the three front-ends (`hanoicli`,
+  `hanoigame`, `hanoigui`), `board_renderers` (text + `wx.GraphicsContext`),
+  and `hanoi.xrc`.
+- `bash/` — the same pedagogy as a Unix pipeline: `hanoi1.sh` prints the
+  trivial move; `hanoi2/3/4.sh` compose smaller solutions piped through
+  `tr`-based relabel filters (`1to2.sh`, `2to3.sh`, …); `hanoin.sh` is the
+  recursive generalisation; `oneLineAtATime.sh` paginates output one move per
+  Enter.
+- `docs/source/` — Sphinx tutorial mirroring the game: `intro` states the
+  rules, `byhand1` walks all six 1-disc moves, `byhand2` introduces the I/T/G
+  substitution, `byhand3` extends to 3 discs, `byhand4` is a stub.
+  `:ref:` cross-links each sub-problem back to the smaller solution it reuses.
+- `workbook/` — four SVG worksheets (`hanoi1..4.svg`) + a Makefile that renders
+  them to PDF via Inkscape; printable companions to the RST tutorial.
+
+## Documentation & roadmap history
+
+- The original step-by-step roadmap (`PLAN.md`, steps 1–8 done, step 9 OpenGL
+  attempted and reverted) and the original design-notes doc (`NOTES.md`) were
+  archived under `tasks/archive/<YYYY>/<MM>/<DD>/` once their content was folded
+  into README/CLAUDE.
+- Optional follow-ons (descoped from the completed roadmap): recipe persistence
+  to disk, a step-mode replay UI, a curses pass 2.
+
 ## Cross-links
 
 - `tasks/record-recipe-bindings-and-show-rebinding.md` + `tasks/latex-workbook-solve-1-5.md` — both build
