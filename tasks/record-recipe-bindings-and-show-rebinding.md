@@ -1,13 +1,25 @@
 # Record recipe bindings + played state, and show the rebinding on save
 
-**Status:** blocked
-**Priority:** 6
+**Status:** actionable — design decided 2026-09-14 (see "Decisions" below); ready to implement.
+**Priority:** 5
 **Difficulty:** 4
 **Started:** 2026-08-27
-**Blocked on:** maintainer answers the Open questions below (the bullet is partially thought through —
-the binding semantics and persistence model must be pinned before implementing).
-**Recheck:** the Open questions below are answered (maintainer-gated; no automated signal —
-`/recheck-blocked` surfaces this for the maintainer to confirm, then set a real Status/Priority).
+
+## Decisions (maintainer, 2026-09-14)
+
+1. **A "binding" is the whole labelling permutation** (the full relabelling in effect), not the
+   per-subproblem I/T/G map alone.
+2. **No persistence.** This is a purely **in-session, visible teaching step** — nothing is written to
+   disk (the recipe registry stays RAM-only). The value is what the *student learns* from seeing it.
+3. **Show the rebinding in all three frontends** — CLI, curses, and the wx GUI.
+
+**The teaching point (what this must make visible):** a student already knows how to replay a recipe in
+a relabelled context. What they don't yet grasp is that **a recipe thinks in its own local labels**
+(the I/T/G abstraction — see `docs/source/byhand2.rst`), but when the *n−1* recipe is replayed to
+build the *n* solution, the moves recorded into the new recipe are in **global (concrete-peg) labels**.
+So when solving for *n*, replaying the *n−1* recipe must surface the **local→global rebinding as an
+explicit step** ("here is the n−1 recipe in I/T/G → here it is rebound to concrete pegs to slot into
+the n solution"), so the student sees *why* the sub-solution's labels change.
 
 ## Goal
 
@@ -51,14 +63,7 @@ recipe/relabel semantics deserve a durable write-up, a `tasks/reference/` doc ha
 
 ## Open questions
 
-1. **What is a "binding" to hold onto** — the active labelling *permutation* at replay time, or the
-   per-subproblem I/T/G variable→peg map? And in default-label space or current-label space?
-   (Affects the data-model shape at recipe.py:57-62.)
-2. **"Save that it was played"** — a boolean on the `Recipe`, a counter, or a flag stored **per
-   move**? And should it **persist beyond the session** (the registry is RAM-only, recipe.py:92) —
-   i.e. do you want on-disk recipe persistence as part of this?
-3. **"Save onto individual moves"** — extend each `default_moves` entry to carry its own binding
-   (changing the `Recipe` shape)? This touches the apply/relabel invariant (recipe.py:37-39) — OK to
-   change that shape?
-4. **"Show the rebinding" on recipe save** — a textual before/after label mapping printed in the
-   terminal? Which frontend(s) should show it — CLI, curses, and/or the wx GUI?
+All resolved 2026-09-14 — see "Decisions" above. (Binding = full permutation; in-session only, no
+persistence; shown in all three frontends; per-move binding capture is fine since it's transient
+display state, not persisted — so the apply/relabel invariant at recipe.py:37-39 is respected by
+capturing the binding for *display* without changing the stored `default_moves` shape.)

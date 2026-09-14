@@ -1,13 +1,27 @@
 # LaTeX workbook: solve Hanoi 1–5, referencing/copying/rebinding previous solutions
 
-**Status:** blocked
-**Priority:** 6
+**Status:** in progress — design decided 2026-09-14 (see "Decisions"); building a new standalone `.tex`.
+**Priority:** 5
 **Difficulty:** 4
 **Started:** 2026-08-27
-**Blocked on:** maintainer answers the Open questions below — chiefly whether this is a NEW standalone
-`.tex` workbook or an EXTENSION of the existing Sphinx `byhand*` RST→LaTeX pipeline, which already
-does most of this. Settle that before building (the two would duplicate content).
-**Recheck:** the Open questions below are answered (maintainer-gated; `/recheck-blocked` surfaces it).
+
+## Decisions (maintainer, 2026-09-14) — this reframes the task
+
+The workbook is **NOT a solved/worked doc** (so it does **not** extend the `byhand*.rst` worked
+solutions — those are the opposite, filled-in answers). It is a **blank, printable INDUCTION
+worksheet**:
+
+- A **page template per n** (n = 1..5). The student **prints multiple copies** — one for n=2, one for
+  n=3, … — and fills them in **by hand**.
+- The page has **shapes the student writes disc/peg numbers into, with shapes around them**, laid out
+  so that **copying the n solution and relabelling it** shows *why solving n gives n+1*.
+- Framed as **mathematical induction, not recursion**: assume you can solve n (you have your filled-in
+  n sheet) → therefore you can solve n+1 by using that solution twice, rebound (I/T/G → concrete pegs).
+- The student's main activity is **copying and relabelling** — the same I/T/G → peg substitution that
+  `byhand2.rst` teaches, but blank for the student to perform.
+- **New standalone LaTeX** (TikZ for the shapes), a third printable companion distinct from the
+  `byhand*.rst` worked solutions and the `workbook/*.svg` solution diagrams. Lives in `workbook/`.
+- Visual design: **agent's discretion** (maintainer: "have fun with it").
 
 ## Goal
 
@@ -47,12 +61,7 @@ settled first, else content duplicates across `byhand*.rst`, `workbook/*.svg`, a
 
 ## Open questions
 
-1. **"LaTeX based" — new standalone `.tex`, or extend the existing Sphinx `byhand` pipeline** (already
-   RST→LaTeX→PDF)? These are very different efforts and would duplicate content if both grow.
-   *(Recommend: extend `byhand` — the pattern and the LaTeX build already exist; least duplication.)*
-2. **"Solve 1–5"** — the docs stop at 4 with `byhand4` a stub. Is the ask to **finish `byhand4` and
-   add `byhand5`**, or to produce a fresh 1–5 artifact from scratch?
-3. **Relationship to the existing `workbook/` SVG worksheets** (also PDF, also a printable companion)
-   — replace them, supersede them, or add a third parallel artifact?
-4. **"Instructions per page"** — one subproblem per physical page (LaTeX `\newpage` layout), matching
-   the section-per-subproblem structure of `byhand2.rst`?
+Resolved 2026-09-14 (see "Decisions"): new standalone `.tex` (NOT extend `byhand`); n = 1..5, one
+page template per n; a third artifact alongside `byhand*.rst` and `workbook/*.svg` (distinct purpose —
+blank inductive fill-in, not solutions); one n per physical page. Visual/shape design is the agent's
+call.
