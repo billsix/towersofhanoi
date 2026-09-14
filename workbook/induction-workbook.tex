@@ -1,0 +1,178 @@
+% Copyright (c) 2026 William Emerison Six
+%
+% Permission is granted to copy, distribute and/or modify this document
+% under the terms of the GNU Free Documentation License, Version 1.3
+% or any later version published by the Free Software Foundation;
+% with no Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
+% A copy of the license is available at https://www.gnu.org/licenses/fdl-1.3.html.
+%
+% Tower of Hanoi -- INDUCTION worksheet (blank, fill-in).
+%
+% This is NOT a solutions document. It is a printable worksheet: one page template
+% per n (n = 1..5). Print several copies (one for n=2, one for n=3, ...) and fill
+% them in BY HAND. The point is to *do* the copy-and-relabel yourself and see, by
+% induction, that being able to solve n lets you solve n+1:
+%
+%   To move n discs I -> G:  (1) move n-1 discs I -> T  [your n-1 sheet, rebound]
+%                            (2) move disc n   I -> G
+%                            (3) move n-1 discs T -> G  [your n-1 sheet, rebound]
+%
+% I = Initial peg, T = Temporary peg, G = Goal peg. A recipe is written in I/T/G
+% (its own local labels); to USE it you rebind I/T/G to concrete pegs -- that
+% rebinding is the whole lesson, and every blank box below is where you perform it.
+%
+% Build:  pdflatex induction-workbook.tex   (needs tikz; no shell-escape).
+
+\documentclass[11pt]{article}
+\usepackage[margin=1.5cm]{geometry}
+\usepackage{tikz}
+\usepackage{amsmath}
+\usetikzlibrary{calc}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% ---- palette -------------------------------------------------------------
+\definecolor{pegI}{RGB}{31,119,180}
+\definecolor{pegT}{RGB}{148,103,189}
+\definecolor{pegG}{RGB}{44,160,44}
+\definecolor{framegray}{RGB}{120,120,120}
+\definecolor{fillgray}{RGB}{244,244,244}
+
+% ---- a blank square the student writes a number into ---------------------
+\newcommand{\numbox}[1][0.55cm]{%
+  \tikz[baseline=-0.5ex]{\draw[thick,rounded corners=1pt] (0,-#1/2) rectangle (#1,#1/2);}}
+
+% ---- I/T/G -> concrete-peg rebinding box ---------------------------------
+% Compact, vertical: the student writes which concrete peg plays each role
+% for THIS use of the sub-recipe. Narrow, so two step blocks fit side by side.
+\newcommand{\rebindbox}{%
+  \begin{tikzpicture}[baseline]
+    \node[draw=framegray,fill=fillgray,rounded corners=3pt,inner sep=4pt,align=left] {%
+      {\scriptsize\bfseries Rebind:}\\[3pt]
+      \begin{tabular}{r@{\,\(\to\)\,}l}
+        \textcolor{pegI}{\bfseries I} & \numbox[0.5cm]\\[3pt]
+        \textcolor{pegT}{\bfseries T} & \numbox[0.5cm]\\[3pt]
+        \textcolor{pegG}{\bfseries G} & \numbox[0.5cm]\\
+      \end{tabular}};
+  \end{tikzpicture}}
+
+% ---- a grid of blank From/To rows to copy relabelled moves into ----------
+% Pure TikZ (a tabular + \foreach fights over & and \\, so draw the boxes).
+\newcommand{\movegrid}[1]{% #1 = number of blank rows
+  \begin{tikzpicture}[baseline=(hdr.base)]
+    \node[font=\bfseries\small] (hdr) at (0.5,0.35) {From};
+    \node[font=\bfseries\small]        at (1.75,0.35) {To};
+    \foreach \r in {1,...,#1}{%
+      \pgfmathsetmacro{\yy}{-0.5*\r}%
+      \draw[thick,rounded corners=1pt] (0.1,\yy) rectangle (0.9,\yy+0.4);
+      \draw[thick,rounded corners=1pt] (1.35,\yy) rectangle (2.15,\yy+0.4);
+    }
+  \end{tikzpicture}}
+
+% ---- a peg with k blank disc outlines (student numbers them) -------------
+% widths grow toward the bottom; centers are empty to be written in.
+\newcommand{\pegstack}[3]{% #1 = k discs, #2 = peg color, #3 = peg letter
+  \begin{scope}[shift={(0,0)}]
+    \draw[#2,line width=1.2pt] (0,0) -- (0,2.1);           % pole
+    \draw[#2,line width=2pt] (-1.3,0) -- (1.3,0);          % base
+    \node[#2,font=\bfseries] at (0,-0.35) {#3};
+    \foreach \d in {1,...,#1}{%
+      \pgfmathsetmacro{\w}{0.35 + 0.16*(#1-\d+1)}%
+      \pgfmathsetmacro{\y}{0.22*(\d-1)}%
+      \draw[thick,rounded corners=2pt,fill=white] (-\w,\y+0.03) rectangle (\w,\y+0.19);
+    }
+  \end{scope}}
+
+% start (n on I) -> goal (n on G) mini picture
+\newcommand{\startgoal}[1]{% #1 = n
+  \begin{tikzpicture}[scale=0.9]
+    \begin{scope} \pegstack{#1}{pegI}{I} \end{scope}
+    \begin{scope}[shift={(3.2,0)}] \draw[pegT,line width=1.2pt](0,0)--(0,2.1);
+      \draw[pegT,line width=2pt](-1.3,0)--(1.3,0);\node[pegT,font=\bfseries]at(0,-0.35){T};\end{scope}
+    \begin{scope}[shift={(6.4,0)}] \draw[pegG,line width=1.2pt](0,0)--(0,2.1);
+      \draw[pegG,line width=2pt](-1.3,0)--(1.3,0);\node[pegG,font=\bfseries]at(0,-0.35){G};\end{scope}
+    \node at (8.4,1.0) {\Large$\Rightarrow$};
+    \begin{scope}[shift={(10.0,0)}] \draw[pegI,line width=1.2pt](0,0)--(0,2.1);
+      \draw[pegI,line width=2pt](-1.3,0)--(1.3,0);\node[pegI,font=\bfseries]at(0,-0.35){I};\end{scope}
+    \begin{scope}[shift={(13.2,0)}] \draw[pegT,line width=1.2pt](0,0)--(0,2.1);
+      \draw[pegT,line width=2pt](-1.3,0)--(1.3,0);\node[pegT,font=\bfseries]at(0,-0.35){T};\end{scope}
+    \begin{scope}[shift={(16.4,0)}] \pegstack{#1}{pegG}{G} \end{scope}
+  \end{tikzpicture}}
+
+% ---- a framed "step" block: a rebound copy of the (n-1) solution ---------
+% Rebind box (left) + blank move grid (right), side by side, so the block
+% stays narrow enough for two to sit across the page.
+\newcommand{\stepblock}[2]{% #1 = title, #2 = move rows
+  \begin{tikzpicture}
+    \node[draw=framegray,line width=1pt,rounded corners=6pt,inner sep=7pt,align=left,
+          text width=8.0cm] (b) {%
+      {\bfseries #1}\\[4pt]
+      \begin{minipage}[t]{2.9cm}\raggedright \rebindbox \end{minipage}\hfill
+      \begin{minipage}[t]{4.6cm}\centering
+        {\scriptsize Copy your \(n\!-\!1\) sheet's moves here, relabelled:}\\[4pt]
+        \movegrid{#2}
+      \end{minipage}%
+    };
+  \end{tikzpicture}}
+
+% ======================= one worksheet page for n = #1 ====================
+\newcommand{\hanoipage}[2]{% #1 = n, #2 = number of moves in the n-1 solution (rows)
+  \begin{center}
+    {\LARGE\bfseries Tower of Hanoi \;--\; Induction Worksheet}\\[2pt]
+    {\Large Solving \(n = #1\)}\\[4pt]
+    {\footnotesize \(I=\)Initial peg \quad \(T=\)Temporary peg \quad \(G=\)Goal peg
+     \qquad Print one copy per value of \(n\).}
+  \end{center}
+  \vspace{2pt}
+  \begin{center}\startgoal{#1}\end{center}
+  \vspace{4pt}
+
+  \ifnum#1=1
+    % ---- base case ----
+    {\bfseries Base case (\(n=1\)).} One disc. Moving it \(I \to G\) is a single move ---
+    there is nothing to copy yet. Write the one move below; this filled-in sheet is the
+    thing every larger \(n\) will copy and relabel.\par\vspace{16pt}
+    \begin{center}
+      \begin{tikzpicture}
+        \node[draw=framegray,line width=1pt,rounded corners=6pt,inner sep=10pt,fill=fillgray]{%
+          {\bfseries Move disc 1:}\quad from \numbox\ to \numbox\quad(\(I \to G\))};
+      \end{tikzpicture}
+    \end{center}
+  \else
+    % ---- inductive step (rule stated symbolically; page is for a concrete n) ----
+    {\bfseries Induction hypothesis.} You can already move \(n-1\) discs from any peg to any
+    peg --- your filled-in \(n=\the\numexpr#1-1\relax\) sheet proves it.\par
+    {\bfseries Inductive step.} To move \(n\) discs \(I \to G\), do three parts. In each grey
+    block, \emph{copy the moves from your \(n=\the\numexpr#1-1\relax\) sheet}; first fill its
+    \textbf{Rebind} box to say which concrete peg plays \(I\), \(T\), \(G\) \emph{for that
+    copy} --- that relabelling is the whole trick.\hfill{\footnotesize(This page: \(n=#1\).)}%
+    \par\vspace{8pt}
+    \begin{center}
+    \stepblock{Part 1.\ Move top \(n-1\) discs: \(I \to T\)}{#2}\hfill
+    \stepblock{Part 3.\ Move \(n-1\) discs: \(T \to G\)}{#2}
+    \end{center}
+    \vspace{6pt}
+    \begin{center}
+      \begin{tikzpicture}
+        \node[draw=framegray,line width=1pt,rounded corners=6pt,inner sep=8pt,fill=fillgray]{%
+          {\bfseries Part 2.\ Move the biggest disc (disc \(n\)):}\quad
+          from \numbox\ to \numbox\quad(\(I \to G\), one move)};
+      \end{tikzpicture}
+    \end{center}
+    \vspace{4pt}
+    \begin{center}\footnotesize
+      Do the parts in order: Part 1, then Part 2, then Part 3. Parts 1 and 3 are the
+      \emph{same} \(n-1\) solution --- only the rebinding differs.
+    \end{center}
+  \fi
+  \newpage}
+
+\begin{document}
+% #2 = rows to copy = number of moves in the (n-1) solution = 2^(n-1)-1,
+% but for n=1 there is no copying. Rows sized generously for hand-copying.
+\hanoipage{1}{1}
+\hanoipage{2}{1}   % copy the 1-disc solution (1 move) into each part
+\hanoipage{3}{3}   % copy the 2-disc solution (3 moves)
+\hanoipage{4}{7}   % copy the 3-disc solution (7 moves)
+\hanoipage{5}{15}  % copy the 4-disc solution (15 moves)
+\end{document}
