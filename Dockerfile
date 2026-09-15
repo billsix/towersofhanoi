@@ -25,6 +25,7 @@ RUN  uv pip install --system setuptools && \
 COPY entrypoint/.bashrc /root/
 COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /
+COPY entrypoint/type-check.sh /
 
 RUN echo "export PS1='>'" >> ~/.bashrc
 

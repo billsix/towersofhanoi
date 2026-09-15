@@ -69,6 +69,14 @@ format: image ## Format the Python source with ruff (entrypoint/format.sh)
 		$(CONTAINER_NAME) \
 		/format.sh
 
+.PHONY: type-check
+type-check: image ## Type-check the Python (src + tests) with ty (entrypoint/type-check.sh)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash \
+		$(FILES_TO_MOUNT) \
+		$(CONTAINER_NAME) \
+		/type-check.sh
+
 .PHONY: docs
 docs: image ## Build the Sphinx book (html/pdf/epub) into ./output/towersofhanoi/
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \

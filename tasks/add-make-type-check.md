@@ -1,8 +1,30 @@
 # Add a `make type-check` target (ty)
 
-**Status:** proposed — needs go-ahead
+**Status:** complete (2026-09-15) — `make type-check` runs `ty` over `src` + `tests`
+in-container; exit 0 when clean, non-zero on any diagnostic. Implemented alongside the
+`type-dataclass-docstring-all-python` task so that task's gate now exists. See "Outcome".
 **Priority:** 4
 **Difficulty:** 2
+
+## Outcome (2026-09-15)
+
+- **`entrypoint/type-check.sh`** — portable + accumulating: `[ -d /hanoi/python ] && cd
+  /hanoi/python` (no-ops on host), then `status=0; ty check src || status=1; ty check tests ||
+  status=1; exit $status`. No `ty` install was needed (already in `01-install-base.sh`) and no
+  venv guard (hanoi installs `--system`, not into a venv; `ty` resolves the package itself).
+- **`Dockerfile`** — one line, `COPY entrypoint/type-check.sh /`, mirroring `format.sh` (baked,
+  run as `bash /type-check.sh`).
+- **`Makefile`** — a `.PHONY: type-check` target (`## `-documented, `type-check: image`) shaped
+  like `format` but **without `-it`** (a gate must run in a non-TTY / nested / CI context),
+  threading `$(PODMAN_RUN_FLAGS)` on the `run` line (never `build`) and mounting the source via
+  `$(FILES_TO_MOUNT)`.
+- **Decision (the one the plan flagged):** kept `type-check` **separate** from `format` rather
+  than folding `ty` into `format.sh` — keeps `make format` fast, and matches the standard's "the
+  agent doesn't over-wire gates." A combined `check` target can be added later if wanted.
+- **Verified** (nested, `BUILD_DOCS=0` image): clean tree → both `ty check` steps run
+  ("All checks passed!" twice), `make type-check` exit **0**; a planted `-> int` returning a
+  `str` in `tests/` → `ty` `invalid-return-type`, `make type-check` exit **2** (proving the
+  tests step runs and its failure propagates). Probe reverted.
 
 ## BLUF
 
