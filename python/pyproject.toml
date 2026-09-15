@@ -24,6 +24,12 @@ hanoigame = ["hanoi.xrc"]
 [tool.pytest]
 testpaths = ["tests"]
 
+[tool.ruff]
+# Single source of truth for the line width — governs BOTH `ruff format` and
+# the E501 lint. Keep `entrypoint/format.sh` flag-free so the two can't drift
+# (was: format.sh passed --line-length=80 while this defaulted to 88).
+line-length = 80
+
 [tool.ruff.lint]
 select = [
        'F401', 'F811', 'E402', 'I001', 'TID252', "F841",

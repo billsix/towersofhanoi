@@ -15,24 +15,31 @@
 # Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
 
+"""Tests for the core game model (`HanoiGame`) and legal-move enumeration."""
 
-from hanoigame.hanoimodel import HanoiGame, Move
+from collections.abc import Iterable
+
+from hanoigame.hanoimodel import HanoiGame, Move, ValidMove
 
 
-def test_postinit():
-    game = HanoiGame(num_disks=3)
+def test_postinit() -> None:
+    """A fresh game stacks every disk on peg 0 and starts at zero moves."""
+    game: HanoiGame = HanoiGame(num_disks=3)
     assert game.num_disks == 3
     assert game.current_moves == 0
     assert game.towers == [[3, 2, 1], [], []]
 
 
-def test_makemove():
-    game = HanoiGame(num_disks=3)
+def test_makemove() -> None:
+    """Applying successive legal moves updates the towers and move options."""
+    game: HanoiGame = HanoiGame(num_disks=3)
 
-    def move_options(x) -> list:
+    def move_options(x: Iterable[ValidMove]) -> list[Move]:
+        """Extract just the Move from each enumerated ValidMove."""
         return list(map(lambda x: x.move, x))
 
-    def make_move(ordinal):
+    def make_move(ordinal: int) -> None:
+        """Perform the move at position `ordinal` in the current options."""
         list(game.move_options())[ordinal].action()
 
     assert move_options(game.move_options()) == [

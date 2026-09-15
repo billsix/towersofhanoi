@@ -32,7 +32,6 @@ rest.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import wx
 
@@ -44,6 +43,17 @@ from .presenter import Labelling, change_labels_on_pegs
 class BoardRenderer(ABC):
     """Strategy interface. HanoiFrame owns one renderer at a time and
     swaps subclasses via View → Board Style."""
+
+    def __init__(self, parent: wx.Window) -> None:
+        """Create a renderer hosted in `parent`.
+
+        Declares the constructor contract every renderer shares (each
+        subclass builds its own widget in `parent`), so `HanoiFrame` can
+        construct any `type[BoardRenderer]` with a parent window.
+
+        Args:
+            parent: The wx window that will host this renderer's widget.
+        """
 
     @abstractmethod
     def widget(self) -> wx.Window:
@@ -60,6 +70,11 @@ class TextBoardRenderer(BoardRenderer):
     CLI and curses; the only frontend-shared option."""
 
     def __init__(self, parent: wx.Window) -> None:
+        """Create the monospaced, read-only text control.
+
+        Args:
+            parent: The wx window to host the text control.
+        """
         self._text = wx.TextCtrl(
             parent,
             style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL,
@@ -73,37 +88,46 @@ class TextBoardRenderer(BoardRenderer):
             )
         )
         self._text.Bind(wx.EVT_SIZE, self._on_size)
-        self._game: Optional[HanoiGame] = None
-        self._labelling: Optional[Labelling] = None
+        self._game: HanoiGame | None = None
+        self._labelling: Labelling | None = None
 
     def widget(self) -> wx.Window:
+        """Return the read-only text control this renderer draws into."""
         return self._text
 
     def update(self, game: HanoiGame, labelling: Labelling) -> None:
+        """Store the new game/labelling and redraw the text view."""
         self._game = game
         self._labelling = labelling
         self._redraw()
 
-    def _on_size(self, evt) -> None:
+    def _on_size(self, evt: wx.SizeEvent) -> None:
+        """Re-centre the board when the control is resized."""
         evt.Skip()
         if self._game is not None:
             self._redraw()
 
     def _redraw(self) -> None:
-        lines = presenter.render(self._game, self._labelling)
+        """Render the board centred in the current control size."""
+        if self._game is None or self._labelling is None:
+            self._text.SetValue("")
+            return
+        lines: list[str] = presenter.render(self._game, self._labelling)
         if not lines:
             self._text.SetValue("")
             return
+        panel_w_px: int
+        panel_h_px: int
         panel_w_px, panel_h_px = self._text.GetSize()
-        char_w = max(1, self._text.GetCharWidth())
-        line_h = max(1, self._text.GetCharHeight())
-        visible_cols = max(1, panel_w_px // char_w)
-        visible_rows = max(1, panel_h_px // line_h)
-        line_width = len(lines[0])
-        h_pad = max(0, (visible_cols - line_width) // 2)
-        centred = [(" " * h_pad + line) for line in lines]
+        char_w: int = max(1, self._text.GetCharWidth())
+        line_h: int = max(1, self._text.GetCharHeight())
+        visible_cols: int = max(1, panel_w_px // char_w)
+        visible_rows: int = max(1, panel_h_px // line_h)
+        line_width: int = len(lines[0])
+        h_pad: int = max(0, (visible_cols - line_width) // 2)
+        centred: list[str] = [(" " * h_pad + line) for line in lines]
         # -1 of slack so the bottom line isn't sitting under the scrollbar.
-        v_pad = max(0, visible_rows - len(centred) - 1)
+        v_pad: int = max(0, visible_rows - len(centred) - 1)
         self._text.SetValue("\n" * v_pad + "\n".join(centred))
 
 
@@ -132,15 +156,15 @@ _DISC_COLOURS: list[wx.Colour] = [
     wx.Colour(185, 145, 110),
 ]
 
-_REFERENCE_LABEL_COLOUR = wx.Colour(170, 178, 195)
+_REFERENCE_LABEL_COLOUR: wx.Colour = wx.Colour(170, 178, 195)
 
-_BG_TOP = wx.Colour(45, 52, 68)
-_BG_BOTTOM = wx.Colour(20, 26, 38)
-_PEG_LIGHT = wx.Colour(200, 162, 110)
-_PEG_DARK = wx.Colour(120, 86, 50)
-_BASE_FILL = wx.Colour(150, 110, 70)
-_BASE_EDGE = wx.Colour(90, 64, 38)
-_SHADOW = wx.Colour(0, 0, 0, 90)
+_BG_TOP: wx.Colour = wx.Colour(45, 52, 68)
+_BG_BOTTOM: wx.Colour = wx.Colour(20, 26, 38)
+_PEG_LIGHT: wx.Colour = wx.Colour(200, 162, 110)
+_PEG_DARK: wx.Colour = wx.Colour(120, 86, 50)
+_BASE_FILL: wx.Colour = wx.Colour(150, 110, 70)
+_BASE_EDGE: wx.Colour = wx.Colour(90, 64, 38)
+_SHADOW: wx.Colour = wx.Colour(0, 0, 0, 90)
 
 
 class GraphicsBoardRenderer(BoardRenderer):
@@ -149,73 +173,105 @@ class GraphicsBoardRenderer(BoardRenderer):
     gradients, plus a manual shadow per disc."""
 
     def __init__(self, parent: wx.Window) -> None:
+        """Create the paint panel and bind its paint/resize events.
+
+        Args:
+            parent: The wx window to host the board panel.
+        """
         self._panel = wx.Panel(parent)
         self._panel.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self._panel.Bind(wx.EVT_PAINT, self._on_paint)
         self._panel.Bind(wx.EVT_SIZE, self._on_size)
-        self._game: Optional[HanoiGame] = None
-        self._labelling: Optional[Labelling] = None
+        self._game: HanoiGame | None = None
+        self._labelling: Labelling | None = None
 
     def widget(self) -> wx.Window:
+        """Return the panel this renderer paints onto."""
         return self._panel
 
     def update(self, game: HanoiGame, labelling: Labelling) -> None:
+        """Store the new game/labelling and request a repaint."""
         self._game = game
         self._labelling = labelling
         self._panel.Refresh()
 
-    def _on_size(self, _evt) -> None:
+    def _on_size(self, _evt: wx.SizeEvent) -> None:
+        """Repaint on resize so the board rescales to the panel."""
         self._panel.Refresh()
 
-    def _on_paint(self, _evt) -> None:
-        dc = wx.AutoBufferedPaintDC(self._panel)
-        gc = wx.GraphicsContext.Create(dc)
+    def _on_paint(self, _evt: wx.PaintEvent) -> None:
+        """Paint the background, then the board if a game is loaded."""
+        dc: wx.AutoBufferedPaintDC = wx.AutoBufferedPaintDC(self._panel)
+        gc: wx.GraphicsContext = wx.GraphicsContext.Create(dc)
         if not gc:
             # Fall back to a flat background if GC creation fails.
             dc.SetBackground(wx.Brush(_BG_BOTTOM))
             dc.Clear()
             return
         self._paint_background(gc)
-        if self._game is not None and self._game.num_disks > 0:
-            self._paint_game(gc)
+        if (
+            self._game is not None
+            and self._labelling is not None
+            and self._game.num_disks > 0
+        ):
+            self._paint_game(gc, self._game, self._labelling)
 
     # --- Painting ------------------------------------------------------
 
     def _paint_background(self, gc: wx.GraphicsContext) -> None:
+        """Fill the panel with the vertical background gradient."""
+        w: int
+        h: int
         w, h = self._panel.GetSize()
-        bg = gc.CreateLinearGradientBrush(0, 0, 0, h, _BG_TOP, _BG_BOTTOM)
+        bg: wx.GraphicsBrush = gc.CreateLinearGradientBrush(
+            0, 0, 0, h, _BG_TOP, _BG_BOTTOM
+        )
         gc.SetBrush(bg)
         gc.SetPen(wx.TRANSPARENT_PEN)
-        path = gc.CreatePath()
+        path: wx.GraphicsPath = gc.CreatePath()
         path.AddRectangle(0, 0, w, h)
         gc.DrawPath(path)
 
-    def _paint_game(self, gc: wx.GraphicsContext) -> None:
-        n = self._game.num_disks
+    def _paint_game(
+        self, gc: wx.GraphicsContext, game: HanoiGame, labelling: Labelling
+    ) -> None:
+        """Draw the base, pegs, discs, and label badges for `game`.
+
+        Args:
+            gc: The graphics context to draw into.
+            game: The game whose towers are drawn.
+            labelling: The active peg labelling, drawn as badges (with a
+                default 1-2-3 reference row when it differs from default).
+        """
+        n: int = game.num_disks
+        w: int
+        h: int
         w, h = self._panel.GetSize()
 
         # When the user has relabelled, add a small default-1-2-3
         # reference row below the active labelling — same affordance the
         # text presenter uses (default_label_row).
-        has_reference = self._labelling != Labelling.ONE_TWO_THREE
+        has_reference: bool = labelling != Labelling.ONE_TWO_THREE
 
-        margin = 20
-        label_band_h = 60 if has_reference else 36
-        base_h = 14
+        margin: int = 20
+        label_band_h: int = 60 if has_reference else 36
+        base_h: int = 14
 
-        avail_w = max(80, w - 2 * margin)
-        avail_h = max(80, h - 2 * margin - label_band_h - base_h)
-        peg_zone_w = avail_w / 3
+        avail_w: int = max(80, w - 2 * margin)
+        avail_h: int = max(80, h - 2 * margin - label_band_h - base_h)
+        peg_zone_w: float = avail_w / 3
 
-        disc_h = min(avail_h / max(n, 4) * 0.92, 30)
-        max_disc_w = peg_zone_w * 0.92
-        peg_w = max(8, max_disc_w * 0.07)
-        peg_h = avail_h * 0.95
+        disc_h: float = min(avail_h / max(n, 4) * 0.92, 30)
+        max_disc_w: float = peg_zone_w * 0.92
+        peg_w: float = max(8, max_disc_w * 0.07)
+        peg_h: float = avail_h * 0.95
 
-        base_y = h - margin - label_band_h - base_h
-        peg_top_y = base_y - peg_h
+        base_y: int = h - margin - label_band_h - base_h
+        peg_top_y: float = base_y - peg_h
 
-        peg_centres = [margin + peg_zone_w * (i + 0.5) for i in range(3)]
+        peg_centres: list[float] = [
+            margin + peg_zone_w * (i + 0.5) for i in range(3)
+        ]
 
         # Base bar across the full width.
         self._draw_rounded_fill(
@@ -231,8 +287,9 @@ class GraphicsBoardRenderer(BoardRenderer):
 
         # Pegs — vertical rounded rects with a left-to-right gradient so
         # they read as cylinders.
+        cx: float
         for cx in peg_centres:
-            peg_brush = gc.CreateLinearGradientBrush(
+            peg_brush: wx.GraphicsBrush = gc.CreateLinearGradientBrush(
                 cx - peg_w / 2,
                 0,
                 cx + peg_w / 2,
@@ -242,7 +299,7 @@ class GraphicsBoardRenderer(BoardRenderer):
             )
             gc.SetBrush(peg_brush)
             gc.SetPen(wx.Pen(_PEG_DARK, 1))
-            path = gc.CreatePath()
+            path: wx.GraphicsPath = gc.CreatePath()
             path.AddRoundedRectangle(
                 cx - peg_w / 2, peg_top_y, peg_w, peg_h, peg_w / 2
             )
@@ -251,11 +308,15 @@ class GraphicsBoardRenderer(BoardRenderer):
         # Discs — drawn bottom-up so shadows from upper discs sit on
         # top of the disc beneath them. Colour is by disc *size* so a
         # disc keeps its identity as it moves between pegs.
-        for p_idx, peg in enumerate(self._game.towers):
+        p_idx: int
+        peg: list[int]
+        for p_idx, peg in enumerate(game.towers):
             cx = peg_centres[p_idx]
+            stack_idx: int
+            size: int
             for stack_idx, size in enumerate(peg):
-                disc_w = self._disc_width(size, n, max_disc_w)
-                y = base_y - (stack_idx + 1) * disc_h * 1.04
+                disc_w: float = self._disc_width(size, n, max_disc_w)
+                y: float = base_y - (stack_idx + 1) * disc_h * 1.04
                 self._draw_disc(
                     gc, cx, y, disc_w, disc_h, self._disc_colour(size)
                 )
@@ -263,17 +324,17 @@ class GraphicsBoardRenderer(BoardRenderer):
         # Active label badges — colour mirrors the curses peg colour for
         # this label, so the colour ↔ label binding stays legible across
         # frontends.
-        active_label_y = (
+        active_label_y: float = (
             base_y + base_h + (18 if has_reference else label_band_h / 2)
         )
-        badge_font = wx.Font(
+        badge_font: wx.Font = wx.Font(
             13,
             wx.FONTFAMILY_DEFAULT,
             wx.FONTSTYLE_NORMAL,
             wx.FONTWEIGHT_BOLD,
         )
         for p_idx, cx in enumerate(peg_centres):
-            label = change_labels_on_pegs(self._labelling, p_idx)
+            label: int = change_labels_on_pegs(labelling, p_idx)
             self._draw_label_badge(
                 gc,
                 cx,
@@ -287,8 +348,8 @@ class GraphicsBoardRenderer(BoardRenderer):
         # differs from default. Small, neutral; just a reminder that the
         # leftmost physical peg is still "peg 1" underneath.
         if has_reference:
-            ref_y = active_label_y + 26
-            ref_font = wx.Font(
+            ref_y: float = active_label_y + 26
+            ref_font: wx.Font = wx.Font(
                 10,
                 wx.FONTFAMILY_DEFAULT,
                 wx.FONTSTYLE_NORMAL,
@@ -296,8 +357,12 @@ class GraphicsBoardRenderer(BoardRenderer):
             )
             gc.SetFont(ref_font, _REFERENCE_LABEL_COLOUR)
             for p_idx, cx in enumerate(peg_centres):
-                text = str(p_idx + 1)
-                extents = gc.GetTextExtent(text)
+                text: str = str(p_idx + 1)
+                extents: tuple[float, float, float, float] = gc.GetTextExtent(
+                    text
+                )
+                tw: float
+                th: float
                 tw, th = extents[0], extents[1]
                 gc.DrawText(text, cx - tw / 2, ref_y - th / 2)
 
@@ -328,9 +393,10 @@ class GraphicsBoardRenderer(BoardRenderer):
         edge: wx.Colour,
         radius: float = 4,
     ) -> None:
+        """Draw a filled, edged rounded rectangle (the base bar)."""
         gc.SetBrush(wx.Brush(fill))
         gc.SetPen(wx.Pen(edge, 1))
-        path = gc.CreatePath()
+        path: wx.GraphicsPath = gc.CreatePath()
         path.AddRoundedRectangle(x, y, w, h, radius)
         gc.DrawPath(path)
 
@@ -343,21 +409,24 @@ class GraphicsBoardRenderer(BoardRenderer):
         h: float,
         colour: wx.Colour,
     ) -> None:
+        """Draw one disc: a drop shadow, then a gradient rounded rect."""
         # Shadow first.
         gc.SetBrush(wx.Brush(_SHADOW))
         gc.SetPen(wx.TRANSPARENT_PEN)
-        shadow_path = gc.CreatePath()
+        shadow_path: wx.GraphicsPath = gc.CreatePath()
         shadow_path.AddRoundedRectangle(cx - w / 2 + 2, y + 4, w, h, h / 3)
         gc.DrawPath(shadow_path)
 
         # Vertical light-to-dark gradient: top is brighter so the disc
         # reads as a 3D cylinder lit from above.
-        light = self._lighten(colour, 0.30)
-        dark = self._darken(colour, 0.22)
-        brush = gc.CreateLinearGradientBrush(cx, y, cx, y + h, light, dark)
+        light: wx.Colour = self._lighten(colour, 0.30)
+        dark: wx.Colour = self._darken(colour, 0.22)
+        brush: wx.GraphicsBrush = gc.CreateLinearGradientBrush(
+            cx, y, cx, y + h, light, dark
+        )
         gc.SetBrush(brush)
         gc.SetPen(wx.Pen(self._darken(colour, 0.45), 1))
-        path = gc.CreatePath()
+        path: wx.GraphicsPath = gc.CreatePath()
         path.AddRoundedRectangle(cx - w / 2, y, w, h, h / 3)
         gc.DrawPath(path)
 
@@ -370,27 +439,31 @@ class GraphicsBoardRenderer(BoardRenderer):
         colour: wx.Colour,
         font: wx.Font,
     ) -> None:
-        r = 14
+        """Draw a coloured circular badge with a centred number."""
+        r: int = 14
         gc.SetBrush(wx.Brush(_SHADOW))
         gc.SetPen(wx.TRANSPARENT_PEN)
-        shadow_path = gc.CreatePath()
+        shadow_path: wx.GraphicsPath = gc.CreatePath()
         shadow_path.AddCircle(cx + 1, cy + 2, r)
         gc.DrawPath(shadow_path)
 
         gc.SetBrush(wx.Brush(colour))
         gc.SetPen(wx.Pen(self._darken(colour, 0.40), 1))
-        path = gc.CreatePath()
+        path: wx.GraphicsPath = gc.CreatePath()
         path.AddCircle(cx, cy, r)
         gc.DrawPath(path)
 
         gc.SetFont(font, wx.WHITE)
-        text = str(text_num)
-        extents = gc.GetTextExtent(text)
+        text: str = str(text_num)
+        extents: tuple[float, float, float, float] = gc.GetTextExtent(text)
+        tw: float
+        th: float
         tw, th = extents[0], extents[1]
         gc.DrawText(text, cx - tw / 2, cy - th / 2)
 
     @staticmethod
     def _lighten(c: wx.Colour, amount: float) -> wx.Colour:
+        """Blend `c` toward white by `amount` (0..1)."""
         return wx.Colour(
             int(c.Red() + (255 - c.Red()) * amount),
             int(c.Green() + (255 - c.Green()) * amount),
@@ -399,6 +472,7 @@ class GraphicsBoardRenderer(BoardRenderer):
 
     @staticmethod
     def _darken(c: wx.Colour, amount: float) -> wx.Colour:
+        """Blend `c` toward black by `amount` (0..1)."""
         return wx.Colour(
             int(c.Red() * (1 - amount)),
             int(c.Green() * (1 - amount)),

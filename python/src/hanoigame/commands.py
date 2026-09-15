@@ -103,7 +103,7 @@ Command = (
 )
 
 
-HELP_TEXT = """\
+HELP_TEXT: str = """\
 Commands:
   <from> -> <to>   move a disc, e.g. '1 -> 3' (also accepts '1 3' or '13')
   relabel a b c    rename pegs so physical pegs 1,2,3 show as a,b,c
@@ -117,6 +117,16 @@ Commands:
 
 
 def _move_or_error(a: int, b: int) -> Command:
+    """Return a `MoveCmd` for labels `a`->`b`, or a `ParseError`.
+
+    Args:
+        a: 1-indexed source peg label.
+        b: 1-indexed destination peg label.
+
+    Returns:
+        A `MoveCmd` when both labels are in 1..3 and differ, else a
+        `ParseError` explaining the problem.
+    """
     if not (1 <= a <= 3 and 1 <= b <= 3):
         return ParseError(f"move labels must be 1, 2, or 3 — got {a} and {b}")
     if a == b:
@@ -126,11 +136,11 @@ def _move_or_error(a: int, b: int) -> Command:
 
 def parse(line: str) -> Command:
     """Parse one line of user input into a Command. Never raises."""
-    s = line.strip()
+    s: str = line.strip()
     if not s:
         return EmptyCmd()
 
-    lower = s.lower()
+    lower: str = s.lower()
     if lower in ("quit", "q", "exit"):
         return QuitCmd()
     if lower in ("help", "h", "?"):
@@ -140,6 +150,8 @@ def parse(line: str) -> Command:
 
     # Move with explicit arrow: "1 -> 3", "1->3", with any internal spacing.
     if "->" in s:
+        a: str
+        b: str
         a, _, b = s.partition("->")
         a, b = a.strip(), b.strip()
         if a.isdigit() and b.isdigit():
@@ -153,25 +165,31 @@ def parse(line: str) -> Command:
     if s.isdigit() and len(s) == 2:
         return _move_or_error(int(s[0]), int(s[1]))
 
-    parts = s.split()
+    parts: list[str] = s.split()
 
     # Spaced two-token move: "1 3"
     if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
         return _move_or_error(int(parts[0]), int(parts[1]))
 
-    head = parts[0].lower()
+    head: str = parts[0].lower()
 
     if head == "relabel":
         if len(parts) != 4 or not all(p.isdigit() for p in parts[1:]):
             return ParseError(
                 "relabel takes three labels, e.g. 'relabel 2 1 3'"
             )
-        labels = tuple(int(p) for p in parts[1:])
+        # A fixed 3-tuple (not a generator) so the type is tuple[int, int, int],
+        # matching RelabelCmd.labels; len(parts) == 4 is guaranteed just above.
+        labels: tuple[int, int, int] = (
+            int(parts[1]),
+            int(parts[2]),
+            int(parts[3]),
+        )
         if sorted(labels) != [1, 2, 3]:
             return ParseError(
                 f"relabel needs a permutation of 1,2,3 — got {labels}"
             )
-        return RelabelCmd(labels)  # type: ignore[arg-type]
+        return RelabelCmd(labels)
 
     if head == "save":
         if len(parts) < 2:

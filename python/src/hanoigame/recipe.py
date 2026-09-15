@@ -55,7 +55,14 @@ from .presenter import Labelling, label_to_tower, labels_to_towers
 
 @dataclass(frozen=True)
 class Recipe:
-    """A saved sequence of moves in default-label space (1-indexed)."""
+    """A saved sequence of moves in default-label space (1-indexed).
+
+    Attributes:
+        name: The recipe's identifier, used as the registry key.
+        disk_count: Disc count of the game when the recipe was captured.
+        default_moves: The move sequence as ``(from, to)`` pairs of 1-indexed
+            physical peg numbers (default-label space).
+    """
 
     name: str
     disk_count: int
@@ -69,19 +76,40 @@ class Recorder:
     The frontend converts user-typed labels to default space before calling
     `record` — usually with `labels_to_towers(labelling, from, to)` plus a
     +1 to each physical index.
+
+    Attributes:
+        default_moves: Accumulated moves as ``(from, to)`` pairs of 1-indexed
+            physical peg numbers.
     """
 
     default_moves: list[tuple[int, int]] = field(default_factory=list)
 
     def record(self, from_default: int, to_default: int) -> None:
-        """Record a move expressed as 1-indexed physical pegs (= the labels
-        that would have been visible under the default labelling)."""
+        """Record a move expressed as 1-indexed physical pegs.
+
+        The values are the labels that would have been visible under the
+        default labelling.
+
+        Args:
+            from_default: Source peg, 1-indexed in default-label space.
+            to_default: Destination peg, 1-indexed in default-label space.
+        """
         self.default_moves.append((from_default, to_default))
 
     def reset(self) -> None:
+        """Discard all recorded moves, resetting to an empty log."""
         self.default_moves.clear()
 
     def to_recipe(self, name: str, disk_count: int) -> Recipe:
+        """Freeze the recorded moves into a named `Recipe`.
+
+        Args:
+            name: Identifier for the new recipe.
+            disk_count: Disc count to record on the recipe.
+
+        Returns:
+            A `Recipe` holding a snapshot of the moves recorded so far.
+        """
         return Recipe(
             name=name,
             disk_count=disk_count,
@@ -89,58 +117,111 @@ class Recorder:
         )
 
 
+@dataclass
 class RecipeRegistry:
-    """In-memory recipe store, scoped to a single CLI session."""
+    """In-memory recipe store, scoped to a single CLI session.
 
-    def __init__(self) -> None:
-        self._by_name: dict[str, Recipe] = {}
+    Attributes:
+        _by_name: Saved recipes keyed by their name.
+    """
+
+    _by_name: dict[str, Recipe] = field(default_factory=dict)
 
     def save(self, recipe: Recipe) -> None:
+        """Store `recipe`, replacing any existing recipe of the same name.
+
+        Args:
+            recipe: The recipe to save.
+        """
         self._by_name[recipe.name] = recipe
 
-    def get(self, name: str) -> Optional[Recipe]:
+    def get(self, name: str) -> Recipe | None:
+        """Look up a recipe by name.
+
+        Args:
+            name: The recipe name to fetch.
+
+        Returns:
+            The matching `Recipe`, or None if no recipe has that name.
+        """
         return self._by_name.get(name)
 
     def names(self) -> list[str]:
+        """Return all saved recipe names.
+
+        Returns:
+            The recipe names, sorted alphabetically.
+        """
         return sorted(self._by_name.keys())
 
     def __len__(self) -> int:
+        """Return the number of saved recipes."""
         return len(self._by_name)
 
     def __contains__(self, name: str) -> bool:
+        """Return whether a recipe with the given name is saved.
+
+        Args:
+            name: The recipe name to test for.
+
+        Returns:
+            True if a recipe of that name exists, otherwise False.
+        """
         return name in self._by_name
 
 
 @dataclass(frozen=True)
 class StepResult:
-    """One move's worth of `apply_iter` output."""
+    """One move's worth of `apply_iter` output.
 
-    from_label: int  # the recipe's stored value (default-label space)
+    Attributes:
+        from_label: The recipe's stored source value (default-label space).
+        to_label: The recipe's stored destination value (default-label space).
+        from_peg: 0-indexed physical peg the move actually hit, or None if the
+            move could not be resolved to a peg.
+        to_peg: 0-indexed physical destination peg, or None if unresolved.
+        error: Failure message, or None if the move was applied successfully.
+    """
+
+    from_label: int
     to_label: int
-    from_peg: Optional[int]  # 0-indexed physical peg the move actually hit
-    to_peg: Optional[int]
-    error: Optional[str]  # None if the move was applied successfully
+    from_peg: int | None
+    to_peg: int | None
+    error: str | None
 
     @property
     def ok(self) -> bool:
+        """Return whether the move succeeded (no error was recorded)."""
         return self.error is None
 
 
 def apply_iter(
     recipe: Recipe, game: HanoiGame, labelling: Labelling
 ) -> Iterator[StepResult]:
-    """Replay `recipe` against `game`, interpreting the recipe's stored
-    default-space labels as labels under `labelling`.
+    """Replay `recipe` against `game` under `labelling`.
 
-    Yields one StepResult per move attempted. Stops after the first failure
-    so the caller can surface the partial progress.
+    The recipe's stored default-space labels are interpreted as labels under
+    `labelling`. Iteration stops after the first failure so the caller can
+    surface the partial progress.
 
     No disk-count check: a recipe captured at one size may legitimately apply
     to a larger game (that's the whole point — using small solutions as
     sub-routines). Move legality is the gatekeeper, not size.
+
+    Args:
+        recipe: The saved move sequence to replay.
+        game: The game to mutate as legal moves are applied.
+        labelling: The labelling used to reinterpret the recipe's labels.
+
+    Yields:
+        One `StepResult` per move attempted, in order.
     """
+    from_label: int
+    to_label: int
     for from_label, to_label in recipe.default_moves:
-        physical = labels_to_towers(labelling, from_label, to_label)
+        physical: tuple[int, int] | None = labels_to_towers(
+            labelling, from_label, to_label
+        )
         if physical is None:
             yield StepResult(
                 from_label=from_label,
@@ -184,7 +265,16 @@ def apply_iter(
 def apply(
     recipe: Recipe, game: HanoiGame, labelling: Labelling
 ) -> list[StepResult]:
-    """Convenience wrapper: exhaust `apply_iter` and return all results."""
+    """Exhaust `apply_iter` and return all results.
+
+    Args:
+        recipe: The saved move sequence to replay.
+        game: The game to mutate as legal moves are applied.
+        labelling: The labelling used to reinterpret the recipe's labels.
+
+    Returns:
+        Every `StepResult` produced by replaying the recipe.
+    """
     return list(apply_iter(recipe, game, labelling))
 
 
@@ -199,9 +289,18 @@ def apply(
 
 
 def rebinding(labelling: Labelling) -> tuple[tuple[int, int], ...]:
-    """For each recipe label in 1..3, the 1-indexed physical peg it resolves
-    to under `labelling`. Identity ((1,1),(2,2),(3,3)) under ONE_TWO_THREE."""
+    """Map each recipe label 1..3 to the 1-indexed physical peg it resolves to.
+
+    Identity ((1,1),(2,2),(3,3)) under ONE_TWO_THREE.
+
+    Args:
+        labelling: The labelling to resolve the recipe labels through.
+
+    Returns:
+        One ``(label, peg)`` pair per label 1..3, with `peg` 1-indexed.
+    """
     pairs: list[tuple[int, int]] = []
+    label: int
     for label in (1, 2, 3):
         peg: Optional[int] = label_to_tower(labelling, label)
         assert peg is not None  # a label in 1..3 always resolves to a peg
@@ -211,7 +310,14 @@ def rebinding(labelling: Labelling) -> tuple[tuple[int, int], ...]:
 
 def format_rebinding(labelling: Labelling) -> list[str]:
     """Human-readable rebinding lines for the text (CLI/curses) frontends.
-    Empty under the default labelling -- there is no rebinding to show."""
+
+    Args:
+        labelling: The active labelling.
+
+    Returns:
+        The rebinding explanation lines, or an empty list under the default
+        labelling (there is no rebinding to show).
+    """
     if labelling == Labelling.ONE_TWO_THREE:
         return []
     body: str = ",  ".join(
@@ -229,11 +335,23 @@ def format_rebinding(labelling: Labelling) -> list[str]:
 def rebound_moves(
     moves: Sequence[tuple[int, int]], labelling: Labelling
 ) -> tuple[tuple[int, int], ...]:
-    """Each move (a ``(from_label, to_label)`` pair) rewritten onto 1-indexed
-    physical pegs under `labelling` -- the move rebound to where it actually
-    happens. Pure (no game state); identity under ONE_TWO_THREE. Used for both
-    a recipe's stored moves and a single just-typed move."""
+    """Rewrite each move onto the 1-indexed physical pegs it lands on.
+
+    Each move is a ``(from_label, to_label)`` pair. Pure (no game state);
+    identity under ONE_TWO_THREE. Used for both a recipe's stored moves and a
+    single just-typed move.
+
+    Args:
+        moves: The moves to rebind, as ``(from_label, to_label)`` pairs.
+        labelling: The labelling to resolve the labels through.
+
+    Returns:
+        The moves rewritten as ``(from_peg, to_peg)`` pairs of 1-indexed
+        physical pegs.
+    """
     out: list[tuple[int, int]] = []
+    from_label: int
+    to_label: int
     for from_label, to_label in moves:
         fp: Optional[int] = label_to_tower(labelling, from_label)
         tp: Optional[int] = label_to_tower(labelling, to_label)
@@ -247,8 +365,9 @@ def format_rebinding_table(
     labelling: Labelling,
     left_header: str = "Recipe (its labels)",
 ) -> list[str]:
-    """Three aligned text columns -- the text-frontend equivalent of the GUI's
-    three-panel rebinding view:
+    """Render three aligned text columns.
+
+    The text-frontend equivalent of the GUI's three-panel rebinding view::
 
         <left_header> | Rebinding (label -> peg) | Rebound (physical pegs)
 
@@ -256,12 +375,18 @@ def format_rebinding_table(
     the 3-row label->peg key. Empty under the default labelling. `left_header`
     lets a single typed move say "Move (your labels)" while a recipe keeps the
     default -- the same table serves both `apply` and a plain move.
+
+    Args:
+        moves: The moves to display, as ``(from_label, to_label)`` pairs.
+        labelling: The active labelling.
+        left_header: Heading for the left column.
+
+    Returns:
+        The rendered table lines, or an empty list under the default labelling.
     """
     if labelling == Labelling.ONE_TWO_THREE:
         return []
-    left: list[str] = [
-        f"{i}: {a} -> {b}" for i, (a, b) in enumerate(moves, 1)
-    ]
+    left: list[str] = [f"{i}: {a} -> {b}" for i, (a, b) in enumerate(moves, 1)]
     mid: list[str] = [
         f"label {label} -> peg {peg}" for label, peg in rebinding(labelling)
     ]
@@ -275,16 +400,27 @@ def format_rebinding_table(
     rows: int = max(len(left), len(mid), len(right))
 
     def cell(col: list[str], i: int, width: int) -> str:
+        """Return `col[i]` left-justified to `width`, or blank padding.
+
+        Args:
+            col: The column of cell strings.
+            i: Row index into `col`.
+            width: Field width to pad to.
+
+        Returns:
+            The cell at row `i` padded to `width`, or `width` spaces if `i` is
+            past the end of `col`.
+        """
         return (col[i] if i < len(col) else "").ljust(width)
 
     lines: list[str] = [
         f"  {lhdr.ljust(lw)}   {mhdr.ljust(mw)}   {rhdr}",
         f"  {'-' * lw}   {'-' * mw}   {'-' * len(rhdr)}",
     ]
+    i: int
     for i in range(rows):
         lines.append(
-            f"  {cell(left, i, lw)}   {cell(mid, i, mw)}   "
-            f"{cell(right, i, 0)}"
+            f"  {cell(left, i, lw)}   {cell(mid, i, mw)}   {cell(right, i, 0)}"
         )
     return lines
 
@@ -296,7 +432,19 @@ def _explain_illegal(
     from_label: int,
     to_label: int,
 ) -> str:
-    step = f"recipe move '{from_label} -> {to_label}'"
+    """Build a human-readable reason a recipe move is illegal in this state.
+
+    Args:
+        game: The current game, inspected to diagnose the illegality.
+        from_peg: 0-indexed source physical peg.
+        to_peg: 0-indexed destination physical peg.
+        from_label: The move's source value in default-label space.
+        to_label: The move's destination value in default-label space.
+
+    Returns:
+        A sentence explaining why the move cannot be applied.
+    """
+    step: str = f"recipe move '{from_label} -> {to_label}'"
     if not game.towers[from_peg]:
         return f"{step}: peg {from_label} (physical {from_peg + 1}) is empty."
     if (

@@ -21,8 +21,10 @@ target flow against the CLI (below), whose output reads cleanly top-to-bottom.
   the solve and the rebinding in a clean top-to-bottom order (the three-column table, then the step
   log). Drive it with scripted stdin, e.g.:
   ```python
-  import io, sys; from hanoigame.hanoicli import run
-  run(io.StringIO("1\n...\n"), sys.stdout)   # solve n=1, then 2, 3, 4, 5; relabel; apply
+  import io, sys
+  from hanoigame.hanoicli import run
+
+  run(io.StringIO("1\n...\n"), sys.stdout)  # solve n=1, then 2, 3, 4, 5; relabel; apply
   ```
   (from `python/`, `PYTHONPATH=src`). Note *why* it reads well — that's the flow to mirror on paper.
 - **The artifact:** `workbook/induction-workbook.tex` (built via `pdflatex`, target in

@@ -15,10 +15,13 @@
 # Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
 
+"""Tests for the shared input grammar (`hanoigame.commands.parse`)."""
+
 import pytest
 
 from hanoigame.commands import (
     ApplyCmd,
+    Command,
     EmptyCmd,
     HelpCmd,
     ListCmd,
@@ -51,7 +54,8 @@ from hanoigame.commands import (
         ("3 -> 1", MoveCmd(3, 1)),
     ],
 )
-def test_parse_move(line, expected):
+def test_parse_move(line: str, expected: MoveCmd) -> None:
+    """Every accepted move syntax parses to the expected MoveCmd."""
     assert parse(line) == expected
 
 
@@ -64,7 +68,8 @@ def test_parse_move(line, expected):
         "-> 3",  # missing left side
     ],
 )
-def test_parse_arrow_move_invalid(line):
+def test_parse_arrow_move_invalid(line: str) -> None:
+    """Malformed arrow-form moves return a ParseError."""
     assert isinstance(parse(line), ParseError)
 
 
@@ -79,8 +84,9 @@ def test_parse_arrow_move_invalid(line):
         "44",
     ],
 )
-def test_parse_move_invalid_returns_parse_error(line):
-    result = parse(line)
+def test_parse_move_invalid_returns_parse_error(line: str) -> None:
+    """Same-peg and out-of-range moves return a ParseError."""
+    result: Command = parse(line)
     assert isinstance(result, ParseError)
 
 
@@ -96,7 +102,8 @@ def test_parse_move_invalid_returns_parse_error(line):
         ("RELABEL 1 3 2", (1, 3, 2)),
     ],
 )
-def test_parse_relabel(line, labels):
+def test_parse_relabel(line: str, labels: tuple[int, int, int]) -> None:
+    """A valid relabel line parses to a RelabelCmd with those labels."""
     assert parse(line) == RelabelCmd(labels)
 
 
@@ -111,42 +118,51 @@ def test_parse_relabel(line, labels):
         "relabel a b c",
     ],
 )
-def test_parse_relabel_invalid(line):
+def test_parse_relabel_invalid(line: str) -> None:
+    """Relabels that aren't a permutation of 1,2,3 return a ParseError."""
     assert isinstance(parse(line), ParseError)
 
 
 # --- Recipes --------------------------------------------------------------
 
 
-def test_parse_save_with_name():
+def test_parse_save_with_name() -> None:
+    """`save foo` parses to a SaveCmd carrying the name."""
     assert parse("save foo") == SaveCmd("foo")
 
 
-def test_parse_save_multiword_name():
+def test_parse_save_multiword_name() -> None:
+    """A multi-word save name is preserved verbatim."""
     assert parse("save my 3-disc solve") == SaveCmd("my 3-disc solve")
 
 
-def test_parse_save_no_name_is_error():
+def test_parse_save_no_name_is_error() -> None:
+    """`save` with no name returns a ParseError."""
     assert isinstance(parse("save"), ParseError)
 
 
-def test_parse_apply_with_name():
+def test_parse_apply_with_name() -> None:
+    """`apply foo` parses to an ApplyCmd carrying the name."""
     assert parse("apply foo") == ApplyCmd("foo")
 
 
-def test_parse_apply_no_name_is_error():
+def test_parse_apply_no_name_is_error() -> None:
+    """`apply` with no name returns a ParseError."""
     assert isinstance(parse("apply"), ParseError)
 
 
-def test_parse_show_with_name():
+def test_parse_show_with_name() -> None:
+    """`show foo` parses to a ShowCmd carrying the name."""
     assert parse("show foo") == ShowCmd("foo")
 
 
-def test_parse_show_no_name_is_error():
+def test_parse_show_no_name_is_error() -> None:
+    """`show` with no name returns a ParseError."""
     assert isinstance(parse("show"), ParseError)
 
 
-def test_parse_list():
+def test_parse_list() -> None:
+    """`list` parses to a ListCmd, case-insensitively."""
     assert parse("list") == ListCmd()
     assert parse("LIST") == ListCmd()
 
@@ -155,17 +171,20 @@ def test_parse_list():
 
 
 @pytest.mark.parametrize("line", ["help", "h", "?", "HELP"])
-def test_parse_help(line):
+def test_parse_help(line: str) -> None:
+    """Each help alias parses to a HelpCmd."""
     assert parse(line) == HelpCmd()
 
 
 @pytest.mark.parametrize("line", ["quit", "q", "exit", "QUIT", "Q"])
-def test_parse_quit(line):
+def test_parse_quit(line: str) -> None:
+    """Each quit alias parses to a QuitCmd."""
     assert parse(line) == QuitCmd()
 
 
 @pytest.mark.parametrize("line", ["", "   ", "\t", "\n"])
-def test_parse_empty(line):
+def test_parse_empty(line: str) -> None:
+    """Blank or whitespace-only input parses to an EmptyCmd."""
     assert parse(line) == EmptyCmd()
 
 
@@ -179,5 +198,6 @@ def test_parse_empty(line):
         "saveapply foo",
     ],
 )
-def test_parse_garbage_returns_parse_error(line):
+def test_parse_garbage_returns_parse_error(line: str) -> None:
+    """Unrecognised input returns a ParseError."""
     assert isinstance(parse(line), ParseError)

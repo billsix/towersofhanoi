@@ -43,7 +43,7 @@ from .commands import (
     SaveCmd,
     ShowCmd,
 )
-from .hanoimodel import HanoiGame
+from .hanoimodel import HanoiGame, ValidMove
 from .presenter import (
     Labelling,
     change_labels_on_pegs,
@@ -51,8 +51,10 @@ from .presenter import (
     labels_to_towers,
 )
 from .recipe import (
+    Recipe,
     RecipeRegistry,
     Recorder,
+    StepResult,
     apply_iter,
     format_rebinding_table,
 )
@@ -76,6 +78,12 @@ class GameSession:
     """
 
     def __init__(self, num_disks: int, registry: RecipeRegistry) -> None:
+        """Start a fresh game under the default labelling.
+
+        Args:
+            num_disks: Number of disks to start the game with.
+            registry: The cross-game recipe store (shared, not owned).
+        """
         self.game = HanoiGame(num_disks=num_disks)
         self.labelling: Labelling = Labelling.ONE_TWO_THREE
         self.recorder = Recorder()
@@ -85,23 +93,29 @@ class GameSession:
 
     @property
     def num_disks(self) -> int:
+        """The number of disks the current game started with."""
         return self.game.num_disks
 
     @property
     def current_moves(self) -> int:
+        """How many moves have been made in the current game."""
         return self.game.current_moves
 
     def is_won(self) -> bool:
+        """Return whether the current game has been solved."""
         return self.game.check_win_condition()
 
     def min_moves(self) -> int:
+        """Return the optimal move count for this game (2**n - 1)."""
         return (2**self.num_disks) - 1
 
     def valid_moves_str(self) -> str:
-        pairs = []
+        """Return a sorted 'Valid moves: a -> b, ...' line in current labels."""
+        pairs: list[str] = []
+        vm: ValidMove
         for vm in self.game.move_options():
-            f = change_labels_on_pegs(self.labelling, vm.move.from_peg) + 1
-            t = change_labels_on_pegs(self.labelling, vm.move.to_peg) + 1
+            f: int = change_labels_on_pegs(self.labelling, vm.move.from_peg) + 1
+            t: int = change_labels_on_pegs(self.labelling, vm.move.to_peg) + 1
             pairs.append(f"{f} -> {t}")
         pairs.sort()
         return (
@@ -146,6 +160,16 @@ class GameSession:
     # --- Dispatch ---------------------------------------------------------
 
     def dispatch(self, cmd: Command) -> DispatchResult:
+        """Route a parsed command to its handler.
+
+        Args:
+            cmd: Any parsed `Command` (move, relabel, apply, show, list,
+                save, help, quit, empty, or a parse error).
+
+        Returns:
+            A `DispatchResult` with the display `lines` and the `quit` flag
+            the front-end should honour.
+        """
         if isinstance(cmd, MoveCmd):
             return DispatchResult(lines=self._handle_move(cmd))
         if isinstance(cmd, RelabelCmd):
@@ -177,13 +201,22 @@ class GameSession:
     # --- Per-command handlers --------------------------------------------
 
     def _handle_move(self, cmd: MoveCmd) -> list[str]:
-        physical = labels_to_towers(
+        """Apply one typed move; record it if legal.
+
+        Returns:
+            An empty list on success (nothing to tell the player beyond the
+            redrawn board), or a one-line explanation if the move is illegal.
+        """
+        physical: tuple[int, int] | None = labels_to_towers(
             self.labelling, cmd.from_label, cmd.to_label
         )
         if physical is None:
             return [f"Label out of range: {cmd.from_label}, {cmd.to_label}."]
+        fp: int
+        tp: int
         fp, tp = physical
 
+        vm: ValidMove
         for vm in self.game.move_options():
             if vm.move.from_peg == fp and vm.move.to_peg == tp:
                 vm.action()
@@ -197,8 +230,8 @@ class GameSession:
             self.game.towers[tp]
             and self.game.towers[fp][-1] > self.game.towers[tp][-1]
         ):
-            top_from = self.game.towers[fp][-1]
-            top_to = self.game.towers[tp][-1]
+            top_from: int = self.game.towers[fp][-1]
+            top_to: int = self.game.towers[tp][-1]
             return [
                 f"Can't put disc {top_from} on disc {top_to} "
                 "— larger on smaller."
@@ -206,21 +239,36 @@ class GameSession:
         return ["Invalid move."]
 
     def _handle_relabel(self, cmd: RelabelCmd) -> list[str]:
-        new_labelling = labelling_for(cmd.labels)
+        """Set the current labelling from a relabel command.
+
+        Returns:
+            A one-line confirmation, or an error if the labels aren't a
+            permutation of 1,2,3.
+        """
+        new_labelling: Labelling | None = labelling_for(cmd.labels)
         if new_labelling is None:
             return [f"No labelling matches {cmd.labels}."]
         self.labelling = new_labelling
+        a: int
+        b: int
+        c: int
         a, b, c = cmd.labels
         return [f"Relabelled: physical pegs 1,2,3 now show as {a},{b},{c}."]
 
     def _handle_apply(self, cmd: ApplyCmd) -> list[str]:
-        recipe = self.registry.get(cmd.name)
+        """Replay a saved recipe under the current labelling.
+
+        Returns:
+            The application log: a header, the three-column rebinding table
+            (only when relabelled), one line per step, and a final status.
+        """
+        recipe: Recipe | None = self.registry.get(cmd.name)
         if recipe is None:
             return [
                 f"No recipe named {cmd.name!r}. "
                 "Try 'list' to see saved recipes."
             ]
-        lines = [
+        lines: list[str] = [
             f"Applying recipe {recipe.name!r} "
             f"({len(recipe.default_moves)} moves):"
         ]
@@ -229,11 +277,15 @@ class GameSession:
         # label->peg key, and the moves rebound onto physical pegs. Empty under
         # the default labelling. The GUI shows the same three panels as scroll
         # lists. See tasks/record-recipe-bindings-and-show-rebinding.md.
-        table = format_rebinding_table(recipe.default_moves, self.labelling)
+        table: list[str] = format_rebinding_table(
+            recipe.default_moves, self.labelling
+        )
         if table:
             lines.append("")
             lines.extend(table)
             lines.append("")
+        step: int
+        result: StepResult
         for step, result in enumerate(
             apply_iter(recipe, self.game, self.labelling), start=1
         ):
@@ -241,6 +293,10 @@ class GameSession:
                 lines.append(
                     f"  step {step}: {result.from_label} -> {result.to_label}"
                 )
+                # A successful step always carries concrete pegs (see
+                # StepResult / apply_iter); narrow the Optional for the checker.
+                assert result.from_peg is not None
+                assert result.to_peg is not None
                 self.recorder.record(result.from_peg + 1, result.to_peg + 1)
             else:
                 lines.append(f"  step {step}: stopped — {result.error}")
@@ -249,29 +305,37 @@ class GameSession:
         return lines
 
     def _handle_show(self, cmd: ShowCmd) -> list[str]:
-        recipe = self.registry.get(cmd.name)
+        """Return a recipe's moves as display lines (or a not-found line)."""
+        recipe: Recipe | None = self.registry.get(cmd.name)
         if recipe is None:
             return [
                 f"No recipe named {cmd.name!r}. "
                 "Try 'list' to see saved recipes."
             ]
-        n_moves = len(recipe.default_moves)
-        plural = "" if n_moves == 1 else "s"
-        lines = [
+        n_moves: int = len(recipe.default_moves)
+        plural: str = "" if n_moves == 1 else "s"
+        lines: list[str] = [
             f"Recipe {recipe.name!r} "
             f"({recipe.disk_count} discs, {n_moves} move{plural}):"
         ]
+        i: int
+        a: int
+        b: int
         for i, (a, b) in enumerate(recipe.default_moves, 1):
             lines.append(f"  step {i}: {a} -> {b}")
         return lines
 
     def _handle_list(self) -> list[str]:
+        """Return one summary line per saved recipe (or a 'none yet' line)."""
         if len(self.registry) == 0:
             return ["No recipes saved yet."]
-        lines = ["Saved recipes:"]
-        width = max(len(n) for n in self.registry.names())
+        lines: list[str] = ["Saved recipes:"]
+        width: int = max(len(n) for n in self.registry.names())
+        name: str
         for name in self.registry.names():
-            recipe = self.registry.get(name)
+            recipe: Recipe | None = self.registry.get(name)
+            # `name` came from registry.names(), so the lookup always hits.
+            assert recipe is not None
             lines.append(
                 f"  {name:<{width}}  "
                 f"({recipe.disk_count} discs, "

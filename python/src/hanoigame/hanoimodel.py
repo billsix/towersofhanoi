@@ -15,68 +15,88 @@
 # Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
 
+"""Core Towers of Hanoi game state and legal-move enumeration.
+
+This is the shared model the three front-ends (`hanoicli`, `hanoigame`,
+`hanoigui`) all build on: `HanoiGame` holds the three pegs as stacks of disk
+sizes, and `move_options` yields the currently legal moves each paired with a
+callable that performs it. Pegs are 0-indexed here; the 1-indexed labels the
+player sees are applied by `presenter`.
+"""
+
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
 
 @dataclass
 class Move:
-    from_peg: int  #: The peg from which the top disk is taken
-    to_peg: int  #: The peg on which the disk is placed
+    """A single disk move between two physical pegs.
+
+    Attributes:
+        from_peg: 0-indexed peg the top disk is taken from.
+        to_peg: 0-indexed peg the disk is placed on.
+    """
+
+    from_peg: int
+    to_peg: int
 
 
 def noop() -> None:
-    pass
+    """Do nothing; the default `ValidMove.action` before a real one is set."""
 
 
 @dataclass
 class ValidMove:
-    """Represents an option for a move in Hanoi Game"""
+    """A legal move paired with the callable that performs it.
 
-    move: Move  #: The pegs of the valid move
-    action: Callable[[], None] = field(
-        default_factory=noop
-    )  #: A procedure to do the valid move
+    Attributes:
+        move: The pegs the move is between.
+        action: A zero-argument procedure that applies the move to the game
+            (mutating the towers and the move count). Defaults to `noop`.
+    """
+
+    move: Move
+    action: Callable[[], None] = field(default_factory=lambda: noop)
 
 
 @dataclass
 class HanoiGame:
-    """Represents a Hanoi Game"""
+    """A Towers of Hanoi game: three pegs holding stacks of disk sizes.
 
-    towers: list = field(
+    Attributes:
+        towers: The three pegs, each a list used as a stack of disk sizes
+            (larger numbers are larger disks; the top of the stack is the
+            list's last element).
+        num_disks: The number of disks the game started with.
+        current_moves: How many moves have been made so far.
+    """
+
+    towers: list[list[int]] = field(
         default_factory=lambda: [[] for _ in range(3)]
-    )  #: The three towers, each of which implmented using a list as a stack
-    num_disks: int = field(
-        default_factory=lambda: 0
-    )  #: The number of disks for this game
-    current_moves: int = field(
-        default_factory=lambda: 0
-    )  #: The number of moves done so far in this game
+    )
+    num_disks: int = 0
+    current_moves: int = 0
 
-    def __post_init__(self):
-        """Resets the game state with a given number of disks."""
-        # Place disks on the first peg (Peg 0) from largest to smallest
-        for i in range(self.num_disks, 0, -1):
-            self.towers[0].append(i)
+    def __post_init__(self) -> None:
+        """Stack all disks on peg 0, largest at the bottom, smallest on top."""
+        for size in range(self.num_disks, 0, -1):
+            self.towers[0].append(size)
 
     def check_win_condition(self) -> bool:
-        """Checks if the game has been won."""
+        """Return whether every disk has been moved onto peg 2 (a win)."""
         return len(self.towers[2]) == self.num_disks
 
     def move_options(self) -> Iterable[ValidMove]:
-        """
-        Returns an iterable which represents the valid moves
+        """Enumerate the currently legal moves.
 
-        The first element of the tuple is a tuple that represents
-        the from-peg and to-peg
-
-        The second element of the tuple is a callable of zero arguments,
-        which when invoked, makes the move from the from-peg to the
-        to-peg
+        Returns:
+            One `ValidMove` per legal (from_peg, to_peg) pair, each carrying an
+            `action` closure that, when called, pops the source peg's top disk
+            onto the destination peg and increments `current_moves`.
         """
 
         def is_valid_move(from_peg_idx: int, to_peg_idx: int) -> bool:
-            """Checks if a move is valid according to Towers of Hanoi rules."""
+            """Whether the top of `from_peg_idx` may move to `to_peg_idx`."""
             if not self.towers[from_peg_idx]:  # Source peg empty
                 return False
             if (
@@ -87,21 +107,21 @@ class HanoiGame:
             return True
 
         moves_to_return: list[ValidMove] = []
-        for from_p, to_p in [
-            (0, 1),
-            (0, 2),
-            (1, 0),
-            (1, 2),
-            (2, 0),
-            (2, 1),
-        ]:
+        peg_pair: tuple[int, int]
+        for peg_pair in [(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)]:
+            from_p: int
+            to_p: int
+            from_p, to_p = peg_pair
             if is_valid_move(from_p, to_p):
 
                 def make_action(
                     from_peg_idx: int, to_peg_idx: int
                 ) -> Callable[[], None]:
+                    """Build the closure that performs one specific move."""
+
                     def f() -> None:
-                        disk = self.towers[from_peg_idx].pop()
+                        """Move the top disk and count it."""
+                        disk: int = self.towers[from_peg_idx].pop()
                         self.towers[to_peg_idx].append(disk)
                         self.current_moves += 1
 
