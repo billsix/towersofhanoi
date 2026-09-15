@@ -80,19 +80,25 @@ apply table) opens a scrollable pager (`_show_pager`). Work record:
   a normal item. Never treat a wxGTK radio's checked state as source of truth — keep state in the model
   and reflect it into the menu's *labels*.
 
-## Dead / orphaned / unwired code (grounds the follow-on)
+## Orphan cleanup (done 2026-09-15)
 
-- **Orphaned presenter helpers:** `presenter.min_cols` (`presenter.py:138`), `min_rows` (`:143`), and
-  `render_with_legend` (`:222`) are not used by production — the **curses** frontend reimplements its own
-  size check (`hanoigame.py`) instead of calling `min_cols`/`min_rows`.
-- **Test-only:** `recipe.apply` (`recipe.py:184`) — engine uses `apply_iter`.
-- **Unwired teaching modules:** `hanoirecursive.py` / `hanoiiterative.py` are standalone teaching scripts
-  with no importers (run directly, not part of the game).
+The formerly-orphaned helpers were resolved — routed where the presenter helper genuinely
+matched, deleted where it didn't, documented where it's a legitimate public API:
 
-## Follow-on
+- **`presenter.min_cols`** — now WIRED: curses `_required_cols` calls it (they were byte-identical,
+  `total_width(n) + 4`).
+- **`presenter.min_rows`** — DELETED. It (`n + 7`) did *not* match the curses rows requirement
+  (`_required_rows` = `n + 14`, which accounts for this frontend's `MSG_AREA_LINES`/
+  `HINT_AREA_LINES`), and the presenter has no business knowing those layout constants — so the
+  curses rows check stays authoritative and local.
+- **`presenter.render_with_legend`** — now WIRED into `hanoicli._print_board` (it returns
+  `render(...) + ["Moves: N"]`, byte-identical to what the CLI built by hand).
+- **`recipe.apply`** — kept as a documented public eager convenience over `apply_iter` (the engine
+  uses `apply_iter` for streaming; `apply` is exercised by the tests).
+- **`hanoirecursive.py` / `hanoiiterative.py`** — module docstrings now state they are standalone
+  teaching scripts with no importers.
 
-`tasks/wire-or-remove-orphaned-presenter-helpers.md` — route the curses size check through
-`presenter.min_cols`/`min_rows` (or delete those helpers), and mark the teaching modules as non-wired.
+Work record: `tasks/wire-or-remove-orphaned-presenter-helpers.md` (archived on completion).
 
 ## Module map (teaching intent per file)
 

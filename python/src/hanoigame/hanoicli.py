@@ -151,9 +151,8 @@ def _print_board(session: GameSession, out: TextIO) -> None:
         out: The stream board lines are written to.
     """
     line: str
-    for line in presenter.render(session.game, session.labelling):
+    for line in presenter.render_with_legend(session.game, session.labelling):
         out.write(line + "\n")
-    out.write(f"Moves: {session.current_moves}\n")
 
 
 def _prompt_disc_count(in_: TextIO, out: TextIO) -> int | None:

@@ -26,6 +26,10 @@ learner can watch the recursion unfold.
 
 Each ``hanoi_*`` function takes the same three peg arguments, ``i`` (initial),
 ``t`` (temporary/spare) and ``g`` (goal).
+
+Standalone teaching module: nothing in the game imports it (the playable
+frontends use `hanoimodel`/`engine`). Run it directly or read it for the
+algorithm.
 """
 
 from pysnooper import snoop

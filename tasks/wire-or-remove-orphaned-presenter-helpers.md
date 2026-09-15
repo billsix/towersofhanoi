@@ -1,8 +1,33 @@
 # Wire or remove the orphaned presenter helpers; label unwired teaching modules
 
-**Status:** proposed — needs go-ahead. Created 2026-08-27 (William Emerison Six <billsix@gmail.com>).
+**Status:** complete (2026-09-15). Created 2026-08-27 (William Emerison Six <billsix@gmail.com>).
+`ty`/ruff/format green in-container, 128 tests pass. See "Outcome".
 **Priority:** 6
 **Difficulty:** 2
+
+## Outcome (2026-09-15)
+
+The open question turned out to need a **split** answer — route where the presenter helper genuinely
+matched, delete where it didn't:
+
+- **`presenter.min_cols`** — WIRED. `hanoigame._required_cols` now returns `presenter.min_cols(n)`
+  (they were byte-identical, `total_width(n) + 4`), so the helper has a real consumer.
+- **`presenter.min_rows`** — DELETED (and its test). It was `n + 7`, but the real curses requirement
+  is `_required_rows` = `n + 14` (it accounts for `MSG_AREA_LINES`/`HINT_AREA_LINES`). Routing
+  through `min_rows` would have *under-reported* the height by 7 rows and let the UI draw
+  off-screen; and `min_rows` couldn't correctly become the curses value without importing
+  curses-frontend layout constants into the presenter (wrong layering). So the curses rows check
+  stays authoritative and local (with a comment saying why).
+- **`presenter.render_with_legend`** — WIRED into `hanoicli._print_board`; it returns
+  `render(...) + ["Moves: N"]`, byte-identical to what the CLI printed by hand.
+- **`recipe.apply`** — kept, with a docstring note that it's the eager convenience over `apply_iter`
+  (the engine streams via `apply_iter`; `apply` is exercised by the tests). Not dead — a public API.
+- **`hanoirecursive.py` / `hanoiiterative.py`** — module docstrings now state they are standalone
+  teaching scripts with no importers.
+
+All changes are behaviour-preserving (the two wirings are byte-identical substitutions; the deletion
+was of an unused, incorrect helper). Reference doc updated:
+`tasks/reference/architecture-overview.md` ("Orphan cleanup").
 
 ## Goal
 

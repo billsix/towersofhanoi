@@ -89,13 +89,18 @@ def stdscr_attr(stdscr: curses.window, attr: int) -> Iterator[None]:
 
 def _required_rows(num_disks: int) -> int:
     """Minimum LINES needed: board (n+4 worst-case) + 1 gap + msg area +
-    hint area + prompt."""
+    hint area + prompt.
+
+    This stays curses-local (rather than using ``presenter.min_rows``) because
+    it depends on this frontend's ``MSG_AREA_LINES``/``HINT_AREA_LINES`` layout,
+    which the presenter has no business knowing about.
+    """
     return (num_disks + 4) + 1 + MSG_AREA_LINES + HINT_AREA_LINES + 1
 
 
 def _required_cols(num_disks: int) -> int:
     """Minimum terminal columns needed to draw ``num_disks`` discs."""
-    return presenter.total_width(num_disks) + 4
+    return presenter.min_cols(num_disks)
 
 
 def _check_size(stdscr: curses.window, num_disks: int) -> bool:

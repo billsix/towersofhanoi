@@ -26,7 +26,6 @@ from hanoigame.presenter import (
     labelling_for,
     labels_to_towers,
     min_cols,
-    min_rows,
     padding_left,
     peg_center_x,
     peg_color,
@@ -55,7 +54,6 @@ def test_layout_maths_3_discs() -> None:
     assert padding_left(3, 2) == 1
     assert padding_left(3, 3) == 0
     assert min_cols(3) == 29  # total_width + 4
-    assert min_rows(3) == 10  # num_disks + 7 (room for default-reference row)
 
 
 def test_layout_maths_5_discs() -> None:

@@ -236,22 +236,6 @@ def min_cols(num_disks: int) -> int:
     return total_width(num_disks) + 4
 
 
-def min_rows(num_disks: int) -> int:
-    """Minimum terminal height curses needs (board + status rows).
-
-    Includes one row of headroom for the optional default-reference label
-    row that appears under non-default labellings, so the requirement
-    doesn't change mid-game when the user relabels.
-
-    Args:
-        num_disks: The game's disc count.
-
-    Returns:
-        The minimum row count.
-    """
-    return num_disks + 7
-
-
 # --- Pure text rendering ---------------------------------------------------
 
 

@@ -267,6 +267,10 @@ def apply(
 ) -> list[StepResult]:
     """Exhaust `apply_iter` and return all results.
 
+    The eager convenience over `apply_iter` (the streaming form the engine uses
+    so it can surface partial progress). Currently exercised by the tests rather
+    than a frontend, but kept as a public API.
+
     Args:
         recipe: The saved move sequence to replay.
         game: The game to mutate as legal moves are applied.

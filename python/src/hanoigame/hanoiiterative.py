@@ -22,6 +22,10 @@ the move list for ``n`` discs by taking the ``n-1`` solution and rewriting its
 peg labels twice (via :func:`swap_temporary_and_goal` and
 :func:`swap_initial_and_temporary`) to retarget the two sub-towers, then
 splicing the big-disc move between them.
+
+Standalone teaching module: nothing in the game imports it (the playable
+frontends use `hanoimodel`/`engine`). Run it directly or read it for the
+algorithm.
 """
 
 
