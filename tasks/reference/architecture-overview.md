@@ -50,6 +50,18 @@ The **curses** message area is only `MSG_AREA_LINES` tall, so output taller than
 apply table) opens a scrollable pager (`_show_pager`). Work record:
 `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md`.
 
+### wx/GTK gotchas (both cost real debugging time — 2026-09-14/15)
+
+- **Sizer alignment flags are orientation-specific.** A *vertical* alignment flag
+  (`wx.ALIGN_CENTER_VERTICAL`) inside a **vertical** `BoxSizer` raises a `wxAssertionError` on GTK
+  ("only horizontal alignment flags can be used in vertical sizers") — use `ALIGN_CENTER_HORIZONTAL`
+  and let stretch spacers do vertical centering. (Mirror for horizontal sizers.)
+- **Don't re-`Check()` the radio menu item the user just clicked.** On GTK, re-checking the
+  already-active item during a refresh re-emits the menu event and *fights the user's selection* — the
+  relabel appeared not to "take". Guard with `if not item.IsChecked(): item.Check(True)`
+  (`hanoigui._refresh`). The plain-menu-item and radio bindings themselves are fine (`self.Bind(
+  wx.EVT_MENU, handler, item)`); it was the redundant programmatic re-check that misfired.
+
 ## Dead / orphaned / unwired code (grounds the follow-on)
 
 - **Orphaned presenter helpers:** `presenter.min_cols` (`presenter.py:138`), `min_rows` (`:143`), and
