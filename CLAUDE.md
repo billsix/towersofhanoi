@@ -37,6 +37,8 @@ Fedora-44 + podman family template.
 - `make image` — build the image (`BUILD_DOCS=1` adds Sphinx/TeX Live).
 - `make shell` — dev shell; inside, run `hanoi` / `hanoi-cli` / `hanoi-gui`
   (the GUI needs X forwarding).
+- `make format` — ruff check+format the Python (line width from pyproject config).
+- `make type-check` — run `ty` over the Python (`src` + `tests`); fails on any diagnostic.
 - The image `ENTRYPOINT` installs the package, runs `pytest --exitfirst`, then
   builds the book (html/latexpdf/epub) into `/output/towersofhanoi/`.
 
@@ -45,8 +47,15 @@ pip install -e . && hanoi`.
 
 ## Conventions
 
-- Python, formatted with **ruff** (`ruff check --fix` + `ruff format
-  --line-length=80`); runs on shell exit.
+- Python, formatted with **ruff** (`ruff check --fix` + `ruff format`); the line
+  width (80) is set once in `[tool.ruff] line-length` in `python/pyproject.toml` — it
+  governs the formatter *and* E501, so `format.sh` passes no `--line-length` flag.
+  `make format` runs it; it also runs on shell exit.
+- **Fully typed, dataclass-ified, and Google-docstringed.** *Every* binding is annotated
+  — a hanoi-specific **maximal** choice (signatures, locals, constants, loop/`with`
+  targets), stricter than the shared standard's default. `make type-check` runs `ty` over
+  `src` + `tests`; keep it green. Rationale + the typing patterns:
+  `tasks/reference/architecture-overview.md` ("Typing, docstrings & the type-check gate").
 - All three front-ends go through the same `engine.dispatch` + `commands.parse` +
   `presenter.render` — keep them thin; logic belongs in the shared layers.
 - Recipes are stored in the user's *labels* and replayed through the *current*

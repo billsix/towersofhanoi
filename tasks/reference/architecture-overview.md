@@ -130,6 +130,40 @@ different medium:
 - Optional follow-ons (descoped from the completed roadmap): recipe persistence
   to disk, a step-mode replay UI, a curses pass 2.
 
+## Typing, docstrings & the type-check gate (2026-09-15)
+
+The whole Python tree (`src` **and** `tests`) is **fully typed, dataclass-ified, and
+Google-docstringed**, and stays that way via a gate:
+
+- **`make type-check`** runs `ty` (Astral) over `src` then `tests` in-container
+  (`entrypoint/type-check.sh` — portable host/container, *accumulating* so both steps always
+  run and any diagnostic fails the gate). Kept **separate** from `make format` (ruff) so
+  formatting stays fast; `ty` is installed in the base image, so no Dockerfile dep was needed
+  beyond `COPY`ing the script.
+- **Maximal local annotations are a deliberate hanoi-specific choice** (2026-09-15): *every*
+  binding is annotated — every signature (params + returns), and every local, module constant,
+  and loop/unpack/`with`-as target — not just the ones that "add information". This is stricter
+  than the shared `~/.claude/reference/python-coding-standard.md` default, which was left
+  unchanged. The only bindings left bare are the ones that **can't** be: comprehension /
+  generator-expression variables (separate scope, no syntax), and the `xrcctrl =
+  wx.xrc.XRCCTRL` function alias (annotating its return narrows XRCCTRL's dynamic result and
+  breaks the specific-control method calls downstream).
+- **Line width is one source of truth:** `[tool.ruff] line-length = 80` in
+  `python/pyproject.toml` governs *both* `ruff format` and the E501 lint; `entrypoint/format.sh`
+  passes **no** `--line-length` flag. (They used to disagree — config defaulted to 88, the
+  script forced 80.)
+
+**Typing patterns worth knowing before editing the GUI/model** (each cleared a real `ty`
+diagnostic): `hanoigui.HanoiFrame.session` is declared **non-Optional** (`_new_game`, called in
+`__init__`, always sets it before any handler runs); `board_renderers` passes the narrowed
+`game`/`labelling` into `_paint_game` rather than reading the Optional attributes; a
+`registry.get(name)` whose `name` came from `registry.names()` is narrowed with `assert … is
+not None`; `HELP_TEXT: str` so `.splitlines()` is `list[str]` (not the invariant
+`list[LiteralString]`); and `BoardRenderer.__init__(self, parent)` exists only to declare the
+constructor contract so `type[BoardRenderer]` is constructible with a parent. Also fixed a
+latent bug on the way: `ValidMove.action`'s `default_factory=noop` had set the default to
+`None` (the *result* of `noop()`); it is now `default_factory=lambda: noop`.
+
 ## Cross-links
 
 - `tasks/record-recipe-bindings-and-show-rebinding.md` + `tasks/latex-workbook-solve-1-5.md` — both build
