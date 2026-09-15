@@ -10,9 +10,9 @@
        (infrequent action) stacked vertically; right sidebar holds the
        recipe list and its action buttons stacked vertically.
 
-       Disc count and New Game live on the frame's menu bar (Python
-       side); per-action feedback and the moves counter live on the
-       frame's two-field status bar.
+       The menu bar (Game / Relabel pegs / View / Help) is defined at the
+       bottom of this file and loaded via LoadMenuBar; per-action feedback
+       and the moves counter live on the frame's two-field status bar.
 
        Every control Python needs to fetch has a `name=` attribute.
   -->
@@ -201,6 +201,185 @@
         </object>
       </object>
 
+    </object>
+  </object>
+
+  <!--
+       Menu bar. Loaded via LoadMenuBar("main_menubar"); Python binds each
+       item by XRCID(name) and fetches the radio MenuItems _refresh() toggles.
+       New/Quit/About use stock names (wxID_*) so they keep stock-id behaviour;
+       the relabel + board-style items are radio groups (consecutive <radio>).
+  -->
+  <object class="wxMenuBar" name="main_menubar">
+    <object class="wxMenu" name="game_menu">
+      <label>&amp;Game</label>
+      <object class="wxMenuItem" name="wxID_NEW">
+        <label>&amp;New Game…\tCtrl+N</label>
+        <help>Start a new game</help>
+      </object>
+      <object class="wxMenuItem" name="game_new_same">
+        <label>New Game (Same &amp;Size)\tCtrl+Shift+N</label>
+        <help>Start a new game with the same disc count</help>
+      </object>
+      <object class="separator"/>
+      <object class="wxMenuItem" name="wxID_EXIT">
+        <label>&amp;Quit\tCtrl+Q</label>
+        <help>Quit</help>
+      </object>
+    </object>
+    <object class="wxMenu" name="relabel_menu">
+      <label>&amp;Relabel pegs</label>
+      <!-- Deliberately NORMAL menu items, not <radio>: on wxGTK, clicking the
+           radio item GTK already thinks is active emits NO event, so the click is
+           swallowed before Python sees it (bug: a relabel to the peg-order left
+           active by the previous game did nothing). Normal items always emit on
+           every click; _refresh marks the active one with a leading bullet. -->
+      <object class="wxMenuItem" name="relabel_1_2_3"><label>1    2    3</label></object>
+      <object class="wxMenuItem" name="relabel_1_3_2"><label>1    3    2</label></object>
+      <object class="wxMenuItem" name="relabel_2_1_3"><label>2    1    3</label></object>
+      <object class="wxMenuItem" name="relabel_2_3_1"><label>2    3    1</label></object>
+      <object class="wxMenuItem" name="relabel_3_1_2"><label>3    1    2</label></object>
+      <object class="wxMenuItem" name="relabel_3_2_1"><label>3    2    1</label></object>
+    </object>
+    <object class="wxMenu" name="view_menu">
+      <label>&amp;View</label>
+      <object class="wxMenu" name="style_menu">
+        <label>Board &amp;Style</label>
+        <object class="wxMenuItem" name="style_text"><label>&amp;Text</label><radio>1</radio></object>
+        <object class="wxMenuItem" name="style_graphics"><label>&amp;Graphics</label><radio>1</radio></object>
+      </object>
+    </object>
+    <object class="wxMenu" name="help_menu">
+      <label>&amp;Help</label>
+      <object class="wxMenuItem" name="wxID_ABOUT"><label>&amp;About</label></object>
+    </object>
+  </object>
+
+  <!--
+       Dialogs. Layout only; Python (hanoigui.py) loads each with LoadDialog,
+       fetches the named controls via XRCCTRL, sets fonts + dynamic content
+       (list items, the rebinding key, the intro/header text, the title), and
+       binds Close + the scroll-sync. Bold headings are styled here.
+  -->
+
+  <!-- Recipe "show" — a scrollable list of steps. -->
+  <object class="wxDialog" name="RecipeDialog">
+    <style>wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</style>
+    <title>Recipe</title>
+    <object class="wxBoxSizer">
+      <orient>wxVERTICAL</orient>
+      <object class="sizeritem">
+        <option>1</option>
+        <flag>wxEXPAND|wxALL</flag>
+        <border>8</border>
+        <object class="wxListBox" name="recipe_steps">
+          <style>wxLB_SINGLE</style>
+        </object>
+      </object>
+      <object class="sizeritem">
+        <flag>wxALIGN_CENTER|wxBOTTOM</flag>
+        <border>8</border>
+        <object class="wxButton" name="wxID_CLOSE">
+          <label>Close</label>
+        </object>
+      </object>
+    </object>
+  </object>
+
+  <!-- Rebinding — three panels: moves (left) | label→peg key (middle) |
+       rebound-to-pegs (right). Left/right are scroll lists synced in Python. -->
+  <object class="wxDialog" name="RebindingDialog">
+    <style>wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</style>
+    <title>Rebinding</title>
+    <object class="wxBoxSizer">
+      <orient>wxVERTICAL</orient>
+      <object class="sizeritem">
+        <flag>wxALL</flag>
+        <border>10</border>
+        <object class="wxStaticText" name="rebind_intro"><label></label></object>
+      </object>
+      <object class="sizeritem">
+        <option>1</option>
+        <flag>wxEXPAND</flag>
+        <object class="wxBoxSizer">
+          <orient>wxHORIZONTAL</orient>
+          <!-- left column: moves in their own labels -->
+          <object class="sizeritem">
+            <option>1</option>
+            <flag>wxEXPAND|wxALL</flag>
+            <border>6</border>
+            <object class="wxBoxSizer">
+              <orient>wxVERTICAL</orient>
+              <object class="sizeritem">
+                <flag>wxBOTTOM</flag>
+                <border>4</border>
+                <object class="wxStaticText" name="rebind_left_header">
+                  <label>Recipe moves</label>
+                  <font><weight>bold</weight></font>
+                </object>
+              </object>
+              <object class="sizeritem">
+                <option>1</option>
+                <flag>wxEXPAND</flag>
+                <object class="wxListBox" name="rebind_left">
+                  <style>wxLB_SINGLE</style>
+                </object>
+              </object>
+            </object>
+          </object>
+          <!-- middle column: the label→peg key, vertically centred -->
+          <object class="sizeritem">
+            <flag>wxEXPAND|wxALL</flag>
+            <border>6</border>
+            <object class="wxBoxSizer">
+              <orient>wxVERTICAL</orient>
+              <object class="sizeritem">
+                <flag>wxBOTTOM</flag>
+                <border>4</border>
+                <object class="wxStaticText">
+                  <label>Rebinding</label>
+                  <font><weight>bold</weight></font>
+                </object>
+              </object>
+              <object class="spacer"><option>1</option><size>0,0</size></object>
+              <object class="sizeritem">
+                <flag>wxALIGN_CENTER_HORIZONTAL</flag>
+                <object class="wxStaticText" name="rebind_key"><label></label></object>
+              </object>
+              <object class="spacer"><option>1</option><size>0,0</size></object>
+            </object>
+          </object>
+          <!-- right column: rebound onto physical pegs -->
+          <object class="sizeritem">
+            <option>1</option>
+            <flag>wxEXPAND|wxALL</flag>
+            <border>6</border>
+            <object class="wxBoxSizer">
+              <orient>wxVERTICAL</orient>
+              <object class="sizeritem">
+                <flag>wxBOTTOM</flag>
+                <border>4</border>
+                <object class="wxStaticText">
+                  <label>Rebound to pegs</label>
+                  <font><weight>bold</weight></font>
+                </object>
+              </object>
+              <object class="sizeritem">
+                <option>1</option>
+                <flag>wxEXPAND</flag>
+                <object class="wxListBox" name="rebind_right">
+                  <style>wxLB_SINGLE</style>
+                </object>
+              </object>
+            </object>
+          </object>
+        </object>
+      </object>
+      <object class="sizeritem">
+        <flag>wxALIGN_CENTER|wxBOTTOM</flag>
+        <border>8</border>
+        <object class="wxButton" name="wxID_CLOSE"><label>Close</label></object>
+      </object>
     </object>
   </object>
 

@@ -56,11 +56,22 @@ apply table) opens a scrollable pager (`_show_pager`). Work record:
   (`wx.ALIGN_CENTER_VERTICAL`) inside a **vertical** `BoxSizer` raises a `wxAssertionError` on GTK
   ("only horizontal alignment flags can be used in vertical sizers") — use `ALIGN_CENTER_HORIZONTAL`
   and let stretch spacers do vertical centering. (Mirror for horizontal sizers.)
-- **Don't re-`Check()` the radio menu item the user just clicked.** On GTK, re-checking the
-  already-active item during a refresh re-emits the menu event and *fights the user's selection* — the
-  relabel appeared not to "take". Guard with `if not item.IsChecked(): item.Check(True)`
-  (`hanoigui._refresh`). The plain-menu-item and radio bindings themselves are fine (`self.Bind(
-  wx.EVT_MENU, handler, item)`); it was the redundant programmatic re-check that misfired.
+- **Don't use radio menu items for an action that can be re-selected on wxGTK — use normal items.**
+  wxGTK emits **no** `wx.EVT_MENU` when the user clicks the radio item GTK already considers active: the
+  click is swallowed *before Python sees it*, so the handler never runs. GTK's active radio also
+  persists across state resets (`_new_game`) and drifts from the model, so "the item GTK thinks is
+  active" is frequently not the model's state — and clicking the item you actually want then does
+  nothing. This caused a stubborn relabel bug (`hanoigui`, 2026-09): the relabel to the peg order left
+  active by the *previous* game silently failed (repro: solve n=3 + save, n=4 ending on `2 1 3` + save,
+  then n=5 → relabel to `2 1 3` does nothing). **Two fixes that operated in `_refresh`/`_on_relabel_menu`
+  failed**, because the failing click produces no event at all — nothing handler-side can rescue it. The
+  fix that worked: make the relabel items **normal (non-radio) `wxMenuItem`s** (which always emit on
+  every click) and show the active one with a leading `●` bullet via `SetItemLabel` in `_refresh`
+  (display-only; `SetItemLabel` emits nothing). Rule of thumb on wxGTK: a radio menu item is safe only
+  when re-selecting the active choice is genuinely a no-op you never need an event for (e.g. board-style
+  Text/Graphics, whose handler early-returns anyway); anything you might click again to re-fire must be
+  a normal item. Never treat a wxGTK radio's checked state as source of truth — keep state in the model
+  and reflect it into the menu's *labels*. **Human-verify pending** — no wxPython in the agent sandbox.
 
 ## Dead / orphaned / unwired code (grounds the follow-on)
 

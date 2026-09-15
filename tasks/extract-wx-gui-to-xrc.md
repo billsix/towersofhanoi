@@ -1,8 +1,48 @@
 # Extract more of the wx GUI into hanoi.xrc
 
-**Status:** proposed — needs go-ahead
+**Status:** implementation complete (2026-09-15) — **menu bar AND both dialogs extracted to XRC**
+(menu bar confirmed working by the maintainer). About stays a stock `wx.MessageBox` (not XRC-able,
+correctly left). **Awaiting a human GUI verify of the two dialogs**; archivable after that + commit.
 **Priority:** 5
 **Difficulty:** 5
+
+## Progress (2026-09-15)
+
+**Menu bar → XRC — done.** The whole `wxMenuBar` (Game / Relabel pegs / View→Board Style / Help,
+including accelerators and the two radio groups) now lives in `hanoi.xrc` as `main_menubar`;
+`_build_menu_bar` in `hanoigui.py` shrank from hand-building every menu/item to: load once
+(`_load_hanoi_xrc`, a new guarded one-time loader shared with the panel load), `LoadMenuBar(
+"main_menubar")`, bind each item by `XRCID(name)`, and `FindItemById` the radio MenuItems `_refresh`
+toggles. New/Quit/About use stock names (`wxID_NEW`/`wxID_EXIT`/`wxID_ABOUT`) to keep stock-id
+behaviour; relabel + board-style are `<radio>` groups. The relabel status-bar feedback and the
+`IsChecked` guard (the "relabel won't stick" fix) are preserved. **Verified here:** XRC is valid XML
+with all objects present, `hanoigui.py` compiles, ruff clean, 124 tests pass. **NOT verified:** actual
+rendering/behaviour (no wxPython in the agent sandbox) — needs `hanoi-gui` run.
+
+**Human check before continuing:** run `hanoi-gui` and confirm every menu still works — Game
+New/New-same/Quit, all six **Relabel pegs** radios (and that the active one stays checked), View →
+Board Style Text/Graphics, Help → About, plus the Ctrl+N / Ctrl+Q accelerators. If good, the dialogs
+are next (below); if a menu misbehaves, the XRC/bind pattern needs adjusting before reusing it.
+
+**Dialogs → XRC — done (2026-09-15).** Both real dialogs now load from `hanoi.xrc`:
+- `RecipeDialog` (recipe-show) — a `wxListBox` + Close; `_show_recipe_dialog` does `LoadDialog` +
+  `XRCCTRL("recipe_steps")`, sets the mono font / items / min-size in Python, binds Close, `Fit`.
+- `RebindingDialog` (the three-panel view) — intro + [left list | centred key | right list] + Close,
+  with bold headings styled in XRC. `_show_rebinding_dialog` fetches the named controls
+  (`rebind_intro`, `rebind_left_header`, `rebind_key`, `rebind_left`, `rebind_right`), fills in the
+  dynamic title/intro/header/key/items + mono fonts, and keeps the **scroll-sync** and the
+  **reusable-single-window** logic in Python. The `_list_panel` helper and all hand-built sizers are
+  gone. The `wxALIGN_CENTER_VERTICAL` gotcha is avoided (middle key uses `wxALIGN_CENTER_HORIZONTAL`
+  + stretch spacers, in XRC now).
+- **About** stays `wx.MessageBox` — a stock dialog, nothing to move.
+
+Net: `hanoigui.py` no longer hand-builds any menu or dialog layout; `hanoi.xrc` holds the panel, the
+menu bar, and both dialogs. **Verified here:** XRC valid (40 named objects), compiles, ruff clean,
+124 tests pass. **NOT verified:** dialog rendering/behaviour — needs a `hanoi-gui` run: open a recipe
+(Show / double-click) and trigger the rebinding view (apply or a move under a relabelling), and check
+the three panels render, the scroll-sync works, Close works, and repeated moves reuse one window.
+
+**Remaining:** just the human GUI verify of the two dialogs. Then archive.
 
 ## BLUF
 

@@ -82,77 +82,72 @@ class HanoiFrame(wx.Frame):
 
     # --- UI construction --------------------------------------------------
 
+    def _load_hanoi_xrc(self) -> wx.xrc.XmlResource:
+        """Load hanoi.xrc into the global XmlResource exactly once, and return
+        it. Both the menu bar and the panel are defined there; loading the file
+        twice would duplicate XRC ids, so this is guarded and shared."""
+        res = wx.xrc.XmlResource.Get()
+        if not getattr(self, "_xrc_loaded", False):
+            with importlib.resources.as_file(
+                importlib.resources.files("hanoigame").joinpath("hanoi.xrc")
+            ) as xrc_path:
+                res.Load(str(xrc_path))
+            self._xrc_loaded = True
+        return res
+
     def _build_menu_bar(self) -> None:
-        menubar = wx.MenuBar()
-
-        game_menu = wx.Menu()
-        new_item = game_menu.Append(
-            wx.ID_NEW, "&New Game…\tCtrl+N", "Start a new game"
-        )
-        new_same_item = game_menu.Append(
-            wx.ID_ANY,
-            "New Game (Same &Size)\tCtrl+Shift+N",
-            "Start a new game with the same disc count",
-        )
-        game_menu.AppendSeparator()
-        quit_item = game_menu.Append(wx.ID_EXIT, "&Quit\tCtrl+Q", "Quit")
-        menubar.Append(game_menu, "&Game")
-
-        # Relabel: one radio item per permutation. The currently-active
-        # labelling is checked, set in _refresh().
-        relabel_menu = wx.Menu()
-        self.relabel_menu_items: dict = {}
-        for labels in ALL_RELABEL_PERMUTATIONS:
-            label_text = f"{labels[0]}    {labels[1]}    {labels[2]}"
-            item = relabel_menu.AppendRadioItem(wx.ID_ANY, label_text)
-            self.relabel_menu_items[labels] = item
-            self.Bind(
-                wx.EVT_MENU,
-                lambda _evt, lab=labels: self._on_relabel_menu(lab),
-                item,
-            )
-        menubar.Append(relabel_menu, "&Relabel pegs")
-
-        # View: board-style radio submenu. Text view stays pixel-identical
-        # to CLI / curses; Graphics is a procedurally-drawn 2D view.
-        view_menu = wx.Menu()
-        style_menu = wx.Menu()
-        self.style_text_item = style_menu.AppendRadioItem(wx.ID_ANY, "&Text")
-        self.style_graphics_item = style_menu.AppendRadioItem(
-            wx.ID_ANY, "&Graphics"
-        )
-        view_menu.AppendSubMenu(style_menu, "Board &Style")
-        menubar.Append(view_menu, "&View")
-
-        help_menu = wx.Menu()
-        about_item = help_menu.Append(wx.ID_ABOUT, "&About")
-        menubar.Append(help_menu, "&Help")
-
+        # The menu-bar STRUCTURE (menus, items, accelerators, radio groups)
+        # lives in hanoi.xrc; here we only load it, bind each item by XRCID,
+        # and cache the few MenuItems _refresh() toggles (the relabel radios
+        # and the board-style radios).
+        res = self._load_hanoi_xrc()
+        menubar = res.LoadMenuBar("main_menubar")
         self.SetMenuBar(menubar)
-        self.Bind(wx.EVT_MENU, self._on_new_game_prompt, new_item)
-        self.Bind(wx.EVT_MENU, self._on_new_game_same, new_same_item)
-        self.Bind(wx.EVT_MENU, lambda _e: self.Close(), quit_item)
-        self.Bind(wx.EVT_MENU, self._on_about, about_item)
+
+        xrcid = wx.xrc.XRCID
+        self.Bind(wx.EVT_MENU, self._on_new_game_prompt, id=xrcid("wxID_NEW"))
+        self.Bind(
+            wx.EVT_MENU, self._on_new_game_same, id=xrcid("game_new_same")
+        )
+        self.Bind(wx.EVT_MENU, lambda _e: self.Close(), id=xrcid("wxID_EXIT"))
+        self.Bind(wx.EVT_MENU, self._on_about, id=xrcid("wxID_ABOUT"))
         self.Bind(
             wx.EVT_MENU,
             lambda _e: self._swap_renderer(TextBoardRenderer),
-            self.style_text_item,
+            id=xrcid("style_text"),
         )
         self.Bind(
             wx.EVT_MENU,
             lambda _e: self._swap_renderer(GraphicsBoardRenderer),
-            self.style_graphics_item,
+            id=xrcid("style_graphics"),
         )
+        self.style_text_item = menubar.FindItemById(xrcid("style_text"))
+        self.style_graphics_item = menubar.FindItemById(xrcid("style_graphics"))
+
+        # Relabel: one NORMAL menu item per permutation (not radio — see the XRC
+        # comment on why). Fetch each MenuItem and its base label (so _refresh can
+        # mark the active one), and bind it to the handler.
+        self.relabel_menu_items: dict = {}
+        self.relabel_base_labels: dict = {}
+        for labels in ALL_RELABEL_PERMUTATIONS:
+            item_id = xrcid(
+                f"relabel_{labels[0]}_{labels[1]}_{labels[2]}"
+            )
+            item = menubar.FindItemById(item_id)
+            self.relabel_menu_items[labels] = item
+            self.relabel_base_labels[labels] = item.GetItemLabel()
+            self.Bind(
+                wx.EVT_MENU,
+                lambda _evt, lab=labels: self._on_relabel_menu(lab),
+                id=item_id,
+            )
 
     def _build_ui(self) -> None:
-        # Load the panel layout from hanoi.xrc. Fonts, event bindings, and
-        # dynamic enable/disable state are wired up in Python below; XRC
-        # only describes the static widget tree.
-        res = wx.xrc.XmlResource.Get()
-        with importlib.resources.as_file(
-            importlib.resources.files("hanoigame").joinpath("hanoi.xrc")
-        ) as xrc_path:
-            res.Load(str(xrc_path))
+        # Load the panel layout from hanoi.xrc (already loaded once by
+        # _build_menu_bar). Fonts, event bindings, and dynamic enable/disable
+        # state are wired up in Python below; XRC only describes the static
+        # widget tree.
+        res = self._load_hanoi_xrc()
         self.panel = res.LoadPanel(self, "HanoiPanel")
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
         frame_sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
@@ -368,44 +363,32 @@ class HanoiFrame(wx.Frame):
             for label, peg in rebinding(labelling)
         ]
 
-        dlg = wx.Dialog(
-            self,
-            title=title,
-            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
-        )
+        # Layout (the three panels + Close) is RebindingDialog in hanoi.xrc;
+        # here we only fetch the named controls and fill in the dynamic bits:
+        # title, intro, the left header text, the key, the two lists, fonts,
+        # the scroll-sync, and Close.
+        dlg = self._load_hanoi_xrc().LoadDialog(self, "RebindingDialog")
+        dlg.SetTitle(title)
         mono = wx.Font(
             12,
             wx.FONTFAMILY_TELETYPE,
             wx.FONTSTYLE_NORMAL,
             wx.FONTWEIGHT_NORMAL,
         )
+        xrcctrl = wx.xrc.XRCCTRL
+        xrcctrl(dlg, "rebind_intro").SetLabel(intro)
+        xrcctrl(dlg, "rebind_left_header").SetLabel(left_header)
+        key_text = xrcctrl(dlg, "rebind_key")
+        key_text.SetLabel("\n".join(key))
+        key_text.SetFont(mono)
 
-        def _list_panel(heading_text: str, items: list[str]) -> tuple:
-            col = wx.BoxSizer(wx.VERTICAL)
-            heading = wx.StaticText(dlg, label=heading_text)
-            heading.SetFont(heading.GetFont().Bold())
-            listbox = wx.ListBox(dlg, choices=items, style=wx.LB_SINGLE)
+        left_lb = xrcctrl(dlg, "rebind_left")
+        right_lb = xrcctrl(dlg, "rebind_right")
+        for listbox, items in ((left_lb, left_items), (right_lb, right_items)):
             listbox.SetFont(mono)
+            listbox.Set(items)
             row_h = max(1, listbox.GetCharHeight())
             listbox.SetMinSize((210, row_h * 10 + 8))
-            col.Add(heading, 0, wx.BOTTOM, 4)
-            col.Add(listbox, 1, wx.EXPAND)
-            return col, listbox
-
-        left_col, left_lb = _list_panel(left_header, left_items)
-        right_col, right_lb = _list_panel("Rebound to pegs", right_items)
-
-        mid_col = wx.BoxSizer(wx.VERTICAL)
-        mid_head = wx.StaticText(dlg, label="Rebinding")
-        mid_head.SetFont(mid_head.GetFont().Bold())
-        mid_text = wx.StaticText(dlg, label="\n".join(key))
-        mid_text.SetFont(mono)
-        mid_col.Add(mid_head, 0, wx.BOTTOM, 4)
-        mid_col.AddStretchSpacer(1)
-        # Vertical sizer: only horizontal alignment is valid here (the stretch
-        # spacers above/below do the vertical centering).
-        mid_col.Add(mid_text, 0, wx.ALIGN_CENTER_HORIZONTAL)
-        mid_col.AddStretchSpacer(1)
 
         # Selecting a move selects the matching one on the other side AND
         # scrolls both so they line up. Both lists have the same number of
@@ -421,13 +404,10 @@ class HanoiFrame(wx.Frame):
                         continue
                     lb.SetSelection(i)
                     # Scroll BOTH lists to put row i in the same place, so the
-                    # matched moves line up visually (the whole point). Both
-                    # lists have equal length, so pinning the same first row
-                    # aligns them exactly. SetFirstItem pins the top row, but
-                    # not every wx port exposes it — fall back to EnsureVisible
-                    # (just brings row i on-screen). getattr avoids crashing if
-                    # a method is absent (learned from the sizer-flag crash:
-                    # verify wx calls, don't assume).
+                    # matched moves line up visually. SetFirstItem pins the top
+                    # row; not every wx port exposes it, so fall back to
+                    # EnsureVisible. getattr avoids crashing if a method is
+                    # absent (verify wx calls, don't assume — sizer-flag lesson).
                     set_first = getattr(lb, "SetFirstItem", None)
                     if set_first is not None:
                         set_first(i)
@@ -441,26 +421,13 @@ class HanoiFrame(wx.Frame):
         left_lb.Bind(wx.EVT_LISTBOX, _sync(left_lb, right_lb))
         right_lb.Bind(wx.EVT_LISTBOX, _sync(right_lb, left_lb))
 
-        cols = wx.BoxSizer(wx.HORIZONTAL)
-        cols.Add(left_col, 1, wx.EXPAND | wx.ALL, 6)
-        cols.Add(mid_col, 0, wx.EXPAND | wx.ALL, 6)
-        cols.Add(right_col, 1, wx.EXPAND | wx.ALL, 6)
-
-        intro_txt = wx.StaticText(dlg, label=intro)
-
         def _close(_evt) -> None:
             self._rebinding_dlg = None
             dlg.Destroy()
 
-        btn = wx.Button(dlg, wx.ID_CLOSE, "Close")
-        btn.Bind(wx.EVT_BUTTON, _close)
+        dlg.Bind(wx.EVT_BUTTON, _close, id=wx.ID_CLOSE)
         dlg.Bind(wx.EVT_CLOSE, _close)
-
-        root = wx.BoxSizer(wx.VERTICAL)
-        root.Add(intro_txt, 0, wx.ALL, 10)
-        root.Add(cols, 1, wx.EXPAND)
-        root.Add(btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 8)
-        dlg.SetSizerAndFit(root)
+        dlg.Fit()
         dlg.Show()
         self._rebinding_dlg = dlg
 
@@ -473,16 +440,13 @@ class HanoiFrame(wx.Frame):
         self._show_recipe_dialog(name, result.lines)
 
     def _show_recipe_dialog(self, name: str, lines: list) -> None:
-        """Scrollable list of recipe steps — a `wx.MessageBox` chokes on
-        the multi-hundred-step recipes a large game can produce. The
-        dialog is non-modal so the user can keep playing (or open a
-        second recipe to compare) while it's on screen."""
-        dlg = wx.Dialog(
-            self,
-            title=f"Recipe '{name}'",
-            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
-        )
-        listbox = wx.ListBox(dlg, choices=lines, style=wx.LB_SINGLE)
+        """Scrollable list of recipe steps (layout: RecipeDialog in hanoi.xrc).
+        Non-modal so the user can keep playing (or open a second recipe to
+        compare) while it's on screen; a `wx.MessageBox` chokes on the
+        multi-hundred-step recipes a large game can produce."""
+        dlg = self._load_hanoi_xrc().LoadDialog(self, "RecipeDialog")
+        dlg.SetTitle(f"Recipe '{name}'")
+        listbox = wx.xrc.XRCCTRL(dlg, "recipe_steps")
         listbox.SetFont(
             wx.Font(
                 12,
@@ -491,19 +455,15 @@ class HanoiFrame(wx.Frame):
                 wx.FONTWEIGHT_NORMAL,
             )
         )
-        # Size the listbox to show ~10 rows; the dialog scrolls past
-        # that. GetCharHeight is the line-height in the listbox's font.
+        listbox.Set(list(lines))
+        # Size the listbox to show ~10 rows; the dialog scrolls past that.
+        # GetCharHeight is the line-height in the listbox's font.
         row_h = max(1, listbox.GetCharHeight())
         listbox.SetMinSize((360, row_h * 10 + 8))
 
-        btn = wx.Button(dlg, wx.ID_CLOSE, "Close")
-        btn.Bind(wx.EVT_BUTTON, lambda _e: dlg.Destroy())
+        dlg.Bind(wx.EVT_BUTTON, lambda _e: dlg.Destroy(), id=wx.ID_CLOSE)
         dlg.Bind(wx.EVT_CLOSE, lambda _e: dlg.Destroy())
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(listbox, proportion=1, flag=wx.EXPAND | wx.ALL, border=8)
-        sizer.Add(btn, flag=wx.ALIGN_CENTER | wx.BOTTOM, border=8)
-        dlg.SetSizerAndFit(sizer)
+        dlg.Fit()
         dlg.Show()
 
     # --- State helpers ---------------------------------------------------
@@ -590,13 +550,16 @@ class HanoiFrame(wx.Frame):
             change_labels_on_pegs(self.session.labelling, i) + 1
             for i in range(3)
         )
-        # Check the active radio item; sibling radios auto-uncheck. Only
-        # re-check when it isn't already checked — re-checking the item the user
-        # just clicked can, on GTK, re-emit the menu event and fight the click.
-        active_item = self.relabel_menu_items[current_labels]
-        if not active_item.IsChecked():
-            active_item.Check(True)
-        for item in self.relabel_menu_items.values():
+        # Mark the active relabel item with a leading bullet (these are normal
+        # menu items, not radios — see the XRC comment; a radio's checked state
+        # is unreliable on wxGTK and, worse, swallows clicks on the item it
+        # thinks is already active). Rewriting the label is display-only and
+        # never emits an event, so the current peg-order is always shown and
+        # every click always fires.
+        for labels, item in self.relabel_menu_items.items():
+            base = self.relabel_base_labels[labels]
+            marker = "●  " if labels == current_labels else "     "
+            item.SetItemLabel(marker + base)
             item.Enable(not won)
         self.apply_btn.Enable(not won)
         self.show_btn.Enable(True)
