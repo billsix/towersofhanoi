@@ -21,17 +21,126 @@ Thin wrapper around `engine.GameSession`: reads a line, parses it, hands
 the parsed command to the session, prints whatever lines come back. The
 disc-count prompt and post-win save prompt are frontend-specific and
 live here.
+
+At an interactive terminal, `readline` tab-completion is installed (command
+verbs at the start of a line; saved-recipe names after ``apply ``/``show ``).
+When driven from an injected stream (pipes, tests) the reads fall back to
+`stream.readline()` unchanged, so scripted I/O stays byte-for-byte identical.
 """
 
 import sys
 from typing import TextIO
 
 from . import presenter
-from .commands import Command, parse
+from .commands import COMMAND_VERBS, Command, parse
 from .engine import DispatchResult, GameSession
 from .recipe import RecipeRegistry
 
 MAX_DISKS: int = 10
+
+
+def _is_interactive(in_: TextIO) -> bool:
+    """Return whether we are reading from the real interactive terminal.
+
+    Only then do `input()`/`readline` editing and completion apply; an injected
+    or piped stream is not interactive, so its I/O path stays untouched.
+
+    Args:
+        in_: The stream the caller reads from.
+    """
+    if in_ is not sys.stdin:
+        return False
+    try:
+        return sys.stdin.isatty()
+    except (OSError, ValueError):
+        return False
+
+
+def _read_line(prompt: str, in_: TextIO, out: TextIO) -> str | None:
+    """Read one line of input, with terminal editing when interactive.
+
+    At an interactive terminal the read goes through `input()` so `readline`
+    line-editing and tab-completion fire; otherwise it writes `prompt` to `out`
+    and reads `in_` exactly as before, keeping scripted output identical.
+
+    Args:
+        prompt: The prompt to display before reading.
+        in_: The stream the line is read from.
+        out: The stream the prompt is written to (non-interactive path).
+
+    Returns:
+        The line with its trailing newline stripped, or ``None`` on EOF.
+    """
+    if _is_interactive(in_):
+        out.flush()
+        try:
+            return input(prompt)
+        except EOFError:
+            return None
+    out.write(prompt)
+    out.flush()
+    line: str = in_.readline()
+    if not line:  # EOF
+        return None
+    return line.rstrip("\n")
+
+
+def _completions(buffer: str, text: str, registry: RecipeRegistry) -> list[str]:
+    """Candidate completions for `text` given the whole input line `buffer`.
+
+    Command verbs while still on the first token; saved-recipe names after
+    ``apply ``/``show `` (the load side). Deliberately nothing after other verbs
+    — notably ``save ``, so completion never suggests overwriting an existing
+    recipe. Pure: no `readline`, no I/O, so it is unit-testable on its own.
+
+    Args:
+        buffer: The whole line being edited (`readline.get_line_buffer()`).
+        text: The partial word `readline` wants completions for.
+        registry: The recipe store, queried for names on the load side.
+
+    Returns:
+        The matching completion candidates, in display order.
+    """
+    stripped: str = buffer.lstrip()
+    if stripped.startswith(("apply ", "show ")):
+        return [name for name in registry.names() if name.startswith(text)]
+    if " " in stripped:
+        return []
+    return [verb for verb in COMMAND_VERBS if verb.startswith(text)]
+
+
+def _install_completion(registry: RecipeRegistry, in_: TextIO) -> None:
+    """Install the readline tab-completer, but only at a real terminal.
+
+    A no-op when `readline` is unavailable or the input is not interactive, so
+    the scripted/piped path never touches readline. Binds Tab for both GNU
+    readline and macOS's libedit.
+
+    Args:
+        registry: The recipe store the completer reads names from (shared, so
+            names saved mid-session complete on later lines).
+        in_: The input stream; completion is installed only if it is the
+            interactive terminal.
+    """
+    if not _is_interactive(in_):
+        return
+    try:
+        import readline
+    except ImportError:
+        return
+
+    def completer(text: str, state: int) -> str | None:
+        """readline completion hook: the `state`-th match, or None."""
+        options: list[str] = _completions(
+            readline.get_line_buffer(), text, registry
+        )
+        return options[state] if state < len(options) else None
+
+    readline.set_completer(completer)
+    if "libedit" in (readline.__doc__ or ""):
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
 
 
 def _print_board(session: GameSession, out: TextIO) -> None:
@@ -59,10 +168,10 @@ def _prompt_disc_count(in_: TextIO, out: TextIO) -> int | None:
         EOFs or quits.
     """
     while True:
-        out.write(f"How many discs? (1-{MAX_DISKS}, or 'quit'): ")
-        out.flush()
-        line: str = in_.readline()
-        if not line:  # EOF
+        line: str | None = _read_line(
+            f"How many discs? (1-{MAX_DISKS}, or 'quit'): ", in_, out
+        )
+        if line is None:  # EOF
             return None
         s: str = line.strip().lower()
         if s in ("quit", "q", "exit"):
@@ -75,27 +184,31 @@ def _prompt_disc_count(in_: TextIO, out: TextIO) -> int | None:
 
 
 def _prompt_save(session: GameSession, in_: TextIO, out: TextIO) -> None:
-    """After a win, ask whether to save this solution as a recipe.
+    """After a win, offer to save this solution as a recipe.
 
-    A blank name (or EOF) skips saving; otherwise the session records the
-    solution under the typed name and its confirmation line is printed.
+    Pressing Enter accepts the default name ``solve-<n>`` (matching the GUI, so
+    the user needn't invent one); typing a name saves under it; typing ``-``
+    (or EOF) skips saving.
 
     Args:
         session: The won session whose solution may be saved.
         in_: The stream the name is read from.
         out: The stream the prompt and result are written to.
     """
-    out.write(
-        "\nSave this solution as a recipe? "
-        "Type a name, or press Enter to skip: "
+    default: str = f"solve-{session.num_disks}"
+    line: str | None = _read_line(
+        f"\nSave this solution as a recipe? "
+        f"Enter to save as '{default}', a name to rename, or '-' to skip: ",
+        in_,
+        out,
     )
-    out.flush()
-    line: str = in_.readline()
-    if not line:
+    if line is None:
         return
     name: str = line.strip()
-    if not name:
+    if name == "-":
         return
+    if not name:
+        name = default
     out.write(session.save_recipe(name) + "\n")
 
 
@@ -120,10 +233,8 @@ def _play_game(
         out.write("\n")
         _print_board(session, out)
         out.write(session.valid_moves_str() + "\n")
-        out.write("> ")
-        out.flush()
-        line: str = in_.readline()
-        if not line:  # EOF
+        line: str | None = _read_line("> ", in_, out)
+        if line is None:  # EOF
             return False
         cmd: Command = parse(line)
         result: DispatchResult = session.dispatch(cmd)
@@ -154,10 +265,8 @@ def _play_game(
 
     _prompt_save(session, in_, out)
 
-    out.write("\nPlay again? (y/n): ")
-    out.flush()
-    again: str = in_.readline()
-    if not again:
+    again: str | None = _read_line("\nPlay again? (y/n): ", in_, out)
+    if again is None:
         return False
     return again.strip().lower().startswith("y")
 
@@ -177,6 +286,7 @@ def run(in_: TextIO, out: TextIO) -> int:
     """
     out.write("Towers of Hanoi — type 'help' for commands.\n")
     registry: RecipeRegistry = RecipeRegistry()
+    _install_completion(registry, in_)
     while True:
         n: int | None = _prompt_disc_count(in_, out)
         if n is None:

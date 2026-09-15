@@ -103,6 +103,21 @@ Command = (
 )
 
 
+# The keyword commands `parse` recognises at the start of a line, in the order
+# they appear in HELP_TEXT. The single source of truth for tab-completion (see
+# hanoicli._completions). Moves use the `<from> -> <to>` syntax, not a keyword,
+# so there is no "move" verb here.
+COMMAND_VERBS: tuple[str, ...] = (
+    "relabel",
+    "save",
+    "apply",
+    "show",
+    "list",
+    "help",
+    "quit",
+)
+
+
 HELP_TEXT: str = """\
 Commands:
   <from> -> <to>   move a disc, e.g. '1 -> 3' (also accepts '1 3' or '13')

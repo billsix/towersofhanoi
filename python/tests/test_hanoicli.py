@@ -19,7 +19,9 @@
 
 import io
 
-from hanoigame.hanoicli import run
+from hanoigame.commands import COMMAND_VERBS
+from hanoigame.hanoicli import _completions, run
+from hanoigame.recipe import Recipe, RecipeRegistry
 
 
 def _drive(input_text: str) -> str:
@@ -46,8 +48,8 @@ def _script(*chunks: str) -> str:
 
 def test_winning_3_disc_sequence_optimal() -> None:
     """A minimal 3-disc solve reports the win and an optimality note."""
-    # Skip save prompt with empty line; decline play-again.
-    output: str = _drive(_script("3", *WIN_3_OPTIMAL, "", "n"))
+    # Skip the save prompt with '-'; decline play-again.
+    output: str = _drive(_script("3", *WIN_3_OPTIMAL, "-", "n"))
     assert "Solved! 7 moves (minimum 7)." in output
     assert "Optimal solution!" in output
 
@@ -56,7 +58,7 @@ def test_winning_with_extra_moves_reports_diff() -> None:
     """A non-minimal solve reports how many moves over the minimum it took."""
     # Same solution but with two wasted moves at the start.
     moves: list[str] = ["1 2", "2 1", *WIN_3_OPTIMAL]
-    output: str = _drive(_script("3", *moves, "", "n"))
+    output: str = _drive(_script("3", *moves, "-", "n"))
     assert "Solved! 9 moves (minimum 7)." in output
     assert "2 more than the minimum." in output
 
@@ -142,11 +144,17 @@ def test_post_win_prompt_saves_named_recipe() -> None:
     assert "Saved recipe 'win-2'." in output
 
 
-def test_post_win_empty_name_skips_save() -> None:
-    """An empty name at the post-win prompt skips saving."""
-    output: str = _drive(_script("2", *WIN_2_OPTIMAL, "", "n"))
+def test_post_win_dash_skips_save() -> None:
+    """Typing '-' at the post-win prompt skips saving."""
+    output: str = _drive(_script("2", *WIN_2_OPTIMAL, "-", "n"))
     assert "Saved recipe" not in output
     assert "Solved!" in output
+
+
+def test_post_win_empty_saves_default_name() -> None:
+    """Pressing Enter (empty) at the post-win prompt saves as 'solve-<n>'."""
+    output: str = _drive(_script("2", *WIN_2_OPTIMAL, "", "n"))
+    assert "Saved recipe 'solve-2'." in output
 
 
 def test_list_shows_saved_recipe_with_disc_count_and_moves() -> None:
@@ -182,7 +190,7 @@ def test_apply_replays_recipe_on_fresh_game() -> None:
             "y",
             "2",
             "apply two",
-            "",
+            "-",
             "n",
         )
     )
@@ -257,6 +265,36 @@ def test_show_unknown_recipe_errors() -> None:
     assert "No recipe named 'ghost'" in output
 
 
+# --- Tab-completion (the pure completer logic) ---------------------------
+
+
+def test_completions_verbs_at_line_start() -> None:
+    """On the first token, completion offers matching command verbs."""
+    registry: RecipeRegistry = RecipeRegistry()
+    assert set(_completions("", "", registry)) == set(COMMAND_VERBS)
+    assert _completions("ap", "ap", registry) == ["apply"]
+    assert _completions("s", "s", registry) == ["save", "show"]
+
+
+def test_completions_recipe_names_after_apply_and_show() -> None:
+    """After 'apply '/'show ', completion offers matching recipe names."""
+    registry: RecipeRegistry = RecipeRegistry()
+    registry.save(Recipe(name="solve-2", disk_count=2, default_moves=()))
+    registry.save(Recipe(name="other", disk_count=3, default_moves=()))
+    # registry.names() is sorted, so completions come back sorted.
+    assert _completions("apply ", "", registry) == ["other", "solve-2"]
+    assert _completions("apply so", "so", registry) == ["solve-2"]
+    assert _completions("show ot", "ot", registry) == ["other"]
+
+
+def test_completions_no_recipe_names_after_save() -> None:
+    """'save ' must NOT complete existing names (no overwrite invitation)."""
+    registry: RecipeRegistry = RecipeRegistry()
+    registry.save(Recipe(name="solve-2", disk_count=2, default_moves=()))
+    assert _completions("save so", "so", registry) == []
+    assert _completions("save ", "", registry) == []
+
+
 def test_recipe_captured_under_relabel_replays_under_default() -> None:
     """A recipe captured while a non-default labelling is active should
     represent the *physical* moves, not the labels the user typed. So a
@@ -283,7 +321,7 @@ def test_recipe_captured_under_relabel_replays_under_default() -> None:
         # and the game wins.
         "2",
         "apply captured-under-relabel",
-        "",
+        "-",
         "n",
     )
     output: str = _drive(script)

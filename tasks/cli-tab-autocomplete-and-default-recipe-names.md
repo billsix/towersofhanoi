@@ -1,8 +1,39 @@
 # CLI: tab autocomplete + GUI-default recipe names (no name-picking)
 
-**Status:** ready — both open questions answered (2026-09-15); awaiting go-ahead to implement
+**Status:** implemented (2026-09-15) — code + tests done, `ty`/ruff/format/128 tests green
+in-container. **Awaiting a human TTY verify** of the interactive completion (pytest/StringIO
+can't exercise the `input()`/readline path — only the pure completer + the non-interactive
+reads + the save semantics are unit-tested). See "Outcome".
 **Priority:** 4
 **Difficulty:** 3
+
+## Outcome (2026-09-15)
+
+Implemented per option (a) and both decisions.
+
+- **Single-source verb list:** `commands.COMMAND_VERBS` (`relabel`/`save`/`apply`/`show`/`list`/
+  `help`/`quit` — no "move"; moves use `<from> -> <to>`, not a keyword). Both `parse` and the
+  completer draw from it in spirit; the tuple is the completion source of truth.
+- **Interactive-only reads:** `hanoicli._read_line(prompt, in_, out)` uses `input()` (so readline
+  editing + Tab completion fire) **only** when `in_ is sys.stdin and sys.stdin.isatty()`
+  (`_is_interactive`); otherwise it does the old `out.write(prompt); out.flush(); in_.readline()`,
+  so the scripted/piped path is byte-identical. All three prompts (disc-count, game `> `, save,
+  play-again) route through it. EOF is now `None` (vs the old empty-string check).
+- **Completer:** `_install_completion(registry, in_)` (called once in `run()`, no-op unless
+  interactive + `readline` importable) binds Tab (GNU `tab: complete`, else libedit
+  `bind ^I rl_complete`) to a hook over the **pure** `_completions(buffer, text, registry)`:
+  verbs on the first token; `registry.names()` after `apply `/`show `; **nothing after `save `**
+  (no overwrite invitation) or any other post-verb position. The registry is shared, so names
+  saved mid-session complete on later lines.
+- **Save default:** `_prompt_save` now offers `solve-<n>` (matching the GUI) — **Enter saves the
+  default**, a typed name renames, **`-` skips** (EOF also skips).
+- **Tests:** the scripted CLI tests that used a blank line to *skip* the save now use `-`; added
+  `test_post_win_empty_saves_default_name` (Enter → `solve-2`) and `test_post_win_dash_skips_save`;
+  added three direct `_completions` unit tests (verbs; names after `apply`/`show`; empty after
+  `save`). 128 tests pass.
+- **Cannot auto-test (needs a human `make shell` → `hanoi-cli` at a real terminal):** that Tab
+  actually completes verbs and recipe names, and that Enter at the save prompt saves `solve-<n>`.
+  Per the plan, no `pty`/`pexpect` dependency was added just for this.
 
 ## BLUF
 
