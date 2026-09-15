@@ -1,8 +1,74 @@
 # Redesign the induction workbook's flow (top-to-bottom) and relabeling representation
 
-**Status:** proposed — needs go-ahead
+**Status:** implemented, staged (2026-09-15, autonomous session — maintainer away). Not committed —
+awaiting the maintainer's eyeball on the rendered PDF. See "Design decided" and "Iteration log".
 **Priority:** 5
 **Difficulty:** 5
+
+## Design decided (2026-09-15)
+
+Studied the CLI benchmark: its `apply`-under-relabel prints a top-to-bottom table **recipe move →
+rebinding key → rebound move**. The key realization that reshapes the whole workbook: because every
+sheet solves the *same* concrete task — **move n discs from peg 1 to peg 3** (peg 2 = spare) — the
+rebinding is a **constant swap** at every level, not a per-n puzzle:
+
+- **Part 1** (move top n−1 discs, peg 1 → peg 2): take each move on your n−1 sheet and **swap 2↔3**
+  (leave 1). [key 1→1, 2→3, 3→2]
+- **Part 3** (move n−1 discs, peg 2 → peg 3): **swap 1↔2** (leave 3). [key 1→2, 2→1, 3→3]
+
+Verified this reproduces the optimal solves (n=3 → `1→3,1→2,3→2,1→3,2→1,2→3,1→3`, == the game's
+`WIN_3_OPTIMAL`). So the redesign:
+
+- **Drop I/T/G** in favour of **concrete numbered pegs 1/2/3** (peg 1 start, peg 3 goal, peg 2 spare)
+  — this is what "use the forms to move the real pieces" needs, and it makes the rebinding "swap two
+  numbers", which a novice can do mechanically. (Tried framing against I/T/G and shapes; the constant
+  numeric swap is clearest and *is* the visual pattern the maintainer wanted.)
+- **Top-to-bottom flow:** header + peg picture → Part 1 → Part 2 (one move, peg 1→3) → Part 3, each
+  stacked full-width, so reading down the page *is* the move order and copying it onto the next sheet
+  is trivial.
+- **A cover page** ("how to use", the 3 pegs, the big idea) so a total novice can start cold.
+- Each part = a swap-key banner + one worked example + a compact numbered grid of blank `__ → __`
+  rebound moves (multi-column for n=4,5 to fit the page). The student reads each move off their n−1
+  sheet, applies the swap, writes the actual move here, then does it.
+- Rows per n = 2^(n−1)−1 (n2:1, n3:3, n4:7, n5:15).
+
+## Iteration log (2026-09-15)
+
+Rewrote `workbook/induction-workbook.tex` end-to-end to the "Design decided" plan. Result: 6 pages
+(cover + one sheet per n=1..5), builds clean with `pdflatex` (0 overfull boxes), all rendered and
+eyeballed at 110 dpi.
+
+- **Numbered pegs 1/2/3 with one fixed colour each** (blue/orange/green), replacing the I/T/G roles
+  and the `\rebindbox`/`\pegstack` machinery. New helpers: `\onepeg`/`\pegdiscs`/`\startgoal` (peg
+  pictures), `\movegrid{rows}{cols}` (numbered `__ → __` cells, fills column-by-column), `\partblock`
+  (full-width stacked Part box).
+- **Top-to-bottom flow:** each sheet is header + start→goal picture, then Part 1 (peg 1→2, swap 2↔3)
+  → Part 2 (biggest disc, one move 1→3) → Part 3 (peg 2→3, swap 1↔2), each full-width and stacked, so
+  reading down the page *is* the move order. n=4 (7 rows, 2 cols) and n=5 (15 rows, 3 cols) still fit
+  one page each.
+- **Cover page** added: puzzle statement + big picture, the three-part trick, the two constant swap
+  keys side by side, and a numbered "how to use" list.
+- **Fixes after first render:** (1) the cover's right-hand swap box overflowed the right margin —
+  reanchored it to `$(p1swap.north east)+(0.5,0)$` (needs the already-loaded `calc` lib) so the two
+  7.6cm boxes sit within the text block; (2) singular/plural — added `\discw`/`\movew` helpers so the
+  n=1/n=2 sheets read "1 disc"/"1 move", and reworded "…moves that carry…" → "…moves needed to
+  carry…" to dodge subject-verb agreement at count 1.
+
+**Revision (2026-09-15, maintainer feedback):** (1) roomier draw-boxes, all in a single vertical
+column — `\movegrid` rewritten to one box-pair per row (0.8×0.6cm, 0.9cm pitch), dropping the
+multi-column layout; `\partblock`/`\hanoipage` lost their column argument. Large n now runs onto a
+second page on purpose (8 pages total: n=4 and n=5 each spill Part 3 to a second page), which the
+maintainer OK'd ("don't mind wasting space vertically"). New `\dbox` helper gives the base-case and
+Part 2 the same roomy box and removes four copies of an inline tikz draw. (2) Prose dedup: trimmed
+the per-sheet header (dropped "Move N discs from peg 1 to peg 3", already shown by the subtitle +
+start→goal picture; header now carries only the disc-stacking rule + print note) and shortened Part
+3's instruction ("Copy each move from your n=N sheet again" → "Copy them again", since Part 1 already
+said where to copy from). Subtitle now uses `\discw` too, so n=1 reads "1 disc".
+
+Staged (not committed, per the maintainer's standing "I commit, you stage"): `workbook/induction-workbook.tex`
+and this task doc. The rebuilt `workbook/induction-workbook.pdf` is a build artifact and is left
+unstaged/untracked. **Remaining for the maintainer:** eyeball the printed pages; if good, commit
+(and this task then archives in its own commit).
 
 ## BLUF
 
@@ -54,13 +120,15 @@ shapes might; the point is to try both.
 
 ## Plan
 
-- [ ] Run the CLI n=1..5; write down what makes its flow good (order, minimal decoding).
-- [ ] Prototype a **top-to-bottom** page (Part 1 → Part 2 → Part 3 in reading order) and check n=5
-      still fits reasonably (or paginate deliberately).
-- [ ] Prototype the **shapes** relabeling (triangle/square/circle) vs the current I/T/G; render both.
-- [ ] Pick the clearest combination; keep the existing visual polish (peg diagrams, framing).
-- [ ] Rebuild + render all 5 pages (`pdflatex` + `pdftoppm`); confirm the flow reads straight down and
-      the relabeling is easy to perform by hand. Aesthetics stay good.
+- [x] Run the CLI n=1..5; write down what makes its flow good (order, minimal decoding). → the
+      recipe-move → key → rebound-move table reads top-to-bottom; captured in "Design decided".
+- [x] Prototype a **top-to-bottom** page (Part 1 → Part 2 → Part 3 in reading order) and check n=5
+      still fits reasonably. → done; n=5 fits one page via a 3-column grid.
+- [x] Prototype the relabeling representation. → rejected I/T/G *and* shapes in favour of concrete
+      numbered pegs 1/2/3 (the rebinding is then a constant "swap two numbers"); see "Design decided".
+- [x] Pick the clearest combination; keep the existing visual polish (peg diagrams, framing).
+- [x] Rebuild + render all 6 pages (`pdflatex` + `pdftoppm`); flow reads straight down, relabeling is a
+      mechanical swap, 0 overfull boxes. Aesthetics preserved.
 
 ## Notes
 
