@@ -63,15 +63,16 @@ apply table) opens a scrollable pager (`_show_pager`). Work record:
   active" is frequently not the model's state — and clicking the item you actually want then does
   nothing. This caused a stubborn relabel bug (`hanoigui`, 2026-09): the relabel to the peg order left
   active by the *previous* game silently failed (repro: solve n=3 + save, n=4 ending on `2 1 3` + save,
-  then n=5 → relabel to `2 1 3` does nothing). **Two fixes that operated in `_refresh`/`_on_relabel_menu`
+  then n=5 → relabel to `2 1 3` did nothing). **Two fixes that operated in `_refresh`/`_on_relabel_menu`
   failed**, because the failing click produces no event at all — nothing handler-side can rescue it. The
   fix that worked: make the relabel items **normal (non-radio) `wxMenuItem`s** (which always emit on
   every click) and show the active one with a leading `●` bullet via `SetItemLabel` in `_refresh`
-  (display-only; `SetItemLabel` emits nothing). Rule of thumb on wxGTK: a radio menu item is safe only
-  when re-selecting the active choice is genuinely a no-op you never need an event for (e.g. board-style
+  (display-only; `SetItemLabel` emits nothing). The maintainer confirmed the exact repro relabels to
+  `2 1 3` first-click after the change. Rule of thumb on wxGTK: a radio menu item is safe only when
+  re-selecting the active choice is genuinely a no-op you never need an event for (e.g. board-style
   Text/Graphics, whose handler early-returns anyway); anything you might click again to re-fire must be
   a normal item. Never treat a wxGTK radio's checked state as source of truth — keep state in the model
-  and reflect it into the menu's *labels*. **Human-verify pending** — no wxPython in the agent sandbox.
+  and reflect it into the menu's *labels*.
 
 ## Dead / orphaned / unwired code (grounds the follow-on)
 

@@ -1,6 +1,7 @@
 # Fix: wx GUI relabel radio desync ("second relabel does nothing until I pick another")
 
-**Status:** fix applied (2026-09-15) — **awaiting human GUI verify** at n=5
+**Status:** complete (2026-09-15) — fix verified by the maintainer; relabel to `2 1 3` now takes on
+the first click in the exact repro. Archived.
 **Priority:** 3
 **Difficulty:** 3
 
@@ -55,21 +56,15 @@ the same latent trap exists there in principle.
 Reference-doc gotcha rewritten in `tasks/reference/architecture-overview.md` (the radio approach and
 its two failed patches are superseded).
 
-**Verified here:** compiles, ruff clean, 124 tests pass (the model layer; the GUI itself isn't
-importable in the agent sandbox — no wxPython).
+## Verification
 
-## Human verify (the only remaining step)
-
-Run `hanoi-gui` and reproduce the exact failing sequence:
-1. Solve n=3 using 3 relabels; save.
-2. Solve n=4 using 3 relabels (ending on `2 1 3`); save.
-3. Start n=5; relabel once (works), then relabel to **`2 1 3`** — it must take on the first click now.
-4. Sanity: the **Relabel pegs** menu shows a `●` bullet next to the currently-active peg order, and it
-   moves as you relabel.
-
-If a relabel *still* fails after this, that would be genuinely surprising (the event should now always
-fire) — capture the sequence and we instrument `_on_relabel_menu` with a `DBG` stderr print (per
-`~/.claude/reference/print-debugging.md`) to confirm whether the click reaches Python at all.
+In the agent sandbox (no wxPython): the model layer compiled, ruff was clean, and 124 tests passed —
+but the model layer was never the bug. The fix could only be confirmed in the GUI, and the maintainer
+ran the exact failing sequence: solve n=3 with 3 relabels + save, solve n=4 with 3 relabels (ending on
+`2 1 3`) + save, start n=5, relabel once, then relabel to `2 1 3` — which now took on the first click.
+The **Relabel pegs** menu also showed the `●` bullet moving to the active peg order. The two earlier
+attempts had failed precisely because they operated after the event arrived; a normal menu item makes
+the event always fire, so there was nothing left to intercept.
 
 ## Related
 

@@ -16,7 +16,7 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..4`), and
   printable **SVG worksheets** (`workbook/`) all reinforce the relabelling method
   (see Layout for the file breakdown).
-- 72 pytest tests pass (model, presenter, commands, CLI, recipes).
+- 124 pytest tests pass (model, presenter, commands, CLI, recipes).
 
 ## Layout
 
@@ -24,7 +24,7 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   labellings), `commands` (typed parser), `engine` (shared dispatcher), `recipe`
   (record/replay in label-space), the three front-ends (`hanoicli`, `hanoigame`,
   `hanoigui`), `board_renderers` (text + `wx.GraphicsContext`), `hanoi.xrc`.
-- `python/tests/` — 72 tests across 5 files.
+- `python/tests/` — 124 tests across 5 files.
 - `bash/` — 12 scripts (solves + relabel filters).
 - `docs/` — Sphinx source; `workbook/` — SVG worksheets.
 - `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task
@@ -62,6 +62,7 @@ pip install -e . && hanoi`.
 
 **Reference docs:** `tasks/reference/architecture-overview.md` — the dispatch data-flow
 across the three frontends + the default-label-space recipe invariant, the **per-file
-teaching intent (module map)**, and the doc/roadmap history (archived `PLAN.md`/`NOTES.md`,
-the reverted OpenGL step, descoped follow-ons). Read it before touching the engine/recipe
-subsystem or for the per-file "why".
+teaching intent (module map)**, the **wx/GTK frontend gotchas** (sizer alignment flags;
+why the relabel menu uses normal — not radio — items), and the doc/roadmap history (archived
+`PLAN.md`/`NOTES.md`, the reverted OpenGL step, descoped follow-ons). Read it before touching
+the engine/recipe subsystem, the wx GUI, or for the per-file "why".
