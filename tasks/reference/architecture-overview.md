@@ -19,8 +19,8 @@ The **three frontends share `engine.dispatch`**:
   what the tests use — takes the plain `readline()` path and its output stays byte-identical. The
   completion logic is a pure `_completions(buffer, text, registry)` (unit-tested without a PTY).
   The post-win save prompt defaults to `solve-<n>` (Enter accepts, `-` skips), mirroring the GUI.
-- **curses** — `hanoigame.py` (reimplements the terminal-size check locally — see the orphaned helpers
-  below).
+- **curses** — `hanoigame.py` (its column size check routes through `presenter.min_cols`; the row
+  check stays local because it depends on this frontend's msg/hint layout — see "Orphan cleanup").
 - **wx GUI** — `hanoigui.py` (XRC-driven; recipe apply/save wired to buttons, e.g. `recipe_apply` at
   `hanoigui.py:164,199`).
 
@@ -98,7 +98,7 @@ matched, deleted where it didn't, documented where it's a legitimate public API:
 - **`hanoirecursive.py` / `hanoiiterative.py`** — module docstrings now state they are standalone
   teaching scripts with no importers.
 
-Work record: `tasks/wire-or-remove-orphaned-presenter-helpers.md` (archived on completion).
+Work record: `tasks/archive/2026/09/15/wire-or-remove-orphaned-presenter-helpers.md`.
 
 ## Module map (teaching intent per file)
 
