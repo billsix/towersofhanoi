@@ -11,7 +11,8 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
 - **Python package** (`python/src/hanoigame/`, setuptools) with three front-ends
   over one shared model + command grammar + dispatcher:
   - `hanoi` / `hanoigame` — ncurses TUI
-  - `hanoi-cli` — plain stdin/stdout (pipes, screen readers)
+  - `hanoi-cli` — plain stdin/stdout (pipes, screen readers); readline
+    tab-completion (verbs, recipe names) at an interactive TTY
   - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board renderer)
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..4`), and
   printable **SVG worksheets** (`workbook/`) all reinforce the relabelling method

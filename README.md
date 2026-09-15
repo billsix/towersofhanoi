@@ -12,7 +12,8 @@ Runs on Linux, macOS, and Windows (WSL2, or mingw/cygwin).
 Three front-ends share the same game model and commands:
 
 - `hanoi` (a.k.a. `hanoigame`) — ncurses, in the terminal
-- `hanoi-cli` — plain stdin/stdout (good for pipes and screen readers)
+- `hanoi-cli` — plain stdin/stdout (good for pipes and screen readers); at a
+  terminal, Tab completes commands and saved-recipe names
 - `hanoi-gui` — wxPython window with a text or 2D-graphics board (needs an X display)
 
 ### Docker / Podman

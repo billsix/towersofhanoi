@@ -12,7 +12,13 @@ Input (from any frontend) → `commands.parse` produces a `Command` (a union of 
 `DispatchResult` (`lines` to show + a `quit` flag) → the frontend renders `lines` and honours `quit`.
 The **three frontends share `engine.dispatch`**:
 
-- **CLI** — `hanoicli.py` (stdin loop; the sole printer of the valid-moves string).
+- **CLI** — `hanoicli.py` (stdin loop; the sole printer of the valid-moves string). At an
+  interactive TTY it installs `readline` Tab-completion (verbs at line start; recipe names after
+  `apply `/`show `) and reads via `input()`; **all interactive behaviour is gated on `in_ is
+  sys.stdin and sys.stdin.isatty()`** (`_is_interactive`), so an injected `io.StringIO` stream —
+  what the tests use — takes the plain `readline()` path and its output stays byte-identical. The
+  completion logic is a pure `_completions(buffer, text, registry)` (unit-tested without a PTY).
+  The post-win save prompt defaults to `solve-<n>` (Enter accepts, `-` skips), mirroring the GUI.
 - **curses** — `hanoigame.py` (reimplements the terminal-size check locally — see the orphaned helpers
   below).
 - **wx GUI** — `hanoigui.py` (XRC-driven; recipe apply/save wired to buttons, e.g. `recipe_apply` at
