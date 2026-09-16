@@ -2,9 +2,9 @@
 
 **Status:** complete
 **Completed:** 2026-09-16 — implemented, committed ("enable gui in container"), and verified headlessly
-via Xvfb. One owed follow-up (not a blocker): the maintainer confirming `hanoi-gui` on a live
-**Wayland** session, since Xvfb only exercises the X11 path (see Q4). The one-shot Xvfb proof harness
-under `tasks/adhoc/` was removed at archive (recoverable from history; it PASSED).
+via Xvfb (X11 path). The maintainer then confirmed `hanoi-gui` on a live **Wayland** session works
+(2026-09-16), closing the one owed follow-up from Q4. The one-shot Xvfb proof harness under
+`tasks/adhoc/` was removed at archive (recoverable from history; it PASSED).
 **Priority:** 4
 **Difficulty:** 4
 **Started:** 2026-09-16
