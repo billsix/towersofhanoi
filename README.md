@@ -14,7 +14,7 @@ Three front-ends share the same game model and commands:
 - `hanoi` (a.k.a. `hanoigame`) — ncurses, in the terminal
 - `hanoi-cli` — plain stdin/stdout (good for pipes and screen readers); at a
   terminal, Tab completes commands and saved-recipe names
-- `hanoi-gui` — wxPython window with a text or 2D-graphics board (needs an X display)
+- `hanoi-gui` — wxPython window with a text or 2D-graphics board (needs a display; X11 or Wayland)
 
 ### Docker / Podman
 
@@ -25,9 +25,10 @@ make image
 make shell
 ```
 
-Then run one of `hanoi`, `hanoi-cli`, or `hanoi-gui`. To run the GUI from inside
-the container, forward your X socket when starting the shell — typically
-`-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:Z` on Linux hosts.
+Then run one of `hanoi`, `hanoi-cli`, or `hanoi-gui`. `make shell` forwards your
+display automatically — both X11 (`DISPLAY` + `/tmp/.X11-unix`) and Wayland
+(`WAYLAND_DISPLAY` + `XDG_RUNTIME_DIR`) — so `hanoi-gui` opens on your desktop with
+no extra flags. (Build with `make image USE_X_WINDOWS=0` to omit the GUI libraries.)
 
 ### Plain Python
 

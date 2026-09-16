@@ -1,7 +1,10 @@
 # Enable GUI display passthrough (Wayland/X) so `hanoi-gui` runs from the container
 
-**Status:** implemented + verified headlessly (2026-09-16); staged. Real-Wayland confirmation on a
-live desktop session is the maintainer's (Xvfb only exercises X11 — see Q4).
+**Status:** complete
+**Completed:** 2026-09-16 — implemented, committed ("enable gui in container"), and verified headlessly
+via Xvfb. One owed follow-up (not a blocker): the maintainer confirming `hanoi-gui` on a live
+**Wayland** session, since Xvfb only exercises the X11 path (see Q4). The one-shot Xvfb proof harness
+under `tasks/adhoc/` was removed at archive (recoverable from history; it PASSED).
 **Priority:** 4
 **Difficulty:** 4
 **Started:** 2026-09-16
@@ -88,9 +91,9 @@ the same way modelviewprojection does it, adapted to hanoi's wxPython/GTK 2D GUI
       script (COPY'd alongside 01/02); breadcrumb comment kept.
 - [x] `entrypoint/03-install-xwindows.sh`: guarded-`dnf` group script with the trimmed GTK/X11/Wayland
       client-lib set (per Q3 — no mesa GL, no glfw). Executable bit set.
-- [x] Built with `USE_X_WINDOWS=1` (nested; also the default) and verified headlessly via Xvfb (Q4) —
-      harness `tasks/adhoc/enable-gui-wayland-x-passthrough/verify-gui.sh`: all libs present, wxPython
-      creates an App+Frame, `hanoi-gui` launches with no library/display error. **PASS.**
+- [x] Built with `USE_X_WINDOWS=1` (nested; also the default) and verified headlessly via Xvfb (Q4)
+      with a one-shot proof harness (removed at archive; recoverable from git history): all libs
+      present, wxPython creates an App+Frame, `hanoi-gui` launches with no library/display error. **PASS.**
 - [x] Updated `CLAUDE.md` (build/container section: the flag, the passthrough, run instructions).
       Staged all touched files.
 
