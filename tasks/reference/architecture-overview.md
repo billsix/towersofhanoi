@@ -130,8 +130,16 @@ different medium:
   rules, `byhand1` walks all six 1-disc moves, `byhand2` introduces the I/T/G
   substitution, `byhand3` extends to 3 discs, `byhand4` is a stub.
   `:ref:` cross-links each sub-problem back to the smaller solution it reuses.
-- `workbook/` — four SVG worksheets (`hanoi1..4.svg`) + a Makefile that renders
-  them to PDF via Inkscape; printable companions to the RST tutorial.
+- `workbook/` — printable companions to the RST tutorial, built by `make -C workbook`:
+  - `hanoi1..4.svg` → PDF via Inkscape (four static worksheets).
+  - `induction-workbook.tex` → PDF via pdflatex + TikZ: a fill-in-by-hand booklet
+    (cover + one sheet per n=1..5) teaching the induction method on concrete **numbered
+    pegs 1/2/3**, read **top-to-bottom** (Part 1 move top n−1 discs peg 1→2 / Part 2 move
+    the biggest disc peg 1→3 / Part 3 move n−1 discs peg 2→3). Reusing the n−1 sheet is a
+    constant "swap two numbers" (Part 1 swaps 2↔3, Part 3 swaps 1↔2). Note this differs
+    from the RST book's `byhand*` pages, which teach the same idea with I/T/G role labels.
+    Design rationale (why numbered pegs beat I/T/G and shapes; the box-size/flow choices):
+    archived `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md`.
 
 ## Documentation & roadmap history
 

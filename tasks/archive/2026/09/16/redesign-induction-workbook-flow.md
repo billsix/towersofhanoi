@@ -1,7 +1,8 @@
 # Redesign the induction workbook's flow (top-to-bottom) and relabeling representation
 
-**Status:** implemented, staged (2026-09-15, autonomous session — maintainer away). Not committed —
-awaiting the maintainer's eyeball on the rendered PDF. See "Design decided" and "Iteration log".
+**Status:** complete
+**Completed:** 2026-09-16 — approved by the maintainer through three render iterations and committed
+(final commit "made boxes bigger"). See "Design decided" and "Iteration log".
 **Priority:** 5
 **Difficulty:** 5
 
