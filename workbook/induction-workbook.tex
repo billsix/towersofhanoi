@@ -48,8 +48,8 @@
 \newcommand{\movew}[1]{move\ifnum#1=1\else s\fi}
 
 % ---- one roomy blank box the student writes a peg number into -------------
-\newcommand{\dbox}{\tikz[baseline=-0.6ex]{%
-  \draw[thick,rounded corners=2pt] (0,-0.28) rectangle (0.70,0.32);}}
+\newcommand{\dbox}{\tikz[baseline=-0.9ex]{%
+  \draw[thick,rounded corners=2pt] (0,-0.58) rectangle (1.40,0.62);}}
 
 % ---- one numbered peg, optionally with k blank disc outlines --------------
 \newcommand{\onepeg}[2]{% #1 = peg colour, #2 = number label
@@ -80,11 +80,11 @@
 \newcommand{\movegrid}[1]{%
   \begin{tikzpicture}[x=1cm,y=1cm]
     \foreach \i in {1,...,#1}{%
-      \pgfmathsetmacro{\y}{-0.90*(\i-1)}%
-      \node[anchor=east,font=\small,text=hintgray] at (0.32,\y) {\i.};
-      \draw[thick,rounded corners=2pt,fill=white] (0.42,\y-0.30) rectangle (1.22,\y+0.30);
-      \node at (1.50,\y) {\large$\to$};
-      \draw[thick,rounded corners=2pt,fill=white] (1.78,\y-0.30) rectangle (2.58,\y+0.30);
+      \pgfmathsetmacro{\y}{-1.50*(\i-1)}%
+      \node[anchor=east,font=\normalsize,text=hintgray] at (0.42,\y) {\i.};
+      \draw[thick,rounded corners=2pt,fill=white] (0.55,\y-0.60) rectangle (2.15,\y+0.60);
+      \node at (2.55,\y) {\Large$\to$};
+      \draw[thick,rounded corners=2pt,fill=white] (2.95,\y-0.60) rectangle (4.55,\y+0.60);
     }
   \end{tikzpicture}}
 

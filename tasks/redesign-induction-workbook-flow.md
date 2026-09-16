@@ -65,6 +65,12 @@ start→goal picture; header now carries only the disc-stacking rule + print not
 3's instruction ("Copy each move from your n=N sheet again" → "Copy them again", since Part 1 already
 said where to copy from). Subtitle now uses `\discw` too, so n=1 reads "1 disc".
 
+**Revision 2 (2026-09-15, maintainer feedback):** doubled the draw-box size for more writing room —
+`\movegrid` cells are now 1.6×1.2cm on a 1.5cm pitch (was 0.8×0.6cm / 0.9cm), and `\dbox` (base
+case + Part 2) is 1.4×1.2cm. Verified no overfull boxes and no clipping: even n=5's 15-row grid fits
+one page inside its frame. Booklet is now 11 pages (large n spreads Part 1/Part 3 onto their own
+pages — the accepted vertical-space trade).
+
 Staged (not committed, per the maintainer's standing "I commit, you stage"): `workbook/induction-workbook.tex`
 and this task doc. The rebuilt `workbook/induction-workbook.pdf` is a build artifact and is left
 unstaged/untracked. **Remaining for the maintainer:** eyeball the printed pages; if good, commit
