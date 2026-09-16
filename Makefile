@@ -1,6 +1,12 @@
 .DEFAULT_GOAL := help
 
-BUILD_DOCS ?= 1
+# BUILD_DOCS gates the heavy Sphinx + TeX Live docs toolchain (02-install-docs.sh).
+# Default it lean (0) when running nested inside a runClaudeInContainer/runCrushInContainer
+# sandbox (NESTED_PODMAN=1) so `make image` fits the nested RAM store; on a normal host
+# the default stays 1, byte-identical to before. Override either way: make image BUILD_DOCS=1.
+# (Build-flag twin of the PODMAN_RUN_FLAGS idiom below. Standard: runClaudeInContainer
+# tasks/reference/minimal-nested-images.md.) The gate `make docs` needs BUILD_DOCS=1 nested.
+BUILD_DOCS ?= $(if $(filter 1,$(NESTED_PODMAN)),0,1)
 
 
 TMUX_FILE := $(HOME)/.tmux.conf

@@ -1,7 +1,8 @@
 # Lean image for nested-podman builds — what "minimal" means for hanoi
 
-**Status:** proposed — research done 2026-09-10 (survey of the Dockerfile + Makefile from the
-runClaudeInContainer sandbox); **implementation needs go-ahead**. One of the per-project children of
+**Status:** implemented + verified 2026-09-16 (nested lean 1.15 GB vs full 1.94 GB, pytest gate
+green in the lean image). Staged, not committed. Research done 2026-09-10 (survey of the Dockerfile
++ Makefile from the runClaudeInContainer sandbox). One of the per-project children of
 runClaudeInContainer `tasks/minimal-image-for-nested-podman-standard.md` (the convention: every optional-feature build flag defaults to its lean value when
 `NESTED_PODMAN=1`); the fleet-wide findings table is runClaudeInContainer `tasks/reference/minimal-nested-images.md`. Created 2026-09-10 at the maintainer's
 request (William Emerison Six <billsix@gmail.com>: "go through all of my projects with CLAUDE.md …
@@ -37,10 +38,30 @@ builds and passes the gate, both image sizes are measured and recorded here and 
 
 ## Plan
 
-- [ ] Makefile: `BUILD_DOCS ?= $(if $(filter 1,$(NESTED_PODMAN)),0,1)`.
-- [ ] Measure both images; one line in `CLAUDE.md`.
-- [ ] Record both sizes (host full vs nested lean) here and in `CLAUDE.md`; add the standard's one-line
-      rule to `CLAUDE.md` ("nested = lean image automatically; `FLAG=1` overrides").
+- [x] Makefile: `BUILD_DOCS ?= $(if $(filter 1,$(NESTED_PODMAN)),0,1)` (with an explaining comment).
+      Verified `make -n image` emits `--build-arg BUILD_DOCS=0` nested; host build unchanged (1).
+- [x] Measure both images; one line in `CLAUDE.md`.
+- [x] Record both sizes (host full vs nested lean) here and in `CLAUDE.md`; added the one-line rule to
+      `CLAUDE.md` ("nested = lean image automatically; `BUILD_DOCS=1` overrides").
+
+## Result (2026-09-16)
+
+Built both images nested (`/dev/fuse` present, `NESTED_PODMAN=1`):
+
+| Build | Flag | Size |
+|-------|------|------|
+| Full (host default) | `BUILD_DOCS=1` | 1.94 GB |
+| Lean (nested default) | `BUILD_DOCS=0` | 1.15 GB |
+
+Saving ≈ 0.79 GB (~41%), all from dropping the Sphinx + TeX Live docs toolchain (`02-install-docs.sh`).
+The base + pip layers (python3, ruff, pytest, wxpython, requirements) are shared, so nothing the code
+gate needs was trimmed. **Gate verified in the lean image:** `pytest --exitfirst` → 128 passed
+(flag-coverage rule satisfied — the change touches only the Makefile flag default, not anything the
+docs toolchain consumes). The image `ENTRYPOINT` still runs docs unconditionally after pytest, so a
+default `make docs`/entrypoint run on a lean image fails at `make html` by design — use
+`make docs BUILD_DOCS=1` (or a host build) for the book.
+
+Files: `Makefile` (flag default), `CLAUDE.md` (rule + sizes; also corrected stale test count 124→128).
 
 ## Open questions
 

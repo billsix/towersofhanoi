@@ -17,7 +17,7 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..4`), and
   printable **SVG worksheets** (`workbook/`) all reinforce the relabelling method
   (see Layout for the file breakdown).
-- 124 pytest tests pass (model, presenter, commands, CLI, recipes).
+- 128 pytest tests pass (model, presenter, commands, CLI, recipes).
 
 ## Layout
 
@@ -25,7 +25,7 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   labellings), `commands` (typed parser), `engine` (shared dispatcher), `recipe`
   (record/replay in label-space), the three front-ends (`hanoicli`, `hanoigame`,
   `hanoigui`), `board_renderers` (text + `wx.GraphicsContext`), `hanoi.xrc`.
-- `python/tests/` — 124 tests across 5 files.
+- `python/tests/` — 128 tests across 5 files.
 - `bash/` — 12 scripts (solves + relabel filters).
 - `docs/` — Sphinx source; `workbook/` — SVG worksheets.
 - `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task
@@ -35,7 +35,10 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
 
 Fedora-44 + podman family template.
 
-- `make image` — build the image (`BUILD_DOCS=1` adds Sphinx/TeX Live).
+- `make image` — build the image (`BUILD_DOCS=1` adds Sphinx/TeX Live). Nested (inside a
+  sandbox exporting `NESTED_PODMAN=1`) `make image` defaults lean — `BUILD_DOCS=0`, ~1.15 GB
+  vs ~1.94 GB full — and still runs the pytest gate; a host build stays full. Override either
+  way with `make image BUILD_DOCS=1`; `make docs` needs `BUILD_DOCS=1` when nested.
 - `make shell` — dev shell; inside, run `hanoi` / `hanoi-cli` / `hanoi-gui`
   (the GUI needs X forwarding).
 - `make format` — ruff check+format the Python (line width from pyproject config).
