@@ -126,10 +126,17 @@ different medium:
   `tr`-based relabel filters (`1to2.sh`, `2to3.sh`, …); `hanoin.sh` is the
   recursive generalisation; `oneLineAtATime.sh` paginates output one move per
   Enter.
+- `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
+  from the Hanoi recursion (see the `docs/source/` note below).
 - `docs/source/` — Sphinx tutorial mirroring the game: `intro` states the
   rules, `byhand1` walks all six 1-disc moves, `byhand2` introduces the I/T/G
-  substitution, `byhand3` extends to 3 discs, `byhand4` is a stub.
-  `:ref:` cross-links each sub-problem back to the smaller solution it reuses.
+  substitution, `byhand3`/`byhand4`/`byhand5` extend the same pattern to 3, 4 and
+  5 discs. `:ref:` cross-links each sub-problem back to the smaller solution it reuses.
+  Note: `byhand4`/`byhand5` were **generated** from the standard Hanoi recursion (the
+  move tables and the scaled ASCII start→goal art) to match `byhand3`'s structure — do
+  not hand-edit them; regenerate with `tools/gen_byhand.py` (idempotent) if the format
+  changes or to add further pages. `python/tests/test_byhand_drift.py` guards this — it
+  fails the pytest gate if either page drifts from the generator's output.
 - `workbook/` — printable companions to the RST tutorial, built by `make -C workbook`:
   - `hanoi1..4.svg` → PDF via Inkscape (four static worksheets).
   - `induction-workbook.tex` → PDF via pdflatex + TikZ: a fill-in-by-hand booklet

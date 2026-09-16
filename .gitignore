@@ -1,2 +1,10 @@
 # exported OCI image tars (make image-export) — large, never commit
 hanoi-*.tar
+
+# Python build/cache artifacts
+__pycache__/
+*.pyc
+*.egg-info/
+
+# built worksheet PDFs (regenerable via `make -C workbook`)
+workbook/*.pdf

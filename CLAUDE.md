@@ -14,11 +14,11 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   - `hanoi-cli` — plain stdin/stdout (pipes, screen readers); readline
     tab-completion (verbs, recipe names) at an interactive TTY
   - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board renderer)
-- **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..4`), and
+- **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..5`), and
   printable **worksheets** (`workbook/`: the `hanoi1..4.svg` solution diagrams plus
   `induction-workbook.tex`, a blank fill-in induction booklet) all reinforce the
   relabelling method (see Layout for the file breakdown).
-- 128 pytest tests pass (model, presenter, commands, CLI, recipes).
+- 130 pytest tests pass (model, presenter, commands, CLI, recipes, byhand-drift).
 
 ## Layout
 
@@ -26,8 +26,11 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   labellings), `commands` (typed parser), `engine` (shared dispatcher), `recipe`
   (record/replay in label-space), the three front-ends (`hanoicli`, `hanoigame`,
   `hanoigui`), `board_renderers` (text + `wx.GraphicsContext`), `hanoi.xrc`.
-- `python/tests/` — 128 tests across 5 files.
+- `python/tests/` — 130 tests across 6 files (incl. `test_byhand_drift.py`, which
+  fails if `docs/source/byhand4/5.rst` drift from `tools/gen_byhand.py`).
 - `bash/` — 12 scripts (solves + relabel filters).
+- `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
+  (guarded by `test_byhand_drift.py`; regenerate, don't hand-edit those pages).
 - `docs/` — Sphinx source; `workbook/` — `hanoi1..4.svg` solution diagrams (→ PDF via
   Inkscape) + `induction-workbook.tex` blank induction booklet (→ PDF via pdflatex/TikZ).
 - `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task
