@@ -8,6 +8,13 @@
 # tasks/reference/minimal-nested-images.md.) The gate `make docs` needs BUILD_DOCS=1 nested.
 BUILD_DOCS ?= $(if $(filter 1,$(NESTED_PODMAN)),0,1)
 
+# USE_X_WINDOWS installs the X11/Wayland client libs (03-install-xwindows.sh) so the
+# wxPython GUI (hanoi-gui) can open a window. On by default, the same way
+# modelviewprojection does it. Unlike BUILD_DOCS it stays ON when nested (plain 1, not
+# the NESTED-aware form) so the GUI works from a nested shell too. Bare `podman build`
+# stays lean (Dockerfile ARG default 0). Override: make image USE_X_WINDOWS=0.
+USE_X_WINDOWS ?= 1
+
 
 TMUX_FILE := $(HOME)/.tmux.conf
 TMUX_REAL_PATH := $(shell readlink -f $(TMUX_FILE))
@@ -30,6 +37,23 @@ FILES_TO_MOUNT = -v $(shell pwd):/$(CONTAINER_NAME):Z \
 #                 -v ./bash:/$(CONTAINER_NAME)/bash:Z \
 #		 -v ./python:/$(CONTAINER_NAME)/python:Z
 
+# X11 display passthrough for the wxPython GUI (hanoi-gui): the host's DISPLAY + X
+# socket. The security-opt label lets the container talk to the host X server under
+# SELinux. Modelled on modelviewprojection.
+X_FLAGS_FOR_CONTAINER = -e DISPLAY=$(DISPLAY) \
+	-v /tmp/.X11-unix:/tmp/.X11-unix \
+	--security-opt label=type:container_runtime_t
+# GPU render node (harmless for wx's 2D Cairo renderer, kept for parity); skipped if
+# /dev/dri is absent.
+DRI_DEVICE := $(shell [ -d /dev/dri ] && echo "--device /dev/dri")
+# Wayland display passthrough: the compositor socket + its env. No PYGLFW_LIBRARY line
+# (that is glfw-specific in modelviewprojection; hanoi's GUI is wxPython/GTK, not glfw).
+WAYLAND_FLAGS_FOR_CONTAINER = -e "XDG_SESSION_TYPE=wayland" \
+			      -e "WAYLAND_DISPLAY=$(WAYLAND_DISPLAY)" \
+			      -e "XDG_RUNTIME_DIR=$(XDG_RUNTIME_DIR)" \
+			      -v "$(XDG_RUNTIME_DIR):$(XDG_RUNTIME_DIR)" \
+			      $(DRI_DEVICE)
+
 
 
 
@@ -40,6 +64,7 @@ all: shell ## Build the image and get a shell in it
 image: ## Build a $(CONTAINER_CMD)
 	$(CONTAINER_CMD) build \
                          --build-arg BUILD_DOCS=$(BUILD_DOCS) \
+                         --build-arg USE_X_WINDOWS=$(USE_X_WINDOWS) \
                          -t $(CONTAINER_NAME) .
 
 # --- shell / shell-exec share ONE container invocation, defined here so the two
@@ -48,6 +73,8 @@ image: ## Build a $(CONTAINER_CMD)
 SHELL_RUN_FLAGS = \
 		--entrypoint /bin/bash \
 		$(FILES_TO_MOUNT) \
+		$(X_FLAGS_FOR_CONTAINER) \
+		$(WAYLAND_FLAGS_FOR_CONTAINER) \
 		-v ./entrypoint/shell.sh:/shell.sh:Z \
 		-v ./entrypoint/.bashrc:/root/.bashrc:Z
 

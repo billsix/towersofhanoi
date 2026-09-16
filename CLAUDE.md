@@ -41,8 +41,13 @@ Fedora-44 + podman family template.
   sandbox exporting `NESTED_PODMAN=1`) `make image` defaults lean — `BUILD_DOCS=0`, ~1.15 GB
   vs ~1.94 GB full — and still runs the pytest gate; a host build stays full. Override either
   way with `make image BUILD_DOCS=1`; `make docs` needs `BUILD_DOCS=1` when nested.
-- `make shell` — dev shell; inside, run `hanoi` / `hanoi-cli` / `hanoi-gui`
-  (the GUI needs X forwarding).
+- `make shell` — dev shell; inside, run `hanoi` / `hanoi-cli` / `hanoi-gui`. Display
+  passthrough for the wxPython GUI is on by default: `USE_X_WINDOWS=1` installs the
+  X11/Wayland client libs (`entrypoint/03-install-xwindows.sh`) and `make shell` forwards
+  the host's X11 (`DISPLAY` + `/tmp/.X11-unix`) and Wayland (`WAYLAND_DISPLAY` +
+  `XDG_RUNTIME_DIR`) sockets, so `hanoi-gui` opens on the host display. Unlike `BUILD_DOCS`
+  this stays on when nested (modelled on modelviewprojection); disable with
+  `make image USE_X_WINDOWS=0`. hanoi's GUI is 2D (wx/Cairo), so no OpenGL/mesa is installed.
 - `make format` — ruff check+format the Python (line width from pyproject config).
 - `make type-check` — run `ty` over the Python (`src` + `tests`); fails on any diagnostic.
 - The image `ENTRYPOINT` installs the package, runs `pytest --exitfirst`, then
