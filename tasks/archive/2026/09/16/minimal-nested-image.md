@@ -1,7 +1,8 @@
 # Lean image for nested-podman builds — what "minimal" means for hanoi
 
-**Status:** implemented + verified 2026-09-16 (nested lean 1.15 GB vs full 1.94 GB, pytest gate
-green in the lean image). Staged, not committed. Research done 2026-09-10 (survey of the Dockerfile
+**Status:** complete
+**Completed:** 2026-09-16 — nested lean 1.15 GB vs full 1.94 GB, pytest gate green in the lean image;
+staged (maintainer commits). Research done 2026-09-10 (survey of the Dockerfile
 + Makefile from the runClaudeInContainer sandbox). One of the per-project children of
 runClaudeInContainer `tasks/minimal-image-for-nested-podman-standard.md` (the convention: every optional-feature build flag defaults to its lean value when
 `NESTED_PODMAN=1`); the fleet-wide findings table is runClaudeInContainer `tasks/reference/minimal-nested-images.md`. Created 2026-09-10 at the maintainer's
