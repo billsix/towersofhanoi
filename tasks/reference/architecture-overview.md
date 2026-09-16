@@ -186,5 +186,7 @@ latent bug on the way: `ValidMove.action`'s `default_factory=noop` had set the d
 
 ## Cross-links
 
-- `tasks/record-recipe-bindings-and-show-rebinding.md` + `tasks/latex-workbook-solve-1-5.md` — both build
-  on the recipe/relabelling model mapped here.
+- `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md` +
+  `tasks/archive/2026/09/16/latex-workbook-solve-1-5.md` (+ its refinement
+  `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md`) — all build on the
+  recipe/relabelling model mapped here.

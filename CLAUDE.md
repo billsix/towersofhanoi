@@ -15,8 +15,9 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
     tab-completion (verbs, recipe names) at an interactive TTY
   - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board renderer)
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..4`), and
-  printable **SVG worksheets** (`workbook/`) all reinforce the relabelling method
-  (see Layout for the file breakdown).
+  printable **worksheets** (`workbook/`: the `hanoi1..4.svg` solution diagrams plus
+  `induction-workbook.tex`, a blank fill-in induction booklet) all reinforce the
+  relabelling method (see Layout for the file breakdown).
 - 128 pytest tests pass (model, presenter, commands, CLI, recipes).
 
 ## Layout
@@ -27,7 +28,8 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   `hanoigui`), `board_renderers` (text + `wx.GraphicsContext`), `hanoi.xrc`.
 - `python/tests/` — 128 tests across 5 files.
 - `bash/` — 12 scripts (solves + relabel filters).
-- `docs/` — Sphinx source; `workbook/` — SVG worksheets.
+- `docs/` — Sphinx source; `workbook/` — `hanoi1..4.svg` solution diagrams (→ PDF via
+  Inkscape) + `induction-workbook.tex` blank induction booklet (→ PDF via pdflatex/TikZ).
 - `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task
   docs. See "Documentation model" and "Module map" below.
 

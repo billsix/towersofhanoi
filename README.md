@@ -55,8 +55,11 @@ cd bash
 ## The book & worksheets
 
 `docs/` is a Sphinx book (`intro`, `byhand1..4`) that teaches the by-hand
-relabelling method; `workbook/` has printable SVG worksheets. The container's
-default build produces HTML/PDF/EPUB under `output/towersofhanoi/`.
+relabelling method; `workbook/` has printable worksheets — the `hanoi1..4.svg`
+solution diagrams and `induction-workbook.tex`, a blank fill-in induction booklet
+(cover + one sheet per n=1..5). Build the worksheet PDFs with `make -C workbook`
+(needs Inkscape + pdflatex/TikZ). The container's default build produces
+HTML/PDF/EPUB under `output/towersofhanoi/`.
 
 ## License
 
