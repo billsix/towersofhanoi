@@ -1,12 +1,14 @@
 .DEFAULT_GOAL := help
 
 # BUILD_DOCS gates the heavy Sphinx + TeX Live docs toolchain (02-install-docs.sh).
-# Default it lean (0) when running nested inside a runClaudeInContainer/runCrushInContainer
-# sandbox (NESTED_PODMAN=1) so `make image` fits the nested RAM store; on a normal host
-# the default stays 1, byte-identical to before. Override either way: make image BUILD_DOCS=1.
-# (Build-flag twin of the PODMAN_RUN_FLAGS idiom below. Standard: runClaudeInContainer
-# tasks/reference/minimal-nested-images.md.) The gate `make docs` needs BUILD_DOCS=1 nested.
-BUILD_DOCS ?= $(if $(filter 1,$(NESTED_PODMAN)),0,1)
+# Default is full (1). Pass MINIMAL_IMAGE=1 to build a lean image that drops it (a small
+# export/airgap image); a nested `make image` builds FULL by default now that the sandbox's
+# inner podman store is on disk (no RAM ceiling), so lean is a deliberate opt-in, not inferred.
+# Override either way: make image BUILD_DOCS=1. (Build-CONTENT twin of the PODMAN_RUN_FLAGS
+# RUN-capability idiom below — MINIMAL_IMAGE is image content, NESTED_PODMAN is run capability;
+# the two are independent. Standard: runClaudeInContainer tasks/reference/minimal-nested-images.md.)
+# The gate `make docs` needs BUILD_DOCS=1.
+BUILD_DOCS ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
 
 # USE_X_WINDOWS installs the X11/Wayland client libs (03-install-xwindows.sh) so the
 # wxPython GUI (hanoi-gui) can open a window. On by default, the same way
