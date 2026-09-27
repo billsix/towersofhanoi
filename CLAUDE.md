@@ -40,10 +40,13 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
 
 Fedora-44 + podman family template.
 
-- `make image` — build the image (`BUILD_DOCS=1` adds Sphinx/TeX Live). Nested (inside a
-  sandbox exporting `NESTED_PODMAN=1`) `make image` defaults lean — `BUILD_DOCS=0`, ~1.15 GB
-  vs ~1.94 GB full — and still runs the pytest gate; a host build stays full. Override either
-  way with `make image BUILD_DOCS=1`; `make docs` needs `BUILD_DOCS=1` when nested.
+- `make image` — build the image; full by default (`BUILD_DOCS=1`, Sphinx/TeX Live, ~1.94 GB),
+  host **or** nested. Pass `MINIMAL_IMAGE=1` for a lean image (`BUILD_DOCS=0`, ~1.15 GB) — a small
+  export/airgap build; it still runs the pytest gate. `MINIMAL_IMAGE` is build content, independent
+  of `NESTED_PODMAN` (run capability); the sandbox does not set it, so a nested `make image` builds
+  full (renamed 2026-09-27 from the old nested-inferred `NESTED_PODMAN`; the disk-backed inner store
+  makes full fit nested). Override a single flag with `make image BUILD_DOCS=1`; `make docs` needs
+  `BUILD_DOCS=1`.
 - `make shell` — dev shell; inside, run `hanoi` / `hanoi-cli` / `hanoi-gui`. Display
   passthrough for the wxPython GUI is on by default: `USE_X_WINDOWS=1` installs the
   X11/Wayland client libs (`entrypoint/03-install-xwindows.sh`) and `make shell` forwards
