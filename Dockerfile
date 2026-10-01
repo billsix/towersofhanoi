@@ -22,7 +22,8 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 
 
 COPY python/requirements.txt /requirements.txt
-RUN  uv pip install --system setuptools && \
+RUN  --mount=type=cache,target=/root/.cache/uv \
+     uv pip install --system setuptools && \
      grep -v -i wxpython /requirements.txt > /requirements-nowx.txt && \
      uv pip install --system -r /requirements-nowx.txt && \
      rm /requirements.txt /requirements-nowx.txt
