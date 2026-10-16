@@ -78,5 +78,5 @@ parameter/return annotations.
   harvested rationale + patterns) and the module map.
 - `tasks/archive/2026/09/15/add-make-type-check.md` — the `make type-check` gate this ends green
   against, implemented alongside.
-- `~/.claude/reference/python-coding-standard.md` § "Type annotations" — the shared default this
+- `github.com/billsix/runClaudeInContainer:tasks/reference/python-coding-standard.md` § "Type annotations" — the shared default this
   repo's maximal choice deliberately exceeds (and did not change).

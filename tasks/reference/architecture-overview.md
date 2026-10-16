@@ -170,7 +170,7 @@ Google-docstringed**, and stays that way via a gate:
 - **Maximal local annotations are a deliberate hanoi-specific choice** (2026-09-15): *every*
   binding is annotated — every signature (params + returns), and every local, module constant,
   and loop/unpack/`with`-as target — not just the ones that "add information". This is stricter
-  than the shared `~/.claude/reference/python-coding-standard.md` default, which was left
+  than the shared `github.com/billsix/runClaudeInContainer:tasks/reference/python-coding-standard.md` default, which was left
   unchanged. The only bindings left bare are the ones that **can't** be: comprehension /
   generator-expression variables (separate scope, no syntax), and the `xrcctrl =
   wx.xrc.XRCCTRL` function alias (annotating its return narrows XRCCTRL's dynamic result and
