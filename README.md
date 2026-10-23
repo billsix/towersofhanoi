@@ -1,6 +1,6 @@
 # Towers of Hanoi
 
-Example implementations of the Towers of Hanoi, in both **bash** and **Python**.
+Example implementations of the Towers of Hanoi, in **bash**, **Python**, and **Rust**.
 It's a teaching project: the focus is learning to solve the puzzle *by hand* via
 **peg relabelling** — solve a small stack, then reuse that solution as a black box
 for a bigger one by relabelling the pegs.
@@ -39,6 +39,23 @@ source venv/bin/activate
 python -m pip install -e .
 hanoi
 ```
+
+## Rust ports
+
+The same game reimplemented in **Rust** (kept in sync with the Python, feature-for-feature) — a
+`hanoigame` library crate with four front-ends. The Rust toolchain is in the image by default
+(`make image`); run one of:
+
+```sh
+make rust-cli      # stdin/stdout CLI
+make rust-tui      # ratatui terminal UI
+make rust-wx       # wxDragon desktop GUI
+make rust-tauri    # Tauri desktop app (webview UI; text or canvas board)
+```
+
+The Python front-ends have matching targets too (`make python-cli` / `python-tui` / `python-wx`).
+The GUI/desktop targets forward your display automatically, like `make shell`. (The first
+`make rust-wx` is slow — it builds wxWidgets from source; later runs reuse the cached build.)
 
 ## Bash demos
 

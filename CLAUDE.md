@@ -16,15 +16,19 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board renderer)
 - **Rust port** (`rust/`, a Cargo workspace) — a parallel reimplementation kept **in sync with the
   Python, feature-for-feature** (the Python stays the behaviour oracle; never removed). A `hanoigame`
-  library crate (model/commands/engine/presenter/recipe/solvers) + four binaries: `hanoi-cli`,
+  library crate (model/commands/engine/presenter/recipe/solvers) + three binaries: `hanoi-cli`,
   `hanoi` (ratatui/crossterm TUI), `hanoi-gui` (wxDragon GUI; programmatic UI, solid-fill DC board);
   75 `cargo test`s. Run via `make rust-cli`/`rust-tui`/`rust-wx` (needs an image built with
   `USE_RUST=1`, the Makefile default — `entrypoint/04-install-rust.sh` installs the full native
-  toolchain wxDragon's from-source wxWidgets build needs). Build facts + the wxDragon gotchas:
+  toolchain wxDragon's from-source wxWidgets build needs; the `make rust-*` targets persist cargo's
+  build + download caches in gitignored `rust/.container-*` dirs). Build facts + the wxDragon gotchas:
   runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port record:
-  `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`. A fifth front-end — a **Tauri** desktop app
-  (a static web UI over the same `hanoigame` crate) — is in progress in `tauri/`
-  (`tasks/port-to-tauri.md`).
+  `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`. A **Tauri v2** desktop app (`tauri/`, a separate
+  crate — a static webview UI over the same `hanoigame` crate; text or `<canvas>` board; `make
+  rust-tauri`) rounds out the set — done and play-verified. Records:
+  `tasks/archive/2026/10/23/port-to-tauri.md` and runClaudeInContainer
+  `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
+  `tasks/tauri-frontend-js-options.md`).
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..5`), and
   printable **worksheets** (`workbook/`: the `hanoi1..4.svg` solution diagrams plus
   `induction-workbook.tex`, a blank fill-in induction booklet) all reinforce the
