@@ -21,6 +21,12 @@
 #   4. links the X11 session libs -> libSM-devel / libICE-devel (their -devel
 #      `.so` symlinks; else "cannot find -lSM / -lICE").
 #
+# The Tauri port (tauri/) is a fifth front-end over the same hanoigame crate; it
+# renders in the OS webview. On Linux that is WebKitGTK, so its backend needs
+# **webkit2gtk4.1-devel** (the Tauri v2 webview dep) and **libsoup3-devel** (the
+# HTTP/session library WebKitGTK 4.1 links) -- without them `cargo run` in
+# tauri/src-tauri fails "Package 'webkit2gtk-4.1' / 'libsoup-3.0' not found".
+#
 # CAVEAT (self-contained-image rule): wxDragon fetches wxWidgets at cargo-build
 # time, so a Rust-GUI build needs network and is NOT offline-reproducible as-is
 # (point WXDRAGON_SYS_BUILD_DIR at a pre-vendored wx source to fix that). The
@@ -46,10 +52,12 @@ dnf install -y cargo \
                libICE-devel \
                libjpeg-turbo-devel \
                libSM-devel \
+               libsoup3-devel \
                libtiff-devel \
                make \
                ninja-build \
                openssl-devel \
                rust \
                rustfmt \
+               webkit2gtk4.1-devel \
                wxGTK-devel
