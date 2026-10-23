@@ -17,6 +17,12 @@ BUILD_DOCS ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
 # stays lean (Dockerfile ARG default 0). Override: make image USE_X_WINDOWS=0.
 USE_X_WINDOWS ?= 1
 
+# USE_RUST installs the Rust toolchain + wx dev/link packages (04-install-rust.sh) so the
+# Rust ports (rust/: hanoi, hanoi-cli, hanoi-gui) build/run in the container alongside the
+# Python ports. On by default; a bare `podman build` stays lean (Dockerfile ARG 0).
+# Override: make image USE_RUST=0.
+USE_RUST ?= 1
+
 
 TMUX_FILE := $(HOME)/.tmux.conf
 TMUX_REAL_PATH := $(shell readlink -f $(TMUX_FILE))
@@ -67,6 +73,7 @@ image: ## Build a $(CONTAINER_CMD)
 	$(CONTAINER_CMD) build \
                          --build-arg BUILD_DOCS=$(BUILD_DOCS) \
                          --build-arg USE_X_WINDOWS=$(USE_X_WINDOWS) \
+                         --build-arg USE_RUST=$(USE_RUST) \
                          -t $(CONTAINER_NAME) .
 
 # --- shell / shell-exec share ONE container invocation, defined here so the two
@@ -125,6 +132,47 @@ image-export: ## export the OCI image to a timestamped tar in the repo root
 .PHONY: image-import
 image-import: ## import an OCI image tar: make image-import FILE=foo.tar
 	$(CONTAINER_CMD) load -i $(FILE)
+
+# --- Run a front-end (Python and Rust ports, kept in sync) ------------------
+# Every target runs in the container, interactively, with X11 + Wayland passthrough
+# (the TUI needs a terminal; the wx GUI needs a display). The Python targets install
+# the package editable first; the Rust targets need an image built with USE_RUST=1 and use
+# rust/.container-target (gitignored) so the heavy first build — wxDragon downloads and
+# statically builds wxWidgets 3.3.4 — is cached across runs and never clashes with the host target.
+PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
+	$(X_FLAGS_FOR_CONTAINER) $(WAYLAND_FLAGS_FOR_CONTAINER)
+PYTHON_SETUP = cd /$(CONTAINER_NAME)/python && uv pip install --system -e . -q
+RUST_SETUP = cd /$(CONTAINER_NAME)/rust && export CARGO_TARGET_DIR=/$(CONTAINER_NAME)/rust/.container-target
+
+.PHONY: python-cli
+python-cli: image ## Run the Python CLI front-end (hanoi-cli)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(PYTHON_SETUP) && exec hanoi-cli'
+
+.PHONY: python-tui
+python-tui: image ## Run the Python ncurses TUI front-end (hanoi)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(PYTHON_SETUP) && exec hanoi'
+
+.PHONY: python-wx
+python-wx: image ## Run the Python wxPython GUI front-end (hanoi-gui)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(PYTHON_SETUP) && exec hanoi-gui'
+
+.PHONY: rust-cli
+rust-cli: image ## Run the Rust CLI front-end (image needs USE_RUST=1)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(RUST_SETUP) && exec cargo run -q -p hanoi-cli'
+
+.PHONY: rust-tui
+rust-tui: image ## Run the Rust terminal-UI front-end (image needs USE_RUST=1)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(RUST_SETUP) && exec cargo run -q -p hanoi'
+
+.PHONY: rust-wx
+rust-wx: image ## Run the Rust wxDragon GUI front-end (image needs USE_RUST=1)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(RUST_SETUP) && exec cargo run -q -p hanoi-gui'
 
 .PHONY: help
 help:

@@ -1,0 +1,14 @@
+[package]
+name = "hanoi-cli"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Towers of Hanoi: plain stdin/stdout front-end (Rust port, kept in sync with the Python hanoi-cli)."
+
+[[bin]]
+name = "hanoi-cli"
+path = "src/main.rs"
+
+[dependencies]
+hanoigame = { path = "../hanoigame" }
+rustyline = "19.0.0"

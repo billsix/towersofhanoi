@@ -23,6 +23,7 @@ if ! command -v dnf >/dev/null 2>&1; then
 fi
 
 dnf install -y gtk3 \
+               python3-wxpython4 \
                libX11 \
                libXext \
                libXrender \

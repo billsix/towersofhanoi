@@ -1,11 +1,74 @@
 # Port the whole hanoi program to Rust (wxDragon for the GUI)
 
-**Status:** proposed — needs go-ahead (large new initiative; the maintainer is new to Rust, so
-clarity and idiomatic code matter as much as the port itself).
+**Status:** in progress — **all four front-ends built, tested, and staged 2026-10-23** (see Work
+record). Remaining: a `make image` rebuild to activate the new run targets, and the maintainer's
+host display-verification of the TUI/GUI. Large
+initiative; the maintainer is new to Rust, so clarity and idiomatic code matter as much as the port.
+
+> **CONSTRAINT (maintainer, 2026-10-23): the Python version is kept FOREVER. This is NOT a
+> replacement — it is a parallel copy kept in sync, feature for feature.** The Rust lives in its own
+> `rust/` subtree beside `python/`; both front-end sets stay runnable; a feature added to one is
+> added to the other. The Python package is also the behaviour oracle the Rust is verified against.
+> Never remove or deprecate the Python.
 **Priority:** 5 **Difficulty:** 8
 **Created:** 2026-10-23 (William Emerison Six <billsix@gmail.com>). Requested: port everything done
 in Python — the wxWidgets GUI, the engine, the command line, *everything* — to Rust, using
 **wxDragon** for the GUI. A Tauri port is the follow-up (`tasks/port-to-tauri.md`).
+
+## Work record (2026-10-23)
+
+**Built + staged** in `rust/` (a Cargo workspace; the Python stays, per the CONSTRAINT):
+
+- **`hanoigame` library crate** — the shared core: `model`, `commands` (parser), `engine`
+  (`GameSession` dispatcher), `presenter` (6 labellings + layout + text render), `recipe`
+  (Recorder/Registry/Replay + rebinding tables), `solvers` (iterative + recursive). **51 unit tests**
+  reproducing the Python core suite, incl. Bill's `apply_through_relabel_solves_subproblem`.
+- **`hanoi-cli`** — stdin/stdout front-end over any `BufRead`/`Write`; **19 tests** = every Python CLI
+  test (the worked example's exact board, capture-under-relabel). Interactive **`rustyline`
+  tab-completion** (command verbs + recipe names) is wired via a `LineReader` abstraction that keeps
+  the scripted/piped path byte-identical; the pure `completions` logic stays unit-tested.
+- **`hanoi` TUI** — ratatui 0.30 / crossterm 0.29 port of the ncurses UI (coloured board, status,
+  message pager, input line, disc prompt, win/save/play-again); **5 `TestBackend` headless tests**.
+- **`hanoi-gui`** — wxDragon 0.9.23 programmatic GUI: menu (New/Same/Exit/About), relabel menu (6
+  items + active bullet), two board renderers (monospace text + a solid-fill DC graphics board) with
+  a View toggle, 6 move buttons, recipes (list + Save/Apply/Show + double-click), rebinding dialog.
+  Compiles warning-free; the Xvfb smoke launches it without crashing (display-verify is the
+  maintainer's, on host wxGTK).
+
+**Gates:** `cargo fmt --check` + warning-clean `cargo build` + `cargo test` (**75 tests**) all green,
+offline for the core/CLI. `cargo clippy` NOT run — `clippy` isn't installed in the sandbox yet (a
+base-list add was offered).
+
+**Deviations from the plan, recorded:**
+- **Error strategy (decision #4):** `thiserror`/`anyhow` were NOT pulled — the core has no fallible
+  I/O surface needing them; `model::MoveError` is a plain std enum (`Display` + `std::error::Error`).
+  Revisit if a future fallible API warrants `thiserror`.
+- **GUI graphics renderer:** solid fills (the wxDC model), not the wxPython `GraphicsContext`
+  gradients/shadows — wxDragon exposes only wxDC (the capability-section caveat, now also in the
+  shared `rust-gui-tui-and-ecosystem.md`).
+- **Recipe `apply_iter` (lazy generator) → a `Replay::step(&mut game)` stepper** (a Rust `Iterator`
+  can't let the caller observe the game between steps); the shared registry → `&mut RecipeRegistry`
+  on the session (the GUI adapts it via a transient session inside `Rc<RefCell<GuiState>>`).
+- **Recipe-show / rebinding** are message dialogs, not the Python's scrollable 3-panel dialog (same
+  teaching content).
+- **Corrected (build deps):** wxDragon does NOT use the system wxGTK — `wxdragon-sys` **downloads
+  wxWidgets 3.3.4 and statically builds it** (a `reqwest`/native-tls build-dep). The real build deps:
+  `openssl-devel` (for that download — the error the maintainer hit on `make rust-wx`), `gtk3-devel`
+  (pulled by `wxGTK-devel`, to compile wx), and `libSM-devel`/`libICE-devel` (the `-lSM`/`-lICE`
+  static-link fix). The build needs network + a cached target dir (`rust/.container-target`); it is
+  not offline-reproducible as-is. Recorded in the shared `rust-gui-tui-and-ecosystem.md`.
+
+**Container / Makefile (staged):** a gated `USE_RUST` Dockerfile ARG + `entrypoint/04-install-rust.sh`
+(rust/cargo/rustfmt + `wxGTK-devel` + `libSM/libICE-devel`), `python3-wxpython4` added to
+`03-install-xwindows.sh` (the Python wx GUI couldn't run in-container before), and six Makefile run
+targets: `python-cli`/`tui`/`wx` and `rust-cli`/`tui`/`wx`. **The rust-\* and python-wx targets need a
+`make image` rebuild** to pick up the new packages (not done here — the full image is heavy). Both
+sandboxes' base lists gained `wxGTK-devel`/`libSM-devel`/`libICE-devel`; learnings harvested to the
+shared reference doc runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`.
+
+**Remaining:** the maintainer's host display-verify of the TUI + GUI; the `make image` rebuild to
+activate the `rust-*`/`python-wx` run targets; optionally add `clippy` to the sandbox base list for
+the lint gate. When the display-verify passes, this archives.
 
 ## BLUF
 
@@ -132,24 +195,22 @@ hanoi follows the Fedora-44 + podman template. The port adds a Rust toolchain an
   label-space recipe transparency is the invariant that must survive the port.
 - **GUI display** verification is the maintainer's (host wxGTK).
 
-## Decisions / open questions
+## Decisions (resolved 2026-10-23 — maintainer: "go with your recommendation")
 
-1. **Crate layout:** one workspace with a `hanoigame` lib + three bin crates, vs one crate with
-   `src/bin/{hanoi,hanoi-cli,hanoi-gui}.rs`. Recommend the **workspace** (clean lib/bin separation,
-   each front-end thin). OK?
-2. **TUI crate:** `ratatui` + `crossterm` (modern, pure-Rust, portable) vs an ncurses binding
-   (closest to the Python). Recommend **ratatui/crossterm**. Preference?
-3. **GUI UI construction:** ~~programmatic vs XRC~~ **RESOLVED (see the capability section):**
-   build the UI programmatically with wxDragon (recommended), draw the board with the DC model
-   (`AutoBufferedPaintDC` + `on_paint`), relabel menu as normal items. `include_xrc!` is available if
-   you'd rather keep `hanoi.xrc`. Confirm the programmatic choice, or say to keep the XRC.
-4. **Error strategy** (per the Rust standard): `thiserror` in the `hanoigame` lib, `anyhow` in the
-   binaries. OK?
-5. **byhand-drift:** leave `tools/gen_byhand.py` + `test_byhand_drift.py` in Python (docs stay
-   Python/TeX), or also port the drift check into the Rust suite? Recommend **leave it in Python**
-   (it guards Python-generated book pages). OK?
-6. **Keep or retire the Python package?** Recommend keeping both side by side initially (the Python
-   is the behaviour oracle for the port); decide removal only once the Rust is verified.
+1. **Crate layout:** a **Cargo workspace** in a new `rust/` subtree — a `hanoigame` library crate
+   (the shared core) + binary crates `hanoi` (TUI), `hanoi-cli`, `hanoi-gui`. Clean lib/bin split;
+   each front-end thin over the lib.
+2. **TUI:** **`ratatui` + `crossterm`** (modern, pure-Rust, portable), behaviour-faithful to the
+   Python ncurses TUI.
+3. **GUI:** **programmatic wxDragon** + the **DC drawing model** (`AutoBufferedPaintDC` + `on_paint`),
+   relabel menu as normal items (see the verified capability section). `hanoi.xrc` stays with the
+   Python front-end; the Rust GUI builds its UI in code.
+4. **Error strategy:** **`thiserror` in the `hanoigame` lib, `anyhow` in the binaries** (per the
+   shared Rust standard).
+5. **byhand-drift:** **stays in Python** (`tools/gen_byhand.py` + `test_byhand_drift.py` guard
+   Python/TeX book pages — out of the Rust scope).
+6. **Keep the Python:** **kept forever, in sync** — see the CONSTRAINT banner at the top. Not a
+   decision to revisit; the Python is permanent and the Rust tracks it feature-for-feature.
 
 ## Pointers
 
