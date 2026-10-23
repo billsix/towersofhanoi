@@ -3,3 +3,7 @@
 # The hanoi container's separate Cargo target (CARGO_TARGET_DIR for the make
 # rust-* targets; caches wxDragon's from-source wxWidgets build across runs).
 /.container-target
+# The hanoi container's Cargo home (CARGO_HOME for the make rust-* AND rust-tauri
+# targets; persists the crate-registry download cache across --rm runs so crates
+# are fetched once, not every run). Shared by the workspace and the Tauri crate.
+/.container-cargo

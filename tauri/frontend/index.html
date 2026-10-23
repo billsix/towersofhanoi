@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Towers of Hanoi</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>Towers of Hanoi</h1>
+    <div id="status" class="status"></div>
+    <div class="board-bar">
+      <button id="toggle-view">Text view</button>
+    </div>
+    <canvas id="canvas" class="board-canvas" width="860" height="360"></canvas>
+    <pre id="board" class="board hidden"></pre>
+    <div id="message" class="message"></div>
+    <div id="rebinding" class="rebinding"></div>
+
+    <section class="controls">
+      <fieldset>
+        <legend>Move</legend>
+        <div id="moves" class="buttons">
+          <button id="move-1-2">1 &rarr; 2</button>
+          <button id="move-1-3">1 &rarr; 3</button>
+          <button id="move-2-1">2 &rarr; 1</button>
+          <button id="move-2-3">2 &rarr; 3</button>
+          <button id="move-3-1">3 &rarr; 1</button>
+          <button id="move-3-2">3 &rarr; 2</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Relabel (physical pegs 1,2,3 show as&hellip;)</legend>
+        <div class="buttons">
+          <button id="relabel-123">1 2 3</button>
+          <button id="relabel-132">1 3 2</button>
+          <button id="relabel-213">2 1 3</button>
+          <button id="relabel-231">2 3 1</button>
+          <button id="relabel-312">3 1 2</button>
+          <button id="relabel-321">3 2 1</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Game</legend>
+        <label>Discs: <input id="discs" type="number" min="1" max="10" value="3" /></label>
+        <button id="newgame">New Game</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Recipes</legend>
+        <select id="recipes" size="4"></select>
+        <div class="buttons">
+          <input id="savename" type="text" placeholder="recipe name" />
+          <button id="save">Save (after a win)</button>
+          <button id="apply">Apply</button>
+          <button id="show">Show</button>
+        </div>
+      </fieldset>
+    </section>
+
+    <script src="main.js"></script>
+  </body>
+</html>

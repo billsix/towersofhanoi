@@ -136,13 +136,18 @@ image-import: ## import an OCI image tar: make image-import FILE=foo.tar
 # --- Run a front-end (Python and Rust ports, kept in sync) ------------------
 # Every target runs in the container, interactively, with X11 + Wayland passthrough
 # (the TUI needs a terminal; the wx GUI needs a display). The Python targets install
-# the package editable first; the Rust targets need an image built with USE_RUST=1 and use
-# rust/.container-target (gitignored) so the heavy first build — wxDragon downloads and
-# statically builds wxWidgets 3.3.4 — is cached across runs and never clashes with the host target.
+# the package editable first; the Rust targets need an image built with USE_RUST=1. Two caches on
+# the bind-mount (both gitignored) make repeat runs fast and offline: CARGO_TARGET_DIR
+# (rust/.container-target) persists the compiled artifacts — including the heavy wxDragon
+# from-source wxWidgets 3.3.4 build, which lands under target/ — and CARGO_HOME
+# (rust/.container-cargo, shared by the workspace and the Tauri crate) persists the crate-registry
+# download cache, so crates are fetched once instead of on every --rm run. Neither clashes with the
+# host's own target/ or ~/.cargo.
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
 	$(X_FLAGS_FOR_CONTAINER) $(WAYLAND_FLAGS_FOR_CONTAINER)
 PYTHON_SETUP = cd /$(CONTAINER_NAME)/python && uv pip install --system -e . -q
-RUST_SETUP = cd /$(CONTAINER_NAME)/rust && export CARGO_TARGET_DIR=/$(CONTAINER_NAME)/rust/.container-target
+RUST_SETUP = cd /$(CONTAINER_NAME)/rust && export CARGO_TARGET_DIR=/$(CONTAINER_NAME)/rust/.container-target && export CARGO_HOME=/$(CONTAINER_NAME)/rust/.container-cargo
+TAURI_SETUP = cd /$(CONTAINER_NAME)/tauri/src-tauri && export CARGO_TARGET_DIR=/$(CONTAINER_NAME)/tauri/.container-target && export CARGO_HOME=/$(CONTAINER_NAME)/rust/.container-cargo && export WEBKIT_DISABLE_DMABUF_RENDERER=1
 
 .PHONY: python-cli
 python-cli: image ## Run the Python CLI front-end (hanoi-cli)
@@ -173,6 +178,11 @@ rust-tui: image ## Run the Rust terminal-UI front-end (image needs USE_RUST=1)
 rust-wx: image ## Run the Rust wxDragon GUI front-end (image needs USE_RUST=1)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
 		-c '$(RUST_SETUP) && exec cargo run -q -p hanoi-gui'
+
+.PHONY: rust-tauri
+rust-tauri: image ## Run the Rust Tauri desktop front-end (needs USE_RUST=1 image + webkit2gtk)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(TAURI_SETUP) && exec cargo run'
 
 .PHONY: help
 help:

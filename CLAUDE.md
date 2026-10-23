@@ -22,7 +22,9 @@ worksheets) reinforces that "solve small, relabel, replay" idea.
   `USE_RUST=1`, the Makefile default — `entrypoint/04-install-rust.sh` installs the full native
   toolchain wxDragon's from-source wxWidgets build needs). Build facts + the wxDragon gotchas:
   runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port record:
-  `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
+  `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`. A fifth front-end — a **Tauri** desktop app
+  (a static web UI over the same `hanoigame` crate) — is in progress in `tauri/`
+  (`tasks/port-to-tauri.md`).
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..5`), and
   printable **worksheets** (`workbook/`: the `hanoi1..4.svg` solution diagrams plus
   `induction-workbook.tex`, a blank fill-in induction booklet) all reinforce the
