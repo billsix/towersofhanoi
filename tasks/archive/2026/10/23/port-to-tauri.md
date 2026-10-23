@@ -1,8 +1,10 @@
 # Port hanoi to a Tauri desktop app (reusing the Rust core)
 
 **Status:** done 2026-10-23 (William Emerison Six <billsix@gmail.com>) — the Tauri front-end is built,
-runs, and was play-verified on the host. The one remaining item is **optional**: wiring a frontend
-lint/format (Biome/Prettier) for the web side, not yet done. Work committed by the maintainer.
+runs, and was play-verified on the host; **archived** on the maintainer's say-so. The one remaining
+item, a frontend lint/format (Biome/Prettier) for the three static web files, was deliberately left as
+an **optional** judgment call (documented under "Remaining", not filed as its own task). Work committed
+by the maintainer.
 **Reuses:** the `hanoigame` Rust library crate from the completed
 `tasks/archive/2026/10/23/port-to-rust-wxdragon.md` as its backend engine.
 **Priority:** 7 **Difficulty:** 7
