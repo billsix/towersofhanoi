@@ -1,0 +1,15 @@
+[package]
+name = "hanoi"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Towers of Hanoi: terminal UI front-end (Rust port of the ncurses hanoi, kept in sync)."
+
+[[bin]]
+name = "hanoi"
+path = "src/main.rs"
+
+[dependencies]
+crossterm = "0.29.0"
+hanoigame = { path = "../hanoigame" }
+ratatui = "0.30.2"

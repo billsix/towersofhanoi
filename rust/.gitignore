@@ -1,0 +1,5 @@
+# Cargo build output (the compiled artifacts are never committed).
+/target
+# The hanoi container's separate Cargo target (CARGO_TARGET_DIR for the make
+# rust-* targets; caches wxDragon's from-source wxWidgets build across runs).
+/.container-target

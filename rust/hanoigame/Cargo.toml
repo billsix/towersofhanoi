@@ -1,0 +1,8 @@
+[package]
+name = "hanoigame"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Towers of Hanoi teaching game: the shared core (Rust port of the Python hanoigame package, kept in sync)."
+
+[dependencies]

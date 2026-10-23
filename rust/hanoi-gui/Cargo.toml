@@ -1,0 +1,14 @@
+[package]
+name = "hanoi-gui"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Towers of Hanoi: wxDragon GUI front-end (Rust port of the wxPython hanoi-gui, kept in sync)."
+
+[[bin]]
+name = "hanoi-gui"
+path = "src/main.rs"
+
+[dependencies]
+hanoigame = { path = "../hanoigame" }
+wxdragon = "0.9.23"

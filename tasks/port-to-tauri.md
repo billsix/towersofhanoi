@@ -1,8 +1,10 @@
 # Port hanoi to a Tauri desktop app (reusing the Rust core)
 
-**Status:** proposed — needs go-ahead. **Depends on:** `tasks/port-to-rust-wxdragon.md` (specifically
-its `hanoigame` Rust library crate — the teaching core). This is a sequencing dependency within our
-control, so it is expressed with Priority + this "Depends on", **not** `blocked`.
+**Status:** proposed — needs go-ahead (the prerequisite is now met; ready to start on your word).
+**Depends on:** the `hanoigame` Rust library crate from
+`tasks/archive/2026/10/23/port-to-rust-wxdragon.md` — **now DONE** (the Rust core + the CLI/TUI/GUI
+front-ends are built and the wxDragon GUI is play-verified). Tauri reuses that crate as its backend
+engine, so this no longer waits on anything within our control.
 **Priority:** 7 **Difficulty:** 7
 **Created:** 2026-10-23 (William Emerison Six <billsix@gmail.com>). Requested as the follow-up to the
 Rust/wxDragon port: port it to Tauri as well. The maintainer is new to both Rust and Tauri.
@@ -10,7 +12,7 @@ Rust/wxDragon port: port it to Tauri as well. The maintainer is new to both Rust
 ## BLUF
 
 Add a **Tauri** desktop front-end for hanoi: a Rust backend that exposes the shared `hanoigame`
-library crate (built in `tasks/port-to-rust-wxdragon.md`) to a web UI through Tauri commands, and a
+library crate (from the completed `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`) to a web UI through Tauri commands, and a
 small web frontend (HTML/CSS/TypeScript) that renders the board and drives play — behaviourally
 faithful to the existing front-ends, preserving the label-space recipe transparency and the six peg
 labellings. "Done" = the Tauri app runs in the container (or on host), plays the game through the
@@ -78,8 +80,8 @@ engine — Tauri is a **fourth front-end over the same Rust core**, exactly as t
 
 ## Pointers
 
-- `tasks/port-to-rust-wxdragon.md` — the prerequisite; its `hanoigame` library crate is this app's
-  engine.
+- `tasks/archive/2026/10/23/port-to-rust-wxdragon.md` — the (completed) prerequisite; its `hanoigame`
+  library crate is this app's engine.
 - `tasks/reference/architecture-overview.md` — the dispatch flow and the recipe/labelling invariants
   to preserve.
 - Shared Rust coding standard: runClaudeInContainer `tasks/reference/rust-coding-standard.md`.

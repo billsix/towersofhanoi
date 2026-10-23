@@ -1,0 +1,5 @@
+# Rust port of the Towers of Hanoi teaching game (kept in sync with python/,
+# never a replacement). See ../tasks/port-to-rust-wxdragon.md.
+[workspace]
+resolver = "2"
+members = ["hanoigame", "hanoi-cli", "hanoi", "hanoi-gui"]
