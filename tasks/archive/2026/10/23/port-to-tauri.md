@@ -3,7 +3,7 @@
 > **Later move (2026-10-24):** the per-language split moved this crate from `tauri/` at the repo root
 > to **`rust/tauri/`** (it's another UI within the Rust subproject). Paths below describe the layout at
 > the time of this task; current layout is in the repo-root `CLAUDE.md` and
-> `tasks/split-into-per-language-containers.md`.
+> `tasks/archive/2026/10/24/split-into-per-language-containers.md`.
 
 **Status:** done 2026-10-23 (William Emerison Six <billsix@gmail.com>) — the Tauri front-end is built,
 runs, and was play-verified on the host; **archived** on the maintainer's say-so. The one remaining

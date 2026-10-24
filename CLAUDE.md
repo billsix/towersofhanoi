@@ -31,7 +31,7 @@ subproject is self-contained, the book sits above them.
 
 A future C++ port (Dear ImGui, native + WebAssembly) lands as a `cpp/` subproject in the
 same shape — see `tasks/port-to-cpp-imgui-native-and-wasm.md`. The split itself:
-`tasks/split-into-per-language-containers.md`.
+`tasks/archive/2026/10/24/split-into-per-language-containers.md`.
 
 ## Status
 

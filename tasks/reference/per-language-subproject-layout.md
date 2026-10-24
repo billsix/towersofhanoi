@@ -2,7 +2,7 @@
 
 **Reference document** — what the repo's build/container structure IS, and the recipe for adding a
 new language. Not a task; update in place. Created 2026-10-24 (William Emerison Six
-<billsix@gmail.com>), harvested from `tasks/split-into-per-language-containers.md`. hanoi is meant to
+<billsix@gmail.com>), harvested from `tasks/archive/2026/10/24/split-into-per-language-containers.md`. hanoi is meant to
 serve as a **reusable basis for other multi-language projects**, so this doc states the template
 precisely enough to copy.
 
@@ -87,7 +87,7 @@ Rust → `rust-mode` + `lsp-mode` with `rust-analyzer` (dnf, on PATH).
 
 ## Cross-links
 
-- `tasks/split-into-per-language-containers.md` — the work record of the split that produced this layout.
+- `tasks/archive/2026/10/24/split-into-per-language-containers.md` — the work record of the split that produced this layout.
 - `tasks/reference/architecture-overview.md` — the game-code architecture (dispatch, the recipe
   invariant, the module map), shared by all language ports.
 - The container-per-project template + the "Self-contained images + live source" rule live in the

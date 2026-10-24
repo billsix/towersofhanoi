@@ -39,7 +39,7 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
   `clang`/libclang, `cmake`, `ninja`, `make`. **Missing for this task:** SDL2 + mesa/OpenGL dev
   packages (deliberately absent today — `03-install-xwindows.sh` installs no OpenGL/mesa), and the
   **Emscripten SDK (emsdk)** for the WASM build. Both need adding to whichever image this port uses.
-- **Interacts with the per-language split:** `tasks/split-into-per-language-containers.md` moves each
+- **Interacts with the per-language split:** `tasks/archive/2026/10/24/split-into-per-language-containers.md` moves each
   language to its own subproject (own Dockerfile/Makefile/emacs). This C++ port should land directly in
   that shape as a new **`cpp/`** subproject (own `cpp/Dockerfile`, `cpp/Makefile`, `cpp/entrypoint/`,
   C++-tailored emacs set: cc-mode/c++-mode + clangd via eglot/lsp-mode, cmake-mode, magit). Sequence the
@@ -90,7 +90,7 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
 
 ## Decisions (maintainer, 2026-10-24 — "after the split, yes, and what you recommend")
 
-1. **Sequencing:** the **per-language split is now DONE** (`tasks/split-into-per-language-containers.md`,
+1. **Sequencing:** the **per-language split is now DONE** (`tasks/archive/2026/10/24/split-into-per-language-containers.md`,
    2026-10-24), so this is unblocked. The C++ port lands as a new `cpp/` subproject in that per-language
    shape — follow the recipe in `tasks/reference/per-language-subproject-layout.md` (own
    Dockerfile/Makefile/entrypoint + a `.emacs.d/` that pins the LSP root, ignores build/cache dirs, and
@@ -107,7 +107,7 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
 
 ## Related
 
-- Sibling task: `tasks/split-into-per-language-containers.md` (this port lands as the `cpp/` subproject).
+- Sibling task: `tasks/archive/2026/10/24/split-into-per-language-containers.md` (this port lands as the `cpp/` subproject).
 - Structural template: `rust/` and `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
 - Canonical source of truth: `python/src/hanoigame/`.
 - ImGui emscripten reference: https://github.com/ocornut/imgui/tree/master/examples/example_sdl2_opengl3

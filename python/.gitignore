@@ -12,3 +12,8 @@ entrypoint/dotfiles/.emacs.d/eln-cache/
 entrypoint/dotfiles/.emacs.d/elpa/*.elc
 entrypoint/dotfiles/.emacs.d/elpa/**/*.elc
 entrypoint/dotfiles/.emacs.d/elpa/**/*.eln
+# emacs / lsp-mode runtime junk written into the mounted tree during a session
+.lsp-session-v1
+*~
+\#*\#
+.\#*
