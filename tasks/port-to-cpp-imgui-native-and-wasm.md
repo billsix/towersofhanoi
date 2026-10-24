@@ -1,6 +1,7 @@
 # Port hanoi to C++ with a Dear ImGui GUI — runnable natively (in-container) AND as WebAssembly
 
-**Status:** proposed — needs go-ahead
+**Status:** in progress — the `cpp/` subproject is scaffolded and the native build is verified; the
+engine port and the wasm-build verification are the remaining work (see Progress).
 **Priority:** 6 **Difficulty:** 7
 **Created:** 2026-10-24 (William Emerison Six <billsix@gmail.com>). Requested: "just like you ported the
 python source (canonical source) to rust, do the same for C++, using IMGUI as the GUI, look online for
@@ -105,9 +106,71 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
    (python http.server) helper. No committed/publishable web build now; revisit (e.g. GitHub Pages)
    later if wanted.
 
+## Progress (2026-10-24)
+
+**Done + verified (nested podman):**
+- **`cpp/` subproject scaffolded** in the per-language shape: `Dockerfile` (C++/SDL2/GL toolchain +
+  optional pinned emsdk via `USE_WASM`/`EMSDK_VERSION` + optional emacs), `Makefile` (`gui`,
+  `webassembly`, `serve`, `shell`/`shell-exec`, `format`, image-export/import, update-emacs-packages),
+  `CMakeLists.txt` (one build, native vs. `EMSCRIPTEN`-gated), entrypoint scripts
+  (`01-install-cpp-base.sh`, `02-install-emsdk.sh`, shell/format/entrypoint/.bashrc), a C++ emacs set
+  (clangd + clang-format, root-pinned to `/hanoi-cpp`, build-dir ignores, yasnippet), `.dockerignore`,
+  `.gitignore`, `CLAUDE.md`. Mounts at `/hanoi-cpp`.
+- **Dear ImGui vendored** at `cpp/imgui/` (pinned **v1.91.5**: core + SDL2 + OpenGL3 backends).
+- **Engine:** `cpp/src/model.hpp` — the C++ port of `hanoimodel.py` (state + legal-move enumeration),
+  header-only.
+- **GUI:** `cpp/main.cpp` — the dual-target Dear ImGui app (SDL2+OpenGL3; the only target-specific code
+  is the `emscripten_set_main_loop_arg` vs native `while` loop + the no-filesystem/ini on web). Renders
+  the board with draw-list primitives and a button per legal move from the model.
+- **Native build VERIFIED:** lean image builds (~1.5 min); `cmake -G Ninja && cmake --build` compiles +
+  links `hanoi-cpp` (SDL2 2.32.74 via sdl2-compat, model + vendored ImGui all compile).
+- **WebAssembly build VERIFIED:** full image (emsdk 3.1.74 + emacs) builds; `emcmake cmake` + build
+  compiles ImGui + the app and links `web/index.html` + `index.js` (~160 KB) + `index.wasm` (~685 KB).
+  `make serve` serves them at :8000. Both targets build from the one `CMakeLists.txt`.
+
+**Parity pass (2026-10-24, on maintainer feedback — disk count / recipes / menubar were missing):**
+- Ported `src/presenter.hpp` (the six **labellings** + label↔tower) and `src/recipe.hpp` (Recorder,
+  RecipeRegistry, replay `apply`, `rebinding`) from the canonical Python.
+- Rewrote `main.cpp` to **feature parity with the wx GUI**: an ImGui **menubar** — **Game** (New game
+  → disk counts 1–8, Restart), **Relabel** (the 6 labellings as radio items), **Recipe** (shows the
+  recording length, Save-recording-as… via a modal, Reset recording, Replay ▸ saved names). The board
+  is **coloured by label** (colour follows the peg's label after relabelling), legal-move buttons show
+  the **current labels**, moves are recorded in default-label space, and the **label→peg rebinding** is
+  shown under a non-default labelling. Both native and wasm **recompile + link** with all of this.
+- **`make serve`:** now **depends on `webassembly`** (builds the wasm if needed, then serves) + prints
+  the URL — so it can't fail on a missing `web/`. Verified end-to-end nested: the published port is
+  reachable (HTTP 200 from outside the container), `.wasm` serves as `application/wasm`, and the emcc
+  `index.html` loads `index.js`.
+- **Fixed the BLANK web page (root cause):** the ImGui OpenGL3 backend does NOT auto-select GLES for
+  Emscripten (its header: "You need to #define IMGUI_IMPL_OPENGL_ES2/ES3 to use WebGL") — the wasm build
+  had compiled the **desktop** GL path (GLSL 130), whose shaders don't compile under WebGL, so
+  everything loaded (the server log showed 200s) but nothing drew. Fix: the wasm target compiles with
+  **`-DIMGUI_IMPL_OPENGL_ES3`** + links **`-sMIN/MAX_WEBGL_VERSION=2`**, and `main.cpp` uses an **ES 3.0
+  context + "#version 300 es"** on web (desktop GL 3.0 + GLSL 130 natively). Also `shell.html` fills the
+  viewport and `main.cpp` matches the SDL window to the canvas CSS size each frame (1:1 input). Testing
+  note: browsers cache `index.js`/`index.wasm` (304s) — **hard-refresh** after a rebuild.
+- **UX + build tweaks (2026-10-24, maintainer feedback):** default is now **3 disks**; all six moves are
+  **always shown** (fixed layout, illegal ones `BeginDisabled`'d, matching wx — no more jumping buttons);
+  and the Dockerfile **pre-warms the Emscripten cache** (SDL2 port + system libs) at image-build so a
+  `--rm` `make serve`/`webassembly` doesn't re-download/rebuild them each run. Verified nested: a fresh
+  wasm build is a cache hit (~7s, no "compiled N inputs"/"generating system asset"); `libSDL2.a` +
+  `libc++*.a` are baked into the image's emsdk cache.
+
+**Remaining:**
+1. **On-display runs** (maintainer's host): `make gui` (native window) and loading `web/` in a browser
+   after `make serve` — confirm the board/menus/recipes work interactively.
+2. **Optional:** a C++ CLI/TUI would need the rest of the core (commands/engine-dispatch/solvers)
+   ported; the **GUI** is at parity without them (it drives model/presenter/recipe directly). Decision 3
+   kept this round to the ImGui GUI, so that port is a later option, not required for GUI parity.
+3. **(superseded)** "port the rest of the shared core" to `cpp/src/` — commands, engine (dispatch), presenter (the six
+   peg labellings), recipe (record/replay), solvers — mirroring the Python/Rust layout, and wire the
+   full UI (relabelling, recipes) + a parity check against the Python oracle. The model is the start.
+
 ## Related
 
 - Sibling task: `tasks/archive/2026/10/24/split-into-per-language-containers.md` (this port lands as the `cpp/` subproject).
+- Reference: `tasks/reference/imgui-cpp-native-and-wasm.md` (the dual native/wasm build) +
+  `tasks/reference/per-language-subproject-layout.md` (the subproject template).
 - Structural template: `rust/` and `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
 - Canonical source of truth: `python/src/hanoigame/`.
 - ImGui emscripten reference: https://github.com/ocornut/imgui/tree/master/examples/example_sdl2_opengl3

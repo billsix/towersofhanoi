@@ -1,0 +1,9 @@
+# Keep the baked source tree (COPY . /hanoi-cpp) clean: exclude cmake build trees, the
+# wasm output, exported image tars, and the vendored emacs trees. The vendored imgui/
+# source IS kept (it's compiled into the binary).
+build/
+build-web/
+web/
+*.tar
+entrypoint/dotfiles/.emacs.d/elpa/
+entrypoint/dotfiles/.emacs.d/eln-cache/
