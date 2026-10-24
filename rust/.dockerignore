@@ -1,0 +1,11 @@
+# Keep the baked source tree (COPY . /hanoi-rust) small: exclude compiled output, the
+# cargo caches that live on the bind-mount at runtime, exported image tars, and the
+# vendored emacs elpa/eln trees (the image installs emacs packages itself).
+target/
+.container-target/
+.container-cargo/
+tauri/src-tauri/target/
+tauri/.container-target/
+*.tar
+entrypoint/dotfiles/.emacs.d/elpa/
+entrypoint/dotfiles/.emacs.d/eln-cache/

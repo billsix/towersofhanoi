@@ -1,0 +1,51 @@
+# hanoi — Rust subproject
+
+The **Rust** implementation of hanoi (github.com/billsix/towersofhanoi): a Cargo workspace
+that reimplements the Python canonical source (`../python`) **feature-for-feature**, kept in
+sync, never a replacement (the Python stays the behaviour oracle). Self-contained: own
+`Dockerfile`, `Makefile`, `entrypoint/`, and emacs set.
+
+## Status
+
+- `hanoigame/` — the shared library crate (model / commands / engine / presenter / recipe /
+  solvers), mirroring the Python package module-for-module.
+- Four front-ends over that crate:
+  - `hanoi-cli/` — plain CLI (`make cli`)
+  - `hanoi/` — ratatui/crossterm TUI (`make tui`)
+  - `hanoi-gui/` — wxDragon GUI; programmatic UI, solid-fill DC board (`make wx`)
+  - `tauri/` — Tauri v2 desktop app (static webview UI over the same crate; `make tauri`).
+    Just another UI, like the wx one. NOT a workspace member (Tauri needs its own build);
+    it depends on `../hanoigame` by path.
+
+## Build / container workflow
+
+Fedora-44 + podman template. Mounts at `/hanoi-rust`. The image installs the Rust toolchain
++ the full native build stack wxDragon needs (see `entrypoint/01-install-rust-base.sh`); the
+crates are built at **runtime** (not image-build), cached in `.container-target` /
+`.container-cargo` on the mount — because wxDragon downloads + builds wxWidgets 3.3.4 from
+source at cargo-build time (needs network; the first `make wx` is minutes-long, then cached).
+
+- `make image` — build; `MINIMAL_IMAGE=1` drops emacs. `USE_EMACS` (default 1) installs emacs
+  + the Rust dev set.
+- `make shell` / `make shell-exec` — dev shell (cargo caches preset).
+- `make cli` / `make tui` / `make wx` / `make tauri` — run a front-end (X11 + Wayland
+  passthrough; Tauri also sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`).
+- `make format` — rustfmt (workspace + the Tauri crate).
+- `make image-export` / `make image-import FILE=…`, `make update-emacs-packages`.
+
+## Emacs
+
+`entrypoint/dotfiles/.emacs.d/` — `init.el` hooks `rust-mode` to **lsp-mode** +
+**rust-analyzer** (installed via dnf, on PATH), `company` completion. Installed into the image
+and bind-mounted at runtime. Package list: `install-melpa-packages.el`. `init.el` **pins the
+lsp project root to `/hanoi-rust`** (this subproject's `REPO_MOUNT`) so rust-analyzer roots at
+the Cargo workspace without prompting — the per-language root-pin convention in the repo-root
+`CLAUDE.md`.
+
+## Conventions
+
+Keep each front-end thin — logic lives in the `hanoigame` crate, mirroring the Python layering.
+The wxDragon GUI build gotchas (libclang/bindgen, from-source wxWidgets, system image libs, X11
+session libs) are documented in `entrypoint/01-install-rust-base.sh` and
+`../tasks/reference/rust-gui-tui-and-ecosystem.md`; Tauri specifics in
+`../tasks/reference/tauri-desktop-apps.md`.

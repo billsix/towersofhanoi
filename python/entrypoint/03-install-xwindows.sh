@@ -10,8 +10,7 @@
 #
 # hanoi-gui is wxPython/GTK with a 2D (wx.GraphicsContext / Cairo) board renderer -- it
 # needs GTK plus the X11 and Wayland client libraries, but NO OpenGL. That is why this
-# list omits the mesa GL drivers and glfw that a GL project (e.g. modelviewprojection)
-# would add here.
+# list omits the mesa GL drivers and glfw that a GL project would add here.
 #
 # Single dnf call, so its own exit status is the gate.
 set -uo pipefail

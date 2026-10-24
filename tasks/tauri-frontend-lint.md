@@ -9,7 +9,7 @@ for the web side.
 
 ## BLUF
 
-The Tauri front-end's three static web files — `tauri/frontend/{index.html,main.js,style.css}` — have
+The Tauri front-end's three static web files — `rust/tauri/frontend/{index.html,main.js,style.css}` — have
 no linter/formatter, the one unmet item from the Tauri port's original "done" bar. Add one and wire it
 into the project's gate so the web side is held to a consistent style the way `cargo fmt`/`clippy`
 holds the Rust side. "Done" = the three files pass a formatter + linter, the check is runnable from a
@@ -46,7 +46,7 @@ holds the Rust side. "Done" = the three files pass a formatter + linter, the che
 1. Pick the tool (Open question 1) and get it into the image's Rust/web install group (or document a
    host-run path), keeping the image lean.
 2. Add an `entrypoint/<name>.sh` (or extend the existing format path) that runs the formatter + linter
-   over `tauri/frontend/`, with the accumulate-`status` shape (every step runs, nonzero if any failed)
+   over `rust/tauri/frontend/`, with the accumulate-`status` shape (every step runs, nonzero if any failed)
    — the cross-project multi-step-check-script rule.
 3. Add a `make` target (e.g. `tauri-lint`, or fold into `format`) that runs it in the container, source
    bind-mounted so fixes land on the host. `## `-document it for `make help`.

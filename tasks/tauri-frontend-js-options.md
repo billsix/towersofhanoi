@@ -11,7 +11,7 @@ TypeScript, but I want to hear if there are other options."
 
 ## BLUF
 
-The Tauri front-end is plain vanilla JavaScript (`tauri/frontend/main.js` ~130 lines + `index.html` +
+The Tauri front-end is plain vanilla JavaScript (`rust/tauri/frontend/main.js` ~130 lines + `index.html` +
 `style.css`), with **no bundler and no Node toolchain** by deliberate choice. The maintainer's first
 inclination is to **rewrite it in TypeScript** for type-safety; this task is to **survey and compare
 the realistic options** — including TS, but also lighter and heavier alternatives — against this

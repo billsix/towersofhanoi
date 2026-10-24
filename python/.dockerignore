@@ -1,0 +1,11 @@
+# Keep the baked source tree clean + small (COPY . /hanoi-python). Exclude caches,
+# build artifacts, exported image tars, and the vendored emacs elpa/eln trees (the
+# image installs emacs packages itself; the elpa tree is for the runtime bind-mount).
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+*.tar
+entrypoint/dotfiles/.emacs.d/elpa/
+entrypoint/dotfiles/.emacs.d/eln-cache/

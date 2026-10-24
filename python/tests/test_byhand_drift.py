@@ -38,6 +38,20 @@ _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _GENERATOR: Path = _REPO_ROOT / "tools" / "gen_byhand.py"
 _DOCS: Path = _REPO_ROOT / "docs" / "source"
 
+# This is a BOOK-drift guard, not a hanoigame unit test: it reaches up to the repo
+# root's `tools/` + `docs/`, which live beside the Python subproject, not inside it.
+# When the Python subproject is built/tested in isolation (its image mounts only
+# python/ at /hanoi-python), those sibling dirs are absent -- so skip rather than
+# fail. The guard still runs from the full checkout: on the host, and in the root
+# book gate (which has tools/ + docs/ present).
+pytestmark = pytest.mark.skipif(
+    not _GENERATOR.exists() or not _DOCS.exists(),
+    reason=(
+        "book-drift guard needs the repo root's tools/ + docs/ (present in the "
+        "full checkout and the root book gate, absent in the isolated Python image)"
+    ),
+)
+
 
 def _load_generator() -> ModuleType:
     """Import ``tools/gen_byhand.py`` by path (not an installed module)."""

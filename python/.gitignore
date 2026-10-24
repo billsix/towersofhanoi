@@ -1,0 +1,14 @@
+# Python build/cache artifacts for the Python subproject
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+# exported OCI image tars (make image-export)
+*.tar
+# vendored emacs packages are refreshed via `make update-emacs-packages`; the compiled
+# bytecode/native-comp caches are never committed
+entrypoint/dotfiles/.emacs.d/eln-cache/
+entrypoint/dotfiles/.emacs.d/elpa/*.elc
+entrypoint/dotfiles/.emacs.d/elpa/**/*.elc
+entrypoint/dotfiles/.emacs.d/elpa/**/*.eln
