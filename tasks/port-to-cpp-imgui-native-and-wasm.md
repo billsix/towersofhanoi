@@ -22,16 +22,16 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
 
 ## Context (read first)
 
-- **Read first:** `/foo/opt/hanoi/CLAUDE.md`; the canonical Python core at
-  `/foo/opt/hanoi/python/src/hanoigame/` (`hanoimodel.py`, `commands.py`, `engine.py`, `presenter.py`,
-  `recipe.py`, `board_renderers.py`); the Rust port at `/foo/opt/hanoi/rust/` (library crate
+- **Read first:** the repo-root `CLAUDE.md`; the canonical Python core at
+  `python/src/hanoigame/` (`hanoimodel.py`, `commands.py`, `engine.py`, `presenter.py`,
+  `recipe.py`, `board_renderers.py`); the Rust port at `rust/` (library crate
   `rust/hanoigame/src/{model,commands,engine,presenter,recipe,solvers}.rs` + binaries) as the
   structural template; and `tasks/archive/2026/10/23/port-to-rust-wxdragon.md` for how the Rust port was
   carried out (Python-as-oracle, module-for-module mirror, thin front-ends).
 - **The port methodology to mirror (verified against the Rust port):** keep Python as the oracle and
   never remove it; reproduce the shared core **module-for-module** in a C++ library; each front-end
-  reuses that library. The Tauri app (`tauri/`, a webview `<canvas>` board over the Rust crate) is the
-  closest existing precedent for a web/graphical board and worth reading for the view-model shape.
+  reuses that library. The Tauri app (`rust/tauri/`, a webview `<canvas>` board over the Rust crate) is
+  the closest existing precedent for a web/graphical board and worth reading for the view-model shape.
 - **Current GUI landscape:** three existing renderings — wxPython (`hanoigui.py`), wxDragon (Rust
   `hanoi-gui`), Tauri webview `<canvas>`. **No Dear ImGui or Emscripten/WASM anywhere today** — this is
   greenfield, but the shared-core→thin-frontend split and the Tauri canvas precedent carry over.
@@ -39,7 +39,7 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
   `clang`/libclang, `cmake`, `ninja`, `make`. **Missing for this task:** SDL2 + mesa/OpenGL dev
   packages (deliberately absent today — `03-install-xwindows.sh` installs no OpenGL/mesa), and the
   **Emscripten SDK (emsdk)** for the WASM build. Both need adding to whichever image this port uses.
-- **Interacts with the per-language split:** `tasks/split-into-per-language-containers.md` moves each
+- **Interacts with the per-language split:** `tasks/archive/2026/10/24/split-into-per-language-containers.md` moves each
   language to its own subproject (own Dockerfile/Makefile/emacs). This C++ port should land directly in
   that shape as a new **`cpp/`** subproject (own `cpp/Dockerfile`, `cpp/Makefile`, `cpp/entrypoint/`,
   C++-tailored emacs set: cc-mode/c++-mode + clangd via eglot/lsp-mode, cmake-mode, magit). Sequence the
@@ -90,9 +90,11 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
 
 ## Decisions (maintainer, 2026-10-24 — "after the split, yes, and what you recommend")
 
-1. **Sequencing:** do the **per-language split first** (`tasks/split-into-per-language-containers.md`),
-   then this; the C++ port lands as a `cpp/` subproject already in that per-language shape (so this task
-   creates `cpp/`, the split task only converts python/rust).
+1. **Sequencing:** the **per-language split is now DONE** (`tasks/archive/2026/10/24/split-into-per-language-containers.md`,
+   2026-10-24), so this is unblocked. The C++ port lands as a new `cpp/` subproject in that per-language
+   shape — follow the recipe in `tasks/reference/per-language-subproject-layout.md` (own
+   Dockerfile/Makefile/entrypoint + a `.emacs.d/` that pins the LSP root, ignores build/cache dirs, and
+   enables yasnippet). This task creates `cpp/` itself.
 2. **ImGui backend:** **SDL2 + OpenGL3** (`example_sdl2_opengl3`) — the best-documented dual native/WASM
    path, OpenGL3 → WebGL under Emscripten.
 3. **Front-ends:** **ImGui GUI only** this round (native + WASM). A minimal headless mode may be added
@@ -105,7 +107,7 @@ verified by serving `web/` and loading it), and parity with the Python oracle is
 
 ## Related
 
-- Sibling task: `tasks/split-into-per-language-containers.md` (this port lands as the `cpp/` subproject).
-- Structural template: `/foo/opt/hanoi/rust/` and `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
-- Canonical source of truth: `/foo/opt/hanoi/python/src/hanoigame/`.
+- Sibling task: `tasks/archive/2026/10/24/split-into-per-language-containers.md` (this port lands as the `cpp/` subproject).
+- Structural template: `rust/` and `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
+- Canonical source of truth: `python/src/hanoigame/`.
 - ImGui emscripten reference: https://github.com/ocornut/imgui/tree/master/examples/example_sdl2_opengl3

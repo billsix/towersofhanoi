@@ -1,32 +1,28 @@
 FROM registry.fedoraproject.org/fedora:44
 
+# Root image of hanoi: the BOOK layer (Sphinx + TeX Live) after the per-language split.
+# The language toolchains moved to the self-contained subprojects (python/ and rust/,
+# each with its own Dockerfile/Makefile). This image builds the Sphinx book, which needs
+# Python 3 + the hanoigame package (for the by-hand page generator / drift guard) and the
+# docs toolchain.
+
 ARG BUILD_DOCS=0
-# X11/Wayland client libs for the wxPython GUI (hanoi-gui). Makefile defaults this to 1;
-# a bare `podman build` stays lean (0). See entrypoint/03-install-xwindows.sh.
-ARG USE_X_WINDOWS=0
-# USE_RUST installs the Rust toolchain + wxWidgets dev/link packages so the Rust ports
-# (the rust/ workspace: hanoi, hanoi-cli, hanoi-gui) build and run in the container.
-# Makefile defaults this to 1; a bare `podman build` stays lean (0). See
-# entrypoint/04-install-rust.sh.
-ARG USE_RUST=0
 
 # System-package installation lives in per-group scripts (entrypoint/0N-install-*.sh),
-# host-runnable with no container runtime; the scripts take no options -- WHICH optional
-# groups run is decided here by the ARG `if` blocks. The dnf cache mount + keepcache stay
-# in the Dockerfile (build plumbing). 01-install-base.sh also does `dnf upgrade`.
-COPY entrypoint/01-install-base.sh entrypoint/02-install-docs.sh \
-     entrypoint/03-install-xwindows.sh entrypoint/04-install-rust.sh /usr/local/bin/
+# host-runnable with no container runtime; WHICH optional groups run is decided here by
+# the ARG `if` blocks. The dnf cache mount + keepcache stay in the Dockerfile.
+# 01-install-base.sh also does `dnf upgrade`.
+COPY entrypoint/01-install-base.sh entrypoint/02-install-docs.sh /usr/local/bin/
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      /usr/local/bin/01-install-base.sh && \
      if [ "$BUILD_DOCS" = "1" ]; then /usr/local/bin/02-install-docs.sh; fi && \
-     if [ "$USE_X_WINDOWS" = "1" ]; then /usr/local/bin/03-install-xwindows.sh; fi && \
-     if [ "$USE_RUST" = "1" ]; then /usr/local/bin/04-install-rust.sh; fi && \
-     echo "hanoi" >> ~/.bash_history
+     echo "make docs" >> ~/.bash_history
 
-
+# The book pulls code listings from python/src and runs the hanoigame package / the
+# by-hand generator, so install the Python deps (wxPython from dnf, so strip it here).
 COPY python/requirements.txt /requirements.txt
 RUN  --mount=type=cache,target=/root/.cache/uv \
      uv pip install --system setuptools && \
@@ -36,8 +32,8 @@ RUN  --mount=type=cache,target=/root/.cache/uv \
 
 COPY entrypoint/.bashrc /root/
 COPY entrypoint/entrypoint.sh /entrypoint.sh
-COPY entrypoint/format.sh /
-COPY entrypoint/type-check.sh /
+COPY entrypoint/format.sh /format.sh
+COPY entrypoint/type-check.sh /type-check.sh
 
 RUN echo "export PS1='>'" >> ~/.bashrc
 

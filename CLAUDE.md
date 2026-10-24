@@ -3,107 +3,120 @@
 A Towers of Hanoi **teaching project**. The goal is *not* recursion for its own
 sake — it teaches solving the puzzle by hand via **peg relabelling**: solve 1
 disc, then reuse that as a black box for 2 discs by relabelling the pegs, and so
-on. Every artifact (bash pipelines, Python front-ends, the Sphinx book, printable
-worksheets) reinforces that "solve small, relabel, replay" idea.
+on. Every artifact (bash pipelines, the language implementations, the Sphinx book,
+printable worksheets) reinforces that "solve small, relabel, replay" idea.
+
+## Repository layout — per-language subprojects + a book/umbrella root
+
+Each language is a **self-contained subproject** with its own `Dockerfile`, `Makefile`,
+`entrypoint/`, and emacs set — build and run it from its own directory:
+
+- **`python/`** — the **canonical** implementation (the behaviour oracle). `cd python`,
+  then `make cli | tui | wx | format | type-check | shell`. See `python/CLAUDE.md`.
+- **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including the
+  Tauri app** at `rust/tauri/` (just another UI, like the wx one). `cd rust`, then
+  `make cli | tui | wx | tauri | format | shell`. See `rust/CLAUDE.md`.
+- **the root** (this dir) — the **book + workbook + bash + umbrella**: the Sphinx book
+  (`docs/`), the printable worksheets (`workbook/`), the bash demos (`bash/`), and a thin
+  umbrella Makefile. `make docs` builds the book; `make format`/`make type-check` delegate
+  to the Python subproject.
+
+**Why the root keeps its OWN `Dockerfile` + `Makefile`** (rather than being a bare directory): they
+are the **book builder**, and the book is **cross-cutting** — it pulls code listings from `python/src`,
+runs `tools/gen_byhand.py`, and aggregates `docs/`, so the root (which sees the whole repo) is its
+natural home. The root is also where the cross-tree pytest / by-hand **drift guard** runs (it needs
+`python/` + `tools/` + `docs/` together — the reason `test_byhand_drift.py` skips inside the isolated
+Python image). So the root build files are deliberate, not leftover from the split: a language
+subproject is self-contained, the book sits above them.
+
+A future C++ port (Dear ImGui, native + WebAssembly) lands as a `cpp/` subproject in the
+same shape — see `tasks/port-to-cpp-imgui-native-and-wasm.md`. The split itself:
+`tasks/archive/2026/10/24/split-into-per-language-containers.md`.
 
 ## Status
 
-- **Python package** (`python/src/hanoigame/`, setuptools) with three front-ends
-  over one shared model + command grammar + dispatcher:
-  - `hanoi` / `hanoigame` — ncurses TUI
-  - `hanoi-cli` — plain stdin/stdout (pipes, screen readers); readline
-    tab-completion (verbs, recipe names) at an interactive TTY
-  - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board renderer)
-- **Rust port** (`rust/`, a Cargo workspace) — a parallel reimplementation kept **in sync with the
-  Python, feature-for-feature** (the Python stays the behaviour oracle; never removed). A `hanoigame`
-  library crate (model/commands/engine/presenter/recipe/solvers) + three binaries: `hanoi-cli`,
-  `hanoi` (ratatui/crossterm TUI), `hanoi-gui` (wxDragon GUI; programmatic UI, solid-fill DC board);
-  75 `cargo test`s. Run via `make rust-cli`/`rust-tui`/`rust-wx` (needs an image built with
-  `USE_RUST=1`, the Makefile default — `entrypoint/04-install-rust.sh` installs the full native
-  toolchain wxDragon's from-source wxWidgets build needs; the `make rust-*` targets persist cargo's
-  build + download caches in gitignored `rust/.container-*` dirs). Build facts + the wxDragon gotchas:
-  runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port record:
-  `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`. A **Tauri v2** desktop app (`tauri/`, a separate
-  crate — a static webview UI over the same `hanoigame` crate; text or `<canvas>` board; `make
-  rust-tauri`) rounds out the set — done and play-verified. Records:
-  `tasks/archive/2026/10/23/port-to-tauri.md` and runClaudeInContainer
+- **Python** (`python/`, setuptools package `src/hanoigame/`) — one shared model + command
+  grammar + dispatcher with three thin front-ends: `hanoi`/`hanoigame` (ncurses TUI),
+  `hanoi-cli` (plain stdin/stdout + readline completion), `hanoi-gui` (wxPython; XRC UI;
+  text or 2D-graphics board). pytest suite (the by-hand drift guard runs here when the
+  full tree is present — it needs the root's `tools/` + `docs/`, so it is skipped in the
+  isolated Python image).
+- **Rust** (`rust/`, a Cargo workspace) — a parallel reimplementation kept **in sync with
+  the Python, feature-for-feature** (the Python stays the behaviour oracle; never removed).
+  A `hanoigame` library crate + four front-ends: `hanoi-cli`, `hanoi` (ratatui/crossterm
+  TUI), `hanoi-gui` (wxDragon GUI), and **`rust/tauri/`** (Tauri v2 desktop app, static
+  webview UI over the same crate — NOT a workspace member; its own `[workspace]` root).
+  Build facts + wxDragon gotchas: `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port
+  record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
   `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
   `tasks/tauri-frontend-js-options.md`).
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..5`), and
-  printable **worksheets** (`workbook/`: the `hanoi1..4.svg` solution diagrams plus
-  `induction-workbook.tex`, a blank fill-in induction booklet) all reinforce the
-  relabelling method (see Layout for the file breakdown).
-- 130 pytest tests pass (model, presenter, commands, CLI, recipes, byhand-drift).
+  printable **worksheets** (`workbook/`) all reinforce the relabelling method.
 
-## Layout
+## Layout (root)
 
-- `python/src/hanoigame/` — `hanoimodel` (state), `presenter` (render + 6 peg
-  labellings), `commands` (typed parser), `engine` (shared dispatcher), `recipe`
-  (record/replay in label-space), the three front-ends (`hanoicli`, `hanoigame`,
-  `hanoigui`), `board_renderers` (text + `wx.GraphicsContext`), `hanoi.xrc`.
-- `python/tests/` — 130 tests across 6 files (incl. `test_byhand_drift.py`, which
-  fails if `docs/source/byhand4/5.rst` drift from `tools/gen_byhand.py`).
+- `python/` — the Python subproject (self-contained; see `python/CLAUDE.md`). Its package
+  is `src/hanoigame/`: `hanoimodel`, `presenter` (render + 6 peg labellings), `commands`,
+  `engine`, `recipe`, the three front-ends, `board_renderers`, `hanoi.xrc`; `tests/`.
+- `rust/` — the Rust subproject (self-contained; see `rust/CLAUDE.md`), incl. `rust/tauri/`.
 - `bash/` — 12 scripts (solves + relabel filters).
 - `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
-  (guarded by `test_byhand_drift.py`; regenerate, don't hand-edit those pages).
-- `docs/` — Sphinx source; `workbook/` — `hanoi1..4.svg` solution diagrams (→ PDF via
-  Inkscape) + `induction-workbook.tex` blank induction booklet (→ PDF via pdflatex/TikZ).
-- `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task
-  docs. See "Documentation model" and "Module map" below.
+  (guarded by `python/tests/test_byhand_drift.py`; regenerate, don't hand-edit those pages).
+- `docs/` — Sphinx source; `workbook/` — `hanoi1..4.svg` + `induction-workbook.tex`.
+- `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task docs.
 
 ## Build / container workflow
 
-Fedora-44 + podman family template.
+Fedora-44 + podman family template. **Each subproject builds and runs on its own**; the
+root builds the book.
 
-- `make image` — build the image; full by default (`BUILD_DOCS=1`, Sphinx/TeX Live, ~1.94 GB),
-  host **or** nested. Pass `MINIMAL_IMAGE=1` for a lean image (`BUILD_DOCS=0`, ~1.15 GB) — a small
-  export/airgap build; it still runs the pytest gate. `MINIMAL_IMAGE` is build content, independent
-  of `NESTED_PODMAN` (run capability); the sandbox does not set it, so a nested `make image` builds
-  full (renamed 2026-09-27 from the old nested-inferred `NESTED_PODMAN`; the disk-backed inner store
-  makes full fit nested). Override a single flag with `make image BUILD_DOCS=1`; `make docs` needs
-  `BUILD_DOCS=1`.
-- `make shell` — dev shell; inside, run `hanoi` / `hanoi-cli` / `hanoi-gui`. Display
-  passthrough for the wxPython GUI is on by default: `USE_X_WINDOWS=1` installs the
-  X11/Wayland client libs (`entrypoint/03-install-xwindows.sh`) and `make shell` forwards
-  the host's X11 (`DISPLAY` + `/tmp/.X11-unix`) and Wayland (`WAYLAND_DISPLAY` +
-  `XDG_RUNTIME_DIR`) sockets, so `hanoi-gui` opens on the host display. Unlike `BUILD_DOCS`
-  this stays on when nested (modelled on modelviewprojection); disable with
-  `make image USE_X_WINDOWS=0`. hanoi's GUI is 2D (wx/Cairo), so no OpenGL/mesa is installed.
-- `make format` — ruff check+format the Python (line width from pyproject config).
-- `make type-check` — run `ty` over the Python (`src` + `tests`); fails on any diagnostic.
-- The image `ENTRYPOINT` installs the package, runs `pytest --exitfirst`, then
-  builds the book (html/latexpdf/epub) into `/output/towersofhanoi/`.
+- **Root (book):** `make image` (book image: base + Sphinx/TeX under `BUILD_DOCS=1`, the
+  default; `MINIMAL_IMAGE=1` for a lean image). `make docs` builds html/pdf/epub into
+  `./output/towersofhanoi/`. `make format` / `make type-check` delegate to `python/`.
+- **`cd python && make`** — `cli` / `tui` / `wx` run the front-ends (X11 + Wayland
+  passthrough for the wx GUI); `format` (ruff) / `type-check` (ty) are the gates; `shell`.
+  `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs — no OpenGL/mesa (the board is 2D
+  wx/Cairo). `USE_EMACS` (default 1) installs emacs + the Python dev set.
+- **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` run the front-ends; `format`
+  (rustfmt). The crates build at runtime (cached in `rust/.container-*`) because wxDragon
+  builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
+- Every subproject has `shell` / `shell-exec` (sharing one invocation), `image-export` /
+  `image-import`, `PODMAN_RUN_FLAGS` (nested-podman), and `update-emacs-packages`.
 
-Without the container: `cd python && python -m venv venv && . venv/bin/activate &&
+Without a container (Python): `cd python && python -m venv venv && . venv/bin/activate &&
 pip install -e . && hanoi`.
 
 ## Conventions
 
-- Python, formatted with **ruff** (`ruff check --fix` + `ruff format`); the line
-  width (80) is set once in `[tool.ruff] line-length` in `python/pyproject.toml` — it
-  governs the formatter *and* E501, so `format.sh` passes no `--line-length` flag.
-  `make format` runs it; it also runs on shell exit.
-- **Fully typed, dataclass-ified, and Google-docstringed.** *Every* binding is annotated
-  — a hanoi-specific **maximal** choice (signatures, locals, constants, loop/`with`
-  targets), stricter than the shared standard's default. `make type-check` runs `ty` over
-  `src` + `tests`; keep it green. Rationale + the typing patterns:
-  `tasks/reference/architecture-overview.md` ("Typing, docstrings & the type-check gate").
-- All three front-ends go through the same `engine.dispatch` + `commands.parse` +
-  `presenter.render` — keep them thin; logic belongs in the shared layers.
-- Recipes are stored in the user's *labels* and replayed through the *current*
-  labelling — that label-space transparency is the teaching point. Preserve it.
+- **Python** (in `python/`): ruff (line-length 80, from `[tool.ruff] line-length` in
+  `python/pyproject.toml` — the single source of truth, so `format.sh` passes no flag).
+  Fully typed + Google-docstringed; `make type-check` runs `ty` and must stay green.
+- All front-ends (both languages) go through the shared `engine.dispatch` + `commands.parse`
+  + `presenter.render` layer — keep them thin; logic belongs in the shared core.
+- Recipes are stored in the user's *labels* and replayed through the *current* labelling —
+  that label-space transparency is the teaching point. Preserve it.
+- The Python package is the **behaviour oracle** for the Rust/C++ ports — never remove it to
+  satisfy a port.
+- **Emacs (per-language dev tooling).** Each subproject vendors its own
+  `entrypoint/dotfiles/.emacs.d/` (lsp-mode + the language's server), installed into the image,
+  bind-mounted at runtime, and baked so a mount-less image works too; refresh with the
+  subproject's `make update-emacs-packages`. Every `init.el` must (1) **pin the LSP root** to the
+  subproject's `REPO_MOUNT` (`/hanoi-<lang>`), (2) **ignore the build/cache dirs** under the mount
+  in `lsp-file-watch-ignored-directories`, and (3) **enable yasnippet** (so the `${1:arg}$0`
+  completion snippets expand). hanoi is a **reusable basis for other multi-language projects** — a
+  new language folder gets the same shape. Full recipe + the exact elisp:
+  `tasks/reference/per-language-subproject-layout.md`.
 
 ## Documentation model
 
-- **`README.md`** — user-facing overview (running the front-ends, bash demos,
-  the book). This file (`CLAUDE.md`) — lean agent/contributor reference.
-- **`tasks/`** — active, in-flight work, one file per task (surfaced by the
-  session-start scan). **`tasks/archive/<YYYY>/<MM>/<DD>/`** — completed task
-  docs, kept for history.
+- **`README.md`** — user-facing overview. This file (`CLAUDE.md`) — lean agent/contributor
+  reference; each subproject has its own `CLAUDE.md`.
+- **`tasks/`** — active work, one file per task. **`tasks/archive/<YYYY>/<MM>/<DD>/`** —
+  completed task docs.
 
-**Reference docs:** `tasks/reference/architecture-overview.md` — the dispatch data-flow
-across the three frontends + the default-label-space recipe invariant, the **per-file
-teaching intent (module map)**, the **wx/GTK frontend gotchas** (sizer alignment flags;
-why the relabel menu uses normal — not radio — items), and the doc/roadmap history (archived
-`PLAN.md`/`NOTES.md`, the reverted OpenGL step, descoped follow-ons). Read it before touching
-the engine/recipe subsystem, the wx GUI, or for the per-file "why".
+**Reference docs:** `tasks/reference/architecture-overview.md` (dispatch data-flow + the
+default-label-space recipe invariant + the per-file teaching intent + wx/GTK gotchas) and
+`tasks/reference/per-language-subproject-layout.md` (the per-language container/emacs template +
+the recipe for adding a language); plus the shared `rust-gui-tui-and-ecosystem.md` and
+`tauri-desktop-apps.md`. Read the relevant one before touching the engine/recipe subsystem, the
+container layout, the wx GUI, or Tauri.

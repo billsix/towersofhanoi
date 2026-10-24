@@ -1,9 +1,18 @@
-# Cargo build output (the compiled artifacts are never committed).
+# Cargo build output (compiled artifacts are never committed).
 /target
-# The hanoi container's separate Cargo target (CARGO_TARGET_DIR for the make
-# rust-* targets; caches wxDragon's from-source wxWidgets build across runs).
+# The container's Cargo caches on the bind-mount, set by shell.sh and the run targets
+# (`cd rust && make cli | tui | wx | tauri`): CARGO_TARGET_DIR caches wxDragon's
+# from-source wxWidgets build, CARGO_HOME the crate-registry downloads. Shared by the
+# workspace and the Tauri crate (whose own build dir is rust/tauri/, ignored there).
 /.container-target
-# The hanoi container's Cargo home (CARGO_HOME for the make rust-* AND rust-tauri
-# targets; persists the crate-registry download cache across --rm runs so crates
-# are fetched once, not every run). Shared by the workspace and the Tauri crate.
 /.container-cargo
+
+# emacs / lsp-mode runtime junk written into the mounted tree during a session
+.lsp-session-v1
+*~
+\#*\#
+.\#*
+entrypoint/dotfiles/.emacs.d/eln-cache/
+entrypoint/dotfiles/.emacs.d/elpa/*.elc
+entrypoint/dotfiles/.emacs.d/elpa/**/*.elc
+entrypoint/dotfiles/.emacs.d/elpa/**/*.eln

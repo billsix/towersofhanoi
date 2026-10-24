@@ -8,3 +8,8 @@ __pycache__/
 
 # built worksheet PDFs (regenerable via `make -C workbook`)
 workbook/*.pdf
+
+# Sphinx book build + the copied book artifacts (regenerable via `make docs`)
+docs/build/
+/output/*
+!/output/.keep
