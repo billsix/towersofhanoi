@@ -1,6 +1,6 @@
 # Towers of Hanoi
 
-Example implementations of the Towers of Hanoi, in **bash**, **Python**, and **Rust**.
+Example implementations of the Towers of Hanoi, in **bash**, **Python**, **Rust**, and **C++**.
 It's a teaching project: the focus is learning to solve the puzzle *by hand* via
 **peg relabelling** — solve a small stack, then reuse that solution as a black box
 for a bigger one by relabelling the pegs.
@@ -15,6 +15,7 @@ targets — build and run it from its own directory:
 - **`python/`** — the canonical implementation (three front-ends).
 - **`rust/`** — a Rust reimplementation kept in sync feature-for-feature, including the
   Tauri desktop app at `rust/tauri/`.
+- **`cpp/`** — a C++ port with a Dear ImGui GUI, building a native binary **and** WebAssembly.
 - the repo **root** builds the Sphinx **book** (`docs/`) and the printable worksheets
   (`workbook/`), and holds the **bash** demos. (The root keeps its own `Dockerfile`/`Makefile`
   — unlike a plain directory — because the book is cross-cutting: it pulls code listings from
@@ -62,6 +63,17 @@ make tauri    # Tauri desktop app (webview UI; text or canvas board)
 
 The GUI/desktop targets forward your display automatically. (The first `make wx` is slow —
 it builds wxWidgets from source; later runs reuse the cached build.)
+
+## C++
+
+A **Dear ImGui** GUI over the same game engine, built two ways from one codebase:
+
+```sh
+cd cpp
+make gui          # native desktop window (X11 + Wayland forwarded automatically)
+make webassembly  # build web/index.{html,js,wasm}
+make serve        # build the wasm if needed, then serve it at http://localhost:8000
+```
 
 ## Bash demos
 
