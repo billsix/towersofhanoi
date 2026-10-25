@@ -55,5 +55,5 @@ annotate-every-binding rule; there is no checker, it is review discipline. The f
 rationale: `runClaudeInContainer tasks/reference/rust-coding-standard.md` ("Type annotations").
 The wxDragon GUI build gotchas (libclang/bindgen, from-source wxWidgets, system image libs, X11
 session libs) are documented in `entrypoint/01-install-rust-base.sh` and
-`../tasks/reference/rust-gui-tui-and-ecosystem.md`; Tauri specifics in
-`../tasks/reference/tauri-desktop-apps.md`.
+`~/.claude/reference/rust-gui-tui-and-ecosystem.md`; Tauri specifics in
+`~/.claude/reference/tauri-desktop-apps.md`.
