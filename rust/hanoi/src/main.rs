@@ -166,7 +166,8 @@ fn draw_play(
     hint: &[&str],
     input: &str,
 ) {
-    let [status, board, messages, hints, prompt]: [Rect; 5] = Layout::vertical([
+    let [status, valid, board, messages, hints, prompt]: [Rect; 6] = Layout::vertical([
+        Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Min(1),
         Constraint::Length(MSG_AREA_LINES as u16),
@@ -178,6 +179,12 @@ fn draw_play(
     f.render_widget(
         Paragraph::new(status_line(session)).style(Style::default().fg(Color::Yellow)),
         status,
+    );
+    // The currently-legal moves in the current labels (feature-spec §4.4), like the
+    // CLI/wx/Tauri surface — so the TUI isn't the one front-end without a moves hint.
+    f.render_widget(
+        Paragraph::new(session.valid_moves_str()).style(Style::default().fg(Color::Cyan)),
+        valid,
     );
     f.render_widget(
         Paragraph::new(board_lines(session)).alignment(Alignment::Center),
@@ -262,6 +269,7 @@ enum Key {
     PageDown,
     Home,
     End,
+    Tab,
     /// Ctrl-C or Esc — treated as cancel/EOF.
     Interrupt,
     Other,
@@ -287,6 +295,7 @@ fn read_key() -> std::io::Result<Key> {
                 KeyCode::PageDown => Key::PageDown,
                 KeyCode::Home => Key::Home,
                 KeyCode::End => Key::End,
+                KeyCode::Tab => Key::Tab,
                 KeyCode::Char(c) => Key::Char(c),
                 _ => Key::Other,
             };
@@ -297,11 +306,17 @@ fn read_key() -> std::io::Result<Key> {
 
 /// Draw `draw(frame, input)` repeatedly while the user edits a line; return the
 /// submitted line on Enter, or `None` on Ctrl-C/Esc.
-fn read_line_on<F>(terminal: &mut DefaultTerminal, draw: F) -> std::io::Result<Option<String>>
+fn read_line_on<F, C>(
+    terminal: &mut DefaultTerminal,
+    initial: &str,
+    draw: F,
+    complete: C,
+) -> std::io::Result<Option<String>>
 where
     F: Fn(&mut Frame, &str),
+    C: Fn(&str) -> String,
 {
-    let mut input = String::new();
+    let mut input = String::from(initial);
     loop {
         terminal.draw(|f| draw(f, &input))?;
         match read_key()? {
@@ -309,11 +324,38 @@ where
             Key::Backspace => {
                 input.pop();
             }
+            Key::Tab => input = complete(&input),
             Key::Enter => return Ok(Some(input)),
             Key::Interrupt => return Ok(None),
             _ => {}
         }
     }
+}
+
+/// Tab-completion for the TUI prompt: complete the token under the cursor against
+/// the shared `commands::completions` candidates (command verbs, or recipe names
+/// after `apply `/`show `). One candidate fills in fully; several fill to their
+/// longest common prefix; none leaves `input` unchanged. Mirrors the CLI's
+/// readline completion so the two front-ends behave the same.
+fn complete_line(input: &str, recipe_names: &[String]) -> String {
+    let text = input.rsplit(' ').next().unwrap_or("");
+    let cands = hanoigame::commands::completions(input, text, recipe_names);
+    if cands.is_empty() {
+        return input.to_string();
+    }
+    let fill = if cands.len() == 1 {
+        cands[0].clone()
+    } else {
+        let mut prefix = cands[0].clone();
+        for c in &cands[1..] {
+            while !c.starts_with(&prefix) {
+                prefix.pop();
+            }
+        }
+        prefix
+    };
+    let base = input.strip_suffix(text).unwrap_or(input);
+    format!("{base}{fill}")
 }
 
 /// Page through `lines` full-screen until the user closes it.
@@ -341,7 +383,7 @@ fn pager(terminal: &mut DefaultTerminal, lines: &[String]) -> std::io::Result<()
 /// Modally ask for a disc count; `None` to quit.
 fn prompt_disc_count(terminal: &mut DefaultTerminal) -> std::io::Result<Option<u32>> {
     loop {
-        let Some(line) = read_line_on(terminal, draw_disc_prompt)? else {
+        let Some(line) = read_line_on(terminal, "", draw_disc_prompt, |s| s.to_string())? else {
             return Ok(None);
         };
         let s = line.trim().to_lowercase();
@@ -366,9 +408,12 @@ fn play_game(
     let mut msg: Vec<String> = Vec::new();
 
     while !session.is_won() {
-        let Some(line) = read_line_on(terminal, |f, input| {
-            draw_play(f, &session, &msg, &DEFAULT_HINT, input)
-        })?
+        let Some(line) = read_line_on(
+            terminal,
+            "",
+            |f, input| draw_play(f, &session, &msg, &DEFAULT_HINT, input),
+            |input| complete_line(input, &session.registry.names()),
+        )?
         else {
             return Ok(false);
         };
@@ -397,10 +442,14 @@ fn play_game(
         banner.push(format!("{} more than the minimum.", moves - min));
     }
 
-    let save_hint = ["Save this solution? Type a name, or press Enter to skip."];
-    let name = read_line_on(terminal, |f, input| {
-        draw_play(f, &session, &banner, &save_hint, input)
-    })?;
+    let default_name = format!("solve-{}", session.num_disks());
+    let save_hint = ["Save this solution? Edit the name and press Enter, or clear it to skip."];
+    let name = read_line_on(
+        terminal,
+        &default_name,
+        |f, input| draw_play(f, &session, &banner, &save_hint, input),
+        |s| s.to_string(),
+    )?;
     if let Some(name) = name {
         let name = name.trim();
         if !name.is_empty() {
@@ -410,9 +459,12 @@ fn play_game(
     }
 
     let again_hint = ["Play again? (y/n)"];
-    let again = read_line_on(terminal, |f, input| {
-        draw_play(f, &session, &banner, &again_hint, input)
-    })?;
+    let again = read_line_on(
+        terminal,
+        "",
+        |f, input| draw_play(f, &session, &banner, &again_hint, input),
+        |s| s.to_string(),
+    )?;
     Ok(matches!(again, Some(a) if a.trim().to_lowercase().starts_with('y')))
 }
 

@@ -1,14 +1,15 @@
 # Cross-platform ports (Android / iPhone / iPad / Go web server) + extract the product-dev methodology
 
 **Status:** blocked
-**Blocked on:** (1) the desktop/web spec-parity foundation landing — the C++ parity
-(`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`) and Rust parity
-(`tasks/rust-feature-parity-tauri-tui-gaps.md`) tasks complete, so there is a proven, spec-conformant
-multi-language base to port *from*; and (2) the maintainer green-lighting this initiative and providing
-the mobile prerequisites that are outside the agent's control — an **Apple Developer account + a Mac with
-Xcode** (iOS/iPadOS) and the **Android SDK/NDK + a device or emulator** (none are in the sandbox today).
-**Recheck:** `ls tasks/ | grep -E 'cpp-add-wx|rust-feature-parity'` — when both parity tasks have moved to
-`tasks/archive/`, the foundation half is clear; the hardware/account half and the go-ahead are the
+**Blocked on:** (1) the desktop/web spec-parity foundation — **now COMPLETE (2026-10-25):** both the C++
+parity (`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`) and the Rust parity
+(`tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`) tasks are done + archived, so there is
+a proven, spec-conformant multi-language base to port *from*; and (2) — the remaining blocker — the
+maintainer green-lighting this initiative and providing the mobile prerequisites outside the agent's
+control: an **Apple Developer account + a Mac with Xcode** (iOS/iPadOS) and the **Android SDK/NDK + a
+device or emulator** (none are in the sandbox today).
+**Recheck:** `ls tasks/ | grep -E 'cpp-add-wx|rust-feature-parity'` — now matches NEITHER (both archived),
+so the foundation half is clear; only the hardware/account half + the go-ahead remain, both the
 maintainer's to signal.
 **Priority:** 8 (blocked) **Difficulty:** 9
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: "when [the parity work is]
@@ -127,7 +128,7 @@ extracts into the sandboxes.
 
 - The contract: `tasks/reference/feature-spec.md`; the audit: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
 - The foundation this is blocked on: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`,
-  `tasks/rust-feature-parity-tauri-tui-gaps.md`.
+  `tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`.
 - Candidate cores: `rust/hanoigame/`, `cpp/src/{model,presenter,recipe}.hpp`.
 - Research sources (2026-10-25): cross-platform C++ (NDK/Emscripten/iOS) —
   https://levelup.gitconnected.com/cross-platform-mobile-and-web-development-with-c-explained-aac9952b4f8c

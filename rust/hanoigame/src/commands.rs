@@ -43,6 +43,31 @@ pub enum Command {
 /// there is no "move" verb here.
 pub const COMMAND_VERBS: [&str; 7] = ["relabel", "save", "apply", "show", "list", "help", "quit"];
 
+/// Tab-completion candidates for `text` (the token under the cursor) given the whole input
+/// `buffer` and the saved-recipe `recipe_names`: command verbs while still on the first token,
+/// recipe names after `apply `/`show ` (never after `save `, so completion never invites
+/// overwriting a recipe). Pure and unit-testable; `recipe_names` is a slice (sorted by the
+/// caller) so this doesn't depend on the registry type. Shared by every front-end that offers
+/// completion (the CLI's readline helper and the TUI prompt).
+pub fn completions(buffer: &str, text: &str, recipe_names: &[String]) -> Vec<String> {
+    let stripped = buffer.trim_start();
+    if stripped.starts_with("apply ") || stripped.starts_with("show ") {
+        return recipe_names
+            .iter()
+            .filter(|name| name.starts_with(text))
+            .cloned()
+            .collect();
+    }
+    if stripped.contains(' ') {
+        return Vec::new();
+    }
+    COMMAND_VERBS
+        .iter()
+        .filter(|verb| verb.starts_with(text))
+        .map(|verb| verb.to_string())
+        .collect()
+}
+
 /// The help text listing every command.
 pub const HELP_TEXT: &str = "\
 Commands:

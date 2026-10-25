@@ -27,7 +27,7 @@ use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
 use hanoigame::presenter::{self, change_labels_on_pegs, Labelling};
-use hanoigame::recipe::{rebinding, RecipeRegistry, Recorder};
+use hanoigame::recipe::{apply, rebinding, rebound_moves, RecipeRegistry, Recorder};
 
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
@@ -139,6 +139,70 @@ impl AppState {
             rebinding,
             recipes,
             message,
+            apply: None,
+        }
+    }
+
+    /// Apply `name` to the game, mirroring `GameSession::handle_apply` (apply +
+    /// record the successful steps) but capturing the structured result for the
+    /// three-panel view. The crate's `apply` does the same game mutation the
+    /// dispatch path would; we just keep the `StepResult`s instead of only lines.
+    fn apply_structured(&mut self, name: &str) -> ApplyOutcome {
+        let Some(recipe) = self.registry.get(name).cloned() else {
+            return ApplyOutcome {
+                message: format!("No recipe named '{name}'. Use the list to pick one."),
+                view: None,
+            };
+        };
+        let labelling = self.labelling;
+        let relabelled = labelling != Labelling::OneTwoThree;
+        let recipe_moves: Vec<[u32; 2]> =
+            recipe.default_moves.iter().map(|&(a, b)| [a, b]).collect();
+        let rebound: Vec<[u32; 2]> = rebound_moves(&recipe.default_moves, labelling)
+            .iter()
+            .map(|&(a, b)| [a, b])
+            .collect();
+        let rebind: Vec<[u32; 2]> = if relabelled {
+            rebinding(labelling).iter().map(|&(l, p)| [l, p]).collect()
+        } else {
+            Vec::new()
+        };
+
+        let results = apply(&recipe, &mut self.game, labelling);
+        let mut steps: Vec<ApplyStep> = Vec::new();
+        let mut applied = 0usize;
+        let mut stopped: Option<String> = None;
+        for r in &results {
+            steps.push(ApplyStep {
+                from_label: r.from_label,
+                to_label: r.to_label,
+                from_peg: r.from_peg.map(|p| (p + 1) as u32),
+                to_peg: r.to_peg.map(|p| (p + 1) as u32),
+                error: r.error.clone(),
+            });
+            if r.ok() {
+                let fp = r.from_peg.expect("a successful step carries pegs");
+                let tp = r.to_peg.expect("a successful step carries pegs");
+                self.recorder.record((fp + 1) as u32, (tp + 1) as u32);
+                applied += 1;
+            } else {
+                stopped = r.error.clone();
+            }
+        }
+        let message = match &stopped {
+            Some(e) => format!("Applied '{name}' \u{2014} stopped: {e}"),
+            None => format!("Applied '{name}' \u{2014} {applied} moves."),
+        };
+        ApplyOutcome {
+            message,
+            view: Some(ApplyView {
+                name: name.to_string(),
+                relabelled,
+                recipe_moves,
+                rebinding: rebind,
+                rebound_moves: rebound,
+                steps,
+            }),
         }
     }
 }
@@ -164,6 +228,9 @@ struct Snapshot {
     rebinding: Vec<[u32; 2]>,
     recipes: Vec<RecipeInfo>,
     message: String,
+    /// Populated only by `apply_recipe`: the three-panel rebinding view + the
+    /// per-step replay log (feature-spec.md §4.8). `None` for every other command.
+    apply: Option<ApplyView>,
 }
 
 #[derive(Serialize)]
@@ -171,6 +238,37 @@ struct RecipeInfo {
     name: String,
     disks: u32,
     moves: usize,
+}
+
+/// The on-invoke three-panel rebinding view (feature-spec.md §4.8), returned by
+/// `apply_recipe`. `recipe_moves | rebinding | rebound_moves` are the three
+/// columns; `steps` is the per-step replay log; `relabelled` gates the panel
+/// (the three columns are the teaching payoff only under a non-default labelling).
+#[derive(Serialize)]
+struct ApplyView {
+    name: String,
+    relabelled: bool,
+    recipe_moves: Vec<[u32; 2]>,
+    rebinding: Vec<[u32; 2]>,
+    rebound_moves: Vec<[u32; 2]>,
+    steps: Vec<ApplyStep>,
+}
+
+#[derive(Serialize)]
+struct ApplyStep {
+    from_label: u32,
+    to_label: u32,
+    /// 1-indexed physical pegs the move resolved to (None if unresolved).
+    from_peg: Option<u32>,
+    to_peg: Option<u32>,
+    /// Failure reason, or None if the step applied.
+    error: Option<String>,
+}
+
+/// `apply_structured`'s result: the status message + the view (None if no recipe).
+struct ApplyOutcome {
+    message: String,
+    view: Option<ApplyView>,
 }
 
 #[tauri::command]
@@ -224,18 +322,10 @@ fn save_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Snapshot {
 #[tauri::command]
 fn apply_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Snapshot {
     let mut st = state.lock().unwrap();
-    let result = st.dispatch(&Command::Apply(name.clone()));
-    let steps = result
-        .lines
-        .iter()
-        .filter(|l| l.trim_start().starts_with("step "))
-        .count();
-    let message = if steps > 0 {
-        format!("Applied '{name}' \u{2014} {steps} moves.")
-    } else {
-        result.lines.last().cloned().unwrap_or_default()
-    };
-    st.snapshot(message)
+    let outcome = st.apply_structured(&name);
+    let mut snap = st.snapshot(outcome.message);
+    snap.apply = outcome.view;
+    snap
 }
 
 #[tauri::command]

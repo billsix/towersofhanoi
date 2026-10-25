@@ -11,6 +11,18 @@ const { invoke } = window.__TAURI__.core;
 const MOVE_PAIRS = [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]];
 const RELABEL_PERMS = [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]];
 
+const HELP_TEXT = [
+  "Towers of Hanoi — move every disc to the third peg, never a larger disc onto a smaller one.",
+  "",
+  "Move: click a 'from → to' button (in the current labels); illegal moves are disabled.",
+  "Relabel: rename the physical pegs (a permutation of 1,2,3). Discs don't move, and colours track",
+  "  the label — so a solved sub-problem can be replayed under a new name.",
+  "Recipes: after you win, Save the solution (default name solve-N). Apply replays a saved recipe",
+  "  under the current labelling and, when relabelled, shows the three-panel rebinding (the recipe's",
+  "  labels | label → peg | the rebound moves on the physical pegs). Show lists a recipe's moves.",
+  "New Game: pick a disc count (1–10).",
+].join("\n");
+
 // --- Graphics board (a <canvas> mirror of the wxDragon DC board; same palettes,
 // disc-width curve and layout as rust/hanoi-gui/src/main.rs::draw_board_dc) -----
 
@@ -158,7 +170,40 @@ function render(s) {
   if (previous) sel.value = previous;
 
   document.getElementById("save").disabled = !s.won;
-  document.getElementById("savename").placeholder = `solve-${s.num_disks}`;
+  const sn = document.getElementById("savename");
+  if (!sn.value) sn.value = `solve-${s.num_disks}`; // prefill the default name (feature-spec §4.5)
+
+  renderApplyView(s.apply);
+}
+
+// The on-invoke three-panel rebinding view (feature-spec §4.8): the recipe's own
+// moves | the label→peg rebinding | the rebound physical moves, plus the per-step
+// replay log. Shown only under a non-default labelling (nothing to teach otherwise).
+function renderApplyView(apply) {
+  const el = document.getElementById("apply-view");
+  if (!apply || !apply.relabelled) {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  const col = (title, rows) =>
+    `<div class="apply-col"><h4>${title}</h4>${rows.map((r) => `<div>${r}</div>`).join("")}</div>`;
+  const recipeCol = apply.recipe_moves.map(([a, b], i) => `${i + 1}: ${a} → ${b}`);
+  const rebindCol = apply.rebinding.map(([l, p]) => `label ${l} → peg ${p}`);
+  const reboundCol = apply.rebound_moves.map(([a, b], i) => `${i + 1}: ${a} → ${b}`);
+  const steps = apply.steps.map((st, i) =>
+    st.error
+      ? `step ${i + 1}: stopped — ${st.error}`
+      : `step ${i + 1}: ${st.from_label} → ${st.to_label}`);
+  el.innerHTML =
+    `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
+    `<div class="apply-cols">` +
+    col("Recipe (its labels)", recipeCol) +
+    col("Rebinding (label &rarr; peg)", rebindCol) +
+    col("Rebound (physical pegs)", reboundCol) +
+    `</div>` +
+    `<div class="apply-steps"><h4>Steps</h4>${steps.map((r) => `<div>${r}</div>`).join("")}</div>`;
+  el.classList.remove("hidden");
 }
 
 async function init() {
@@ -177,10 +222,12 @@ async function init() {
     render(await invoke("new_game", { discs }));
   });
   document.getElementById("save").addEventListener("click", async () => {
-    const name = document.getElementById("savename").value.trim();
-    render(await invoke("save_recipe", { name }));
-    document.getElementById("savename").value = "";
+    const sn = document.getElementById("savename");
+    const s = await invoke("save_recipe", { name: sn.value.trim() });
+    render(s);
+    sn.value = `solve-${s.num_disks}`; // reset to the default name for the next recipe
   });
+  document.getElementById("help").addEventListener("click", () => alert(HELP_TEXT));
   document.getElementById("apply").addEventListener("click", async () => {
     const name = document.getElementById("recipes").value;
     if (name) render(await invoke("apply_recipe", { name }));

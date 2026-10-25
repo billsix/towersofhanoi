@@ -18,37 +18,12 @@
 
 use std::io::{BufRead, IsTerminal, Write};
 
-use hanoigame::commands::{parse, COMMAND_VERBS};
+use hanoigame::commands::{completions, parse};
 use hanoigame::engine::GameSession;
 use hanoigame::presenter::render_with_legend;
 use hanoigame::recipe::RecipeRegistry;
 
 const MAX_DISKS: u32 = 10;
-
-/// Candidate completions for `text` given the whole input line `buffer` and the
-/// current saved-recipe names: command verbs while still on the first token,
-/// recipe names after `apply `/`show ` (the load side only — never after
-/// `save `, so completion never invites overwriting a recipe). Pure, so it is
-/// unit-testable. `recipe_names` is taken as a slice (sorted by the caller) so
-/// this does not depend on the registry type.
-fn completions(buffer: &str, text: &str, recipe_names: &[String]) -> Vec<String> {
-    let stripped = buffer.trim_start();
-    if stripped.starts_with("apply ") || stripped.starts_with("show ") {
-        return recipe_names
-            .iter()
-            .filter(|name| name.starts_with(text))
-            .cloned()
-            .collect();
-    }
-    if stripped.contains(' ') {
-        return Vec::new();
-    }
-    COMMAND_VERBS
-        .iter()
-        .filter(|verb| verb.starts_with(text))
-        .map(|verb| verb.to_string())
-        .collect()
-}
 
 /// Reads one line of input for the game loop, writing the `prompt` where the
 /// mode requires it. `recipe_names` feeds tab-completion (ignored by the

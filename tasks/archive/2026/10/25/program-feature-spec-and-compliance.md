@@ -3,7 +3,7 @@
 **Status:** COMPLETE (2026-10-25) — spec written (`tasks/reference/feature-spec.md`), Python reconciled
 to it (the authority; no cruft found, nothing added beyond Python), and the Rust/C++/bash audit documented
 below (§ Audit results). Gap-fixing is spun into per-language parity tasks (C++:
-`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`; Rust: `tasks/rust-feature-parity-tauri-tui-gaps.md`).
+`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`; Rust: `tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`).
 Ready to archive after the work commit.
 **Priority:** 4 **Difficulty:** 6
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: "let's make a reference
@@ -124,7 +124,7 @@ logic, unit-tested); gaps are presentation-only in two front-ends: **Tauri row 1
 returns a one-line message + a standing label→peg line — missing the recipe-moves and rebound-physical
 columns; the backend has `format_rebinding_table`/`rebound_moves` already) and **row 12** richness
 (per-step log dropped); **TUI row 8** (no valid-moves line — CLI/wx/Tauri have it); **wx/Tauri row 14**
-(wx Help is an About blurb; Tauri has no help). → `tasks/rust-feature-parity-tauri-tui-gaps.md`.
+(wx Help is an About blurb; Tauri has no help). → `tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`.
 
 **C++** — the engine headers have the rules + `rebinding()`, but the ImGui GUI drives them directly with
 no commands/engine-dispatch layer, so several Python behaviours are absent from *both* engine and GUI.

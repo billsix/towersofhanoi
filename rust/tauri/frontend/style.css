@@ -118,3 +118,36 @@ select {
   border-radius: 5px;
   padding: 0.3rem 0.5rem;
 }
+
+/* The on-invoke three-panel rebinding view (feature-spec §4.8). */
+.apply-view {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  background: #141a28;
+  border: 1px solid #39425a;
+  border-radius: 6px;
+}
+.apply-view h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+.apply-view h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  color: #aab3c5;
+}
+.apply-cols {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+.apply-col {
+  min-width: 10rem;
+}
+.apply-steps {
+  margin-top: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
