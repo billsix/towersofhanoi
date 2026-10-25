@@ -18,8 +18,8 @@
 
 use std::io::{BufRead, IsTerminal, Write};
 
-use hanoigame::commands::{completions, parse};
-use hanoigame::engine::GameSession;
+use hanoigame::commands::{completions, parse, Command};
+use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::presenter::render_with_legend;
 use hanoigame::recipe::RecipeRegistry;
 
@@ -47,7 +47,7 @@ impl<R: BufRead> LineReader for StreamReader<'_, R> {
     fn read(&mut self, prompt: &str, out: &mut dyn Write, _names: &[String]) -> Option<String> {
         let _ = write!(out, "{prompt}");
         let _ = out.flush();
-        let mut line = String::new();
+        let mut line: String = String::new();
         match self.input.read_line(&mut line) {
             Ok(0) | Err(_) => None,
             Ok(_) => Some(line.trim_end_matches('\n').to_string()),
@@ -99,9 +99,9 @@ impl rustyline::completion::Completer for HanoiHelper {
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         // The current word runs from the last space before the cursor to `pos`.
-        let start = line[..pos].rfind(' ').map_or(0, |i| i + 1);
-        let word = &line[start..pos];
-        let pairs = completions(line, word, &self.recipe_names)
+        let start: usize = line[..pos].rfind(' ').map_or(0, |i| i + 1);
+        let word: &str = &line[start..pos];
+        let pairs: Vec<rustyline::completion::Pair> = completions(line, word, &self.recipe_names)
             .into_iter()
             .map(|s| rustyline::completion::Pair {
                 display: s.clone(),
@@ -134,12 +134,12 @@ fn prompt_disc_count<W: Write>(
     output: &mut W,
 ) -> Option<u32> {
     loop {
-        let line = reader.read(
+        let line: String = reader.read(
             &format!("How many discs? (1-{MAX_DISKS}, or 'quit'): "),
             output,
             names,
         )?;
-        let s = line.trim().to_lowercase();
+        let s: String = line.trim().to_lowercase();
         if matches!(s.as_str(), "quit" | "q" | "exit") {
             return None;
         }
@@ -154,20 +154,20 @@ fn prompt_disc_count<W: Write>(
 
 /// After a win, offer to save the solution as a recipe.
 fn prompt_save<W: Write>(reader: &mut dyn LineReader, session: &mut GameSession, output: &mut W) {
-    let default = format!("solve-{}", session.num_disks());
-    let names = session.registry.names();
-    let prompt = format!(
+    let default: String = format!("solve-{}", session.num_disks());
+    let names: Vec<String> = session.registry.names();
+    let prompt: String = format!(
         "\nSave this solution as a recipe? Enter to save as '{default}', a name \
          to rename, or '-' to skip: "
     );
     let Some(line) = reader.read(&prompt, output, &names) else {
         return;
     };
-    let name = line.trim();
+    let name: &str = line.trim();
     if name == "-" {
         return;
     }
-    let name = if name.is_empty() {
+    let name: &str = if name.is_empty() {
         default.as_str()
     } else {
         name
@@ -182,18 +182,18 @@ fn play_game<W: Write>(
     n: u32,
     output: &mut W,
 ) -> bool {
-    let mut session = GameSession::new(n, registry);
+    let mut session: GameSession<'_> = GameSession::new(n, registry);
 
     while !session.is_won() {
         let _ = writeln!(output);
         print_board(&session, output);
         let _ = writeln!(output, "{}", session.valid_moves_str());
-        let names = session.registry.names();
+        let names: Vec<String> = session.registry.names();
         let Some(line) = reader.read("> ", output, &names) else {
             return false;
         };
-        let cmd = parse(&line);
-        let result = session.dispatch(&cmd);
+        let cmd: Command = parse(&line);
+        let result: DispatchResult = session.dispatch(&cmd);
         for line in &result.lines {
             let _ = writeln!(output, "{line}");
         }
@@ -207,8 +207,8 @@ fn play_game<W: Write>(
 
     let _ = writeln!(output);
     print_board(&session, output);
-    let min = session.min_moves();
-    let moves = u64::from(session.current_moves());
+    let min: u64 = session.min_moves();
+    let moves: u64 = u64::from(session.current_moves());
     let _ = writeln!(output, "\nSolved! {moves} moves (minimum {min}).");
     if moves == min {
         let _ = writeln!(output, "Optimal solution!");
@@ -218,7 +218,7 @@ fn play_game<W: Write>(
 
     prompt_save(reader, &mut session, output);
 
-    let names = session.registry.names();
+    let names: Vec<String> = session.registry.names();
     match reader.read("\nPlay again? (y/n): ", output, &names) {
         Some(again) => again.trim().to_lowercase().starts_with('y'),
         None => false,
@@ -229,9 +229,9 @@ fn play_game<W: Write>(
 /// quits or EOFs. Returns the process exit code (always `0`).
 fn game_loop<W: Write>(reader: &mut dyn LineReader, output: &mut W) -> i32 {
     let _ = writeln!(output, "Towers of Hanoi — type 'help' for commands.");
-    let mut registry = RecipeRegistry::new();
+    let mut registry: RecipeRegistry = RecipeRegistry::new();
     loop {
-        let names = registry.names();
+        let names: Vec<String> = registry.names();
         let Some(n) = prompt_disc_count(reader, &names, output) else {
             let _ = writeln!(output, "Bye.");
             return 0;
@@ -246,27 +246,27 @@ fn game_loop<W: Write>(reader: &mut dyn LineReader, output: &mut W) -> i32 {
 /// Run over any `BufRead`/`Write` pair (pipes, tests) — the scripted path, no
 /// line editing or completion. Returns the process exit code.
 pub fn run<R: BufRead, W: Write>(input: &mut R, output: &mut W) -> i32 {
-    let mut reader = StreamReader { input };
+    let mut reader: StreamReader<'_, R> = StreamReader { input };
     game_loop(&mut reader, output)
 }
 
 /// Run at a real terminal with rustyline line editing + Tab completion.
 fn run_interactive() -> i32 {
-    let mut editor =
+    let mut editor: rustyline::Editor<HanoiHelper, rustyline::history::DefaultHistory> =
         match rustyline::Editor::<HanoiHelper, rustyline::history::DefaultHistory>::new() {
             Ok(editor) => editor,
             Err(_) => {
                 // readline init failed — fall back to the plain stream path.
-                let stdin = std::io::stdin();
-                let stdout = std::io::stdout();
+                let stdin: std::io::Stdin = std::io::stdin();
+                let stdout: std::io::Stdout = std::io::stdout();
                 return run(&mut stdin.lock(), &mut stdout.lock());
             }
         };
     editor.set_helper(Some(HanoiHelper {
         recipe_names: Vec::new(),
     }));
-    let mut reader = RustylineReader { editor };
-    let stdout = std::io::stdout();
+    let mut reader: RustylineReader = RustylineReader { editor };
+    let stdout: std::io::Stdout = std::io::stdout();
     game_loop(&mut reader, &mut stdout.lock())
 }
 
@@ -274,8 +274,8 @@ fn main() {
     if std::io::stdin().is_terminal() {
         std::process::exit(run_interactive());
     }
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
+    let stdin: std::io::Stdin = std::io::stdin();
+    let stdout: std::io::Stdout = std::io::stdout();
     std::process::exit(run(&mut stdin.lock(), &mut stdout.lock()));
 }
 
@@ -488,8 +488,10 @@ mod tests {
         let names: Vec<String> = Vec::new();
         let all: std::collections::HashSet<String> =
             completions("", "", &names).into_iter().collect();
-        let expected: std::collections::HashSet<String> =
-            COMMAND_VERBS.iter().map(|v| v.to_string()).collect();
+        let expected: std::collections::HashSet<String> = hanoigame::commands::COMMAND_VERBS
+            .iter()
+            .map(|v| v.to_string())
+            .collect();
         assert_eq!(all, expected);
         assert_eq!(completions("ap", "ap", &names), vec!["apply".to_string()]);
         assert_eq!(

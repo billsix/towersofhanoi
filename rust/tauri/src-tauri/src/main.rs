@@ -27,7 +27,7 @@ use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
 use hanoigame::presenter::{self, change_labels_on_pegs, Labelling};
-use hanoigame::recipe::{apply, rebinding, rebound_moves, RecipeRegistry, Recorder};
+use hanoigame::recipe::{apply, rebinding, rebound_moves, RecipeRegistry, Recorder, StepResult};
 
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
@@ -60,15 +60,15 @@ impl AppState {
     /// Run a command through a transient [`GameSession`] borrowing the registry
     /// (moving the game/labelling/recorder in and back out).
     fn dispatch(&mut self, cmd: &Command) -> DispatchResult {
-        let game = std::mem::replace(&mut self.game, HanoiGame::new(0));
-        let recorder = std::mem::take(&mut self.recorder);
-        let mut session = GameSession {
+        let game: HanoiGame = std::mem::replace(&mut self.game, HanoiGame::new(0));
+        let recorder: Recorder = std::mem::take(&mut self.recorder);
+        let mut session: GameSession<'_> = GameSession {
             game,
             labelling: self.labelling,
             recorder,
             registry: &mut self.registry,
         };
-        let result = session.dispatch(cmd);
+        let result: DispatchResult = session.dispatch(cmd);
         self.labelling = session.labelling;
         self.game = std::mem::replace(&mut session.game, HanoiGame::new(0));
         self.recorder = std::mem::take(&mut session.recorder);
@@ -76,15 +76,15 @@ impl AppState {
     }
 
     fn save(&mut self, name: &str) -> String {
-        let game = std::mem::replace(&mut self.game, HanoiGame::new(0));
-        let recorder = std::mem::take(&mut self.recorder);
-        let mut session = GameSession {
+        let game: HanoiGame = std::mem::replace(&mut self.game, HanoiGame::new(0));
+        let recorder: Recorder = std::mem::take(&mut self.recorder);
+        let mut session: GameSession<'_> = GameSession {
             game,
             labelling: self.labelling,
             recorder,
             registry: &mut self.registry,
         };
-        let msg = session.save_recipe(name);
+        let msg: String = session.save_recipe(name);
         self.game = std::mem::replace(&mut session.game, HanoiGame::new(0));
         self.recorder = std::mem::take(&mut session.recorder);
         msg
@@ -92,7 +92,7 @@ impl AppState {
 
     /// Build the serializable view the frontend renders.
     fn snapshot(&self, message: String) -> Snapshot {
-        let num_disks = self.game.num_disks;
+        let num_disks: u32 = self.game.num_disks;
         let labels: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
         let legal: Vec<[u32; 2]> = self
@@ -106,8 +106,8 @@ impl AppState {
                 ]
             })
             .collect();
-        let relabelled = self.labelling != Labelling::OneTwoThree;
-        let rebinding = if relabelled {
+        let relabelled: bool = self.labelling != Labelling::OneTwoThree;
+        let rebinding: Vec<[u32; 2]> = if relabelled {
             rebinding(self.labelling)
                 .iter()
                 .map(|&(label, peg)| [label, peg])
@@ -115,7 +115,7 @@ impl AppState {
         } else {
             Vec::new()
         };
-        let recipes = self
+        let recipes: Vec<RecipeInfo> = self
             .registry
             .names()
             .into_iter()
@@ -154,8 +154,8 @@ impl AppState {
                 view: None,
             };
         };
-        let labelling = self.labelling;
-        let relabelled = labelling != Labelling::OneTwoThree;
+        let labelling: Labelling = self.labelling;
+        let relabelled: bool = labelling != Labelling::OneTwoThree;
         let recipe_moves: Vec<[u32; 2]> =
             recipe.default_moves.iter().map(|&(a, b)| [a, b]).collect();
         let rebound: Vec<[u32; 2]> = rebound_moves(&recipe.default_moves, labelling)
@@ -168,9 +168,9 @@ impl AppState {
             Vec::new()
         };
 
-        let results = apply(&recipe, &mut self.game, labelling);
+        let results: Vec<StepResult> = apply(&recipe, &mut self.game, labelling);
         let mut steps: Vec<ApplyStep> = Vec::new();
-        let mut applied = 0usize;
+        let mut applied: usize = 0;
         let mut stopped: Option<String> = None;
         for r in &results {
             steps.push(ApplyStep {
@@ -181,15 +181,15 @@ impl AppState {
                 error: r.error.clone(),
             });
             if r.ok() {
-                let fp = r.from_peg.expect("a successful step carries pegs");
-                let tp = r.to_peg.expect("a successful step carries pegs");
+                let fp: usize = r.from_peg.expect("a successful step carries pegs");
+                let tp: usize = r.to_peg.expect("a successful step carries pegs");
                 self.recorder.record((fp + 1) as u32, (tp + 1) as u32);
                 applied += 1;
             } else {
                 stopped = r.error.clone();
             }
         }
-        let message = match &stopped {
+        let message: String = match &stopped {
             Some(e) => format!("Applied '{name}' \u{2014} stopped: {e}"),
             None => format!("Applied '{name}' \u{2014} {applied} moves."),
         };
@@ -278,19 +278,19 @@ fn snapshot(state: State<'_, Mutex<AppState>>) -> Snapshot {
 
 #[tauri::command]
 fn new_game(state: State<'_, Mutex<AppState>>, discs: u32) -> Snapshot {
-    let mut st = state.lock().unwrap();
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
     st.new_game(discs.clamp(1, MAX_DISKS));
     st.snapshot(String::new())
 }
 
 #[tauri::command]
 fn do_move(state: State<'_, Mutex<AppState>>, from: u32, to: u32) -> Snapshot {
-    let mut st = state.lock().unwrap();
-    let result = st.dispatch(&Command::Move {
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    let result: DispatchResult = st.dispatch(&Command::Move {
         from_label: from,
         to_label: to,
     });
-    let message = result
+    let message: String = result
         .lines
         .first()
         .cloned()
@@ -300,16 +300,16 @@ fn do_move(state: State<'_, Mutex<AppState>>, from: u32, to: u32) -> Snapshot {
 
 #[tauri::command]
 fn relabel(state: State<'_, Mutex<AppState>>, labels: [u32; 3]) -> Snapshot {
-    let mut st = state.lock().unwrap();
-    let result = st.dispatch(&Command::Relabel(labels));
-    let message = result.lines.first().cloned().unwrap_or_default();
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    let result: DispatchResult = st.dispatch(&Command::Relabel(labels));
+    let message: String = result.lines.first().cloned().unwrap_or_default();
     st.snapshot(message)
 }
 
 #[tauri::command]
 fn save_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Snapshot {
-    let mut st = state.lock().unwrap();
-    let message = if st.game.check_win_condition() && !name.trim().is_empty() {
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    let message: String = if st.game.check_win_condition() && !name.trim().is_empty() {
         st.save(name.trim())
     } else if !st.game.check_win_condition() {
         "Save only works after winning a game.".to_string()
@@ -321,16 +321,16 @@ fn save_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Snapshot {
 
 #[tauri::command]
 fn apply_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Snapshot {
-    let mut st = state.lock().unwrap();
-    let outcome = st.apply_structured(&name);
-    let mut snap = st.snapshot(outcome.message);
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    let outcome: ApplyOutcome = st.apply_structured(&name);
+    let mut snap: Snapshot = st.snapshot(outcome.message);
     snap.apply = outcome.view;
     snap
 }
 
 #[tauri::command]
 fn show_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Vec<String> {
-    let mut st = state.lock().unwrap();
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
     st.dispatch(&Command::Show(name)).lines
 }
 

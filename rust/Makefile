@@ -75,6 +75,12 @@ format: image ## Format the Rust code with rustfmt (entrypoint/format.sh)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) /format.sh
 
+.PHONY: check
+check: image ## Compile-check the workspace INCLUDING tests/examples (cargo check --all-targets) -- catches a test module that stopped compiling, which bare `cargo check` and `make format` both skip
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c '$(RUST_SETUP) && cargo check --workspace --all-targets'
+
 # --- Run a front-end. Two cargo caches on the bind-mount (both gitignored) make repeat
 # runs fast and avoid re-doing the heavy wxDragon wxWidgets build every run.
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \

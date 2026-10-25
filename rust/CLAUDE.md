@@ -31,6 +31,9 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
 - `make cli` / `make tui` / `make wx` / `make tauri` — run a front-end (X11 + Wayland
   passthrough; Tauri also sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`).
 - `make format` — rustfmt (workspace + the Tauri crate).
+- `make check` — `cargo check --workspace --all-targets`: the compile gate. `--all-targets`
+  is load-bearing — bare `cargo check` and `make format` both skip the test modules, so a
+  test that stopped compiling slips through without it (caught one here 2026-10-25).
 - `make image-export` / `make image-import FILE=…`, `make update-emacs-packages`.
 
 ## Emacs
@@ -45,6 +48,11 @@ the Cargo workspace without prompting — the per-language root-pin convention i
 ## Conventions
 
 Keep each front-end thin — logic lives in the `hanoigame` crate, mirroring the Python layering.
+**Type annotations — annotate every binding** (house style, over Rust's inference): every `let`
+carries an explicit `let x: T =`, preferring the annotation to a turbofish; pattern bindings stay
+inferred. This is a deliberate deviation from idiomatic Rust, mirroring the Python
+annotate-every-binding rule; there is no checker, it is review discipline. The full rule and its
+rationale: `runClaudeInContainer tasks/reference/rust-coding-standard.md` ("Type annotations").
 The wxDragon GUI build gotchas (libclang/bindgen, from-source wxWidgets, system image libs, X11
 session libs) are documented in `entrypoint/01-install-rust-base.sh` and
 `../tasks/reference/rust-gui-tui-and-ecosystem.md`; Tauri specifics in

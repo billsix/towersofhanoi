@@ -18,7 +18,7 @@
 use crate::commands::{Command, HELP_TEXT};
 use crate::model::{HanoiGame, Move};
 use crate::presenter::{change_labels_on_pegs, labelling_for, labels_to_towers, Labelling};
-use crate::recipe::{apply, format_rebinding_table, RecipeRegistry, Recorder};
+use crate::recipe::{apply, format_rebinding_table, Recipe, RecipeRegistry, Recorder, StepResult};
 
 /// The fallout from [`GameSession::dispatch`]: the front-end renders `lines` and
 /// breaks its loop if `quit` is true.
@@ -89,8 +89,8 @@ impl<'r> GameSession<'r> {
             .move_options()
             .iter()
             .map(|mv| {
-                let f = change_labels_on_pegs(self.labelling, mv.from_peg) + 1;
-                let t = change_labels_on_pegs(self.labelling, mv.to_peg) + 1;
+                let f: usize = change_labels_on_pegs(self.labelling, mv.from_peg) + 1;
+                let t: usize = change_labels_on_pegs(self.labelling, mv.to_peg) + 1;
                 format!("{f} -> {t}")
             })
             .collect();
@@ -123,8 +123,8 @@ impl<'r> GameSession<'r> {
     /// Save the current move sequence under `name`; returns a one-line
     /// confirmation. The caller must not call this mid-game.
     pub fn save_recipe(&mut self, name: &str) -> String {
-        let recipe = self.recorder.to_recipe(name, self.num_disks());
-        let overwrote = self.registry.contains(name);
+        let recipe: Recipe = self.recorder.to_recipe(name, self.num_disks());
+        let overwrote: bool = self.registry.contains(name);
         self.registry.save(recipe);
         if overwrote {
             format!("Overwrote recipe '{name}'.")
@@ -213,23 +213,23 @@ impl<'r> GameSession<'r> {
             recipe.name,
             recipe.default_moves.len()
         )];
-        let table =
+        let table: Vec<String> =
             format_rebinding_table(&recipe.default_moves, self.labelling, "Recipe (its labels)");
         if !table.is_empty() {
             lines.push(String::new());
             lines.extend(table);
             lines.push(String::new());
         }
-        let results = apply(&recipe, &mut self.game, self.labelling);
+        let results: Vec<StepResult> = apply(&recipe, &mut self.game, self.labelling);
         for (i, result) in results.iter().enumerate() {
-            let step = i + 1;
+            let step: usize = i + 1;
             if result.ok() {
                 lines.push(format!(
                     "  step {step}: {} -> {}",
                     result.from_label, result.to_label
                 ));
-                let fp = result.from_peg.expect("a successful step carries pegs");
-                let tp = result.to_peg.expect("a successful step carries pegs");
+                let fp: usize = result.from_peg.expect("a successful step carries pegs");
+                let tp: usize = result.to_peg.expect("a successful step carries pegs");
                 self.recorder.record((fp + 1) as u32, (tp + 1) as u32);
             } else {
                 lines.push(format!(
@@ -249,8 +249,8 @@ impl<'r> GameSession<'r> {
                 "No recipe named '{name}'. Try 'list' to see saved recipes."
             )];
         };
-        let n = recipe.default_moves.len();
-        let plural = if n == 1 { "" } else { "s" };
+        let n: usize = recipe.default_moves.len();
+        let plural: &str = if n == 1 { "" } else { "s" };
         let mut lines: Vec<String> = vec![format!(
             "Recipe '{}' ({} discs, {n} move{plural}):",
             recipe.name, recipe.disk_count
@@ -265,11 +265,11 @@ impl<'r> GameSession<'r> {
         if self.registry.is_empty() {
             return vec!["No recipes saved yet.".to_string()];
         }
-        let names = self.registry.names();
-        let width = names.iter().map(String::len).max().unwrap_or(0);
+        let names: Vec<String> = self.registry.names();
+        let width: usize = names.iter().map(String::len).max().unwrap_or(0);
         let mut lines: Vec<String> = vec!["Saved recipes:".to_string()];
         for name in &names {
-            let recipe = self.registry.get(name).expect("name came from names()");
+            let recipe: &Recipe = self.registry.get(name).expect("name came from names()");
             lines.push(format!(
                 "  {name:<width$}  ({} discs, {} moves)",
                 recipe.disk_count,

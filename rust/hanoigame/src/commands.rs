@@ -50,7 +50,7 @@ pub const COMMAND_VERBS: [&str; 7] = ["relabel", "save", "apply", "show", "list"
 /// caller) so this doesn't depend on the registry type. Shared by every front-end that offers
 /// completion (the CLI's readline helper and the TUI prompt).
 pub fn completions(buffer: &str, text: &str, recipe_names: &[String]) -> Vec<String> {
-    let stripped = buffer.trim_start();
+    let stripped: &str = buffer.trim_start();
     if stripped.starts_with("apply ") || stripped.starts_with("show ") {
         return recipe_names
             .iter()

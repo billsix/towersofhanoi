@@ -84,7 +84,7 @@ fn colour((r, g, b): (u8, u8, u8)) -> Colour {
 }
 
 fn darken((r, g, b): (u8, u8, u8), amount: f64) -> Colour {
-    let f = 1.0 - amount;
+    let f: f64 = 1.0 - amount;
     Colour::rgb(
         (f64::from(r) * f) as u8,
         (f64::from(g) * f) as u8,
@@ -98,7 +98,7 @@ fn disc_width(size: u32, n: u32, max_w: f64) -> f64 {
     if n <= 1 {
         return max_w;
     }
-    let smallest = max_w / 3.0;
+    let smallest: f64 = max_w / 3.0;
     smallest + (max_w - smallest) * f64::from(size - 1) / f64::from(n - 1)
 }
 
@@ -108,24 +108,24 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
     dc.set_background_mode(BackgroundMode::Solid);
     dc.clear();
 
-    let n = game.num_disks;
+    let n: u32 = game.num_disks;
     if n == 0 {
         return;
     }
-    let relabelled = labelling != Labelling::OneTwoThree;
+    let relabelled: bool = labelling != Labelling::OneTwoThree;
 
-    let margin = 20i32;
-    let label_band_h = if relabelled { 60 } else { 36 };
-    let base_h = 14i32;
-    let avail_w = (w - 2 * margin).max(80);
-    let avail_h = (h - 2 * margin - label_band_h - base_h).max(80);
-    let peg_zone_w = f64::from(avail_w) / 3.0;
-    let disc_h = (f64::from(avail_h) / f64::from(n.max(4)) * 0.92).min(30.0);
-    let max_disc_w = peg_zone_w * 0.92;
-    let peg_w = (max_disc_w * 0.07).max(8.0);
-    let peg_h = f64::from(avail_h) * 0.95;
-    let base_y = f64::from(h - margin - label_band_h - base_h);
-    let peg_top_y = base_y - peg_h;
+    let margin: i32 = 20;
+    let label_band_h: i32 = if relabelled { 60 } else { 36 };
+    let base_h: i32 = 14;
+    let avail_w: i32 = (w - 2 * margin).max(80);
+    let avail_h: i32 = (h - 2 * margin - label_band_h - base_h).max(80);
+    let peg_zone_w: f64 = f64::from(avail_w) / 3.0;
+    let disc_h: f64 = (f64::from(avail_h) / f64::from(n.max(4)) * 0.92).min(30.0);
+    let max_disc_w: f64 = peg_zone_w * 0.92;
+    let peg_w: f64 = (max_disc_w * 0.07).max(8.0);
+    let peg_h: f64 = f64::from(avail_h) * 0.95;
+    let base_y: f64 = f64::from(h - margin - label_band_h - base_h);
+    let peg_top_y: f64 = base_y - peg_h;
     let peg_centres: [f64; 3] =
         [0, 1, 2].map(|i| f64::from(margin) + peg_zone_w * (f64::from(i) + 0.5));
 
@@ -149,11 +149,11 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
 
     // Discs (bottom-up), coloured by size.
     for (p, stack) in game.towers.iter().enumerate() {
-        let cx = peg_centres[p];
+        let cx: f64 = peg_centres[p];
         for (idx, &size) in stack.iter().enumerate() {
-            let dw = disc_width(size, n, max_disc_w);
-            let y = base_y - (idx as f64 + 1.0) * disc_h * 1.04;
-            let rgb = disc_rgb(size);
+            let dw: f64 = disc_width(size, n, max_disc_w);
+            let y: f64 = base_y - (idx as f64 + 1.0) * disc_h * 1.04;
+            let rgb: (u8, u8, u8) = disc_rgb(size);
             dc.set_pen(darken(rgb, 0.45), 1, PenStyle::Solid);
             dc.set_brush(colour(rgb), BrushStyle::Solid);
             dc.draw_rounded_rectangle(
@@ -167,7 +167,7 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
     }
 
     // Active label badges (coloured circles with the label digit).
-    let active_label_y = base_y
+    let active_label_y: f64 = base_y
         + f64::from(base_h)
         + if relabelled {
             18.0
@@ -175,8 +175,8 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
             f64::from(label_band_h) / 2.0
         };
     for (p, &cx) in peg_centres.iter().enumerate() {
-        let label = change_labels_on_pegs(labelling, p);
-        let rgb = label_rgb(label);
+        let label: usize = change_labels_on_pegs(labelling, p);
+        let rgb: (u8, u8, u8) = label_rgb(label);
         dc.set_pen(darken(rgb, 0.40), 1, PenStyle::Solid);
         dc.set_brush(colour(rgb), BrushStyle::Solid);
         dc.draw_circle(cx as i32, active_label_y as i32, 14);
@@ -190,7 +190,7 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
 
     // Default 1-2-3 reference row when relabelled.
     if relabelled {
-        let ref_y = active_label_y + 26.0;
+        let ref_y: f64 = active_label_y + 26.0;
         dc.set_text_foreground(Colour::rgb(170, 178, 195));
         for (p, &cx) in peg_centres.iter().enumerate() {
             dc.draw_text(&(p + 1).to_string(), cx as i32 - 4, ref_y as i32 - 8);
@@ -220,15 +220,15 @@ impl GuiState {
     /// Run a command through a transient [`GameSession`] borrowing the shared
     /// registry (moving the game/labelling/recorder in and back out).
     fn dispatch(&mut self, cmd: &Command) -> DispatchResult {
-        let game = std::mem::replace(&mut self.game, HanoiGame::new(0));
-        let recorder = std::mem::take(&mut self.recorder);
-        let mut session = GameSession {
+        let game: HanoiGame = std::mem::replace(&mut self.game, HanoiGame::new(0));
+        let recorder: Recorder = std::mem::take(&mut self.recorder);
+        let mut session: GameSession<'_> = GameSession {
             game,
             labelling: self.labelling,
             recorder,
             registry: &mut self.registry,
         };
-        let result = session.dispatch(cmd);
+        let result: DispatchResult = session.dispatch(cmd);
         self.labelling = session.labelling;
         self.game = std::mem::replace(&mut session.game, HanoiGame::new(0));
         self.recorder = std::mem::take(&mut session.recorder);
@@ -237,15 +237,15 @@ impl GuiState {
 
     /// Save the current (won) solution under `name`; returns the confirmation.
     fn save(&mut self, name: &str) -> String {
-        let game = std::mem::replace(&mut self.game, HanoiGame::new(0));
-        let recorder = std::mem::take(&mut self.recorder);
-        let mut session = GameSession {
+        let game: HanoiGame = std::mem::replace(&mut self.game, HanoiGame::new(0));
+        let recorder: Recorder = std::mem::take(&mut self.recorder);
+        let mut session: GameSession<'_> = GameSession {
             game,
             labelling: self.labelling,
             recorder,
             registry: &mut self.registry,
         };
-        let msg = session.save_recipe(name);
+        let msg: String = session.save_recipe(name);
         self.game = std::mem::replace(&mut session.game, HanoiGame::new(0));
         self.recorder = std::mem::take(&mut session.recorder);
         msg
@@ -267,7 +267,7 @@ impl GuiState {
     }
 
     fn selected_recipe(&self) -> Option<String> {
-        let i = self.recipe_list.get_selection()?;
+        let i: u32 = self.recipe_list.get_selection()?;
         self.registry.names().get(i as usize).cloned()
     }
 
@@ -280,7 +280,7 @@ impl GuiState {
             self.board_graphics.refresh(true, None);
         }
 
-        let won = self.is_won();
+        let won: bool = self.is_won();
         let legal: Vec<(u32, u32)> = self
             .game
             .move_options()
@@ -303,7 +303,7 @@ impl GuiState {
         if let Some(mb) = self.frame.get_menu_bar() {
             for (i, perm) in RELABEL_PERMS.iter().enumerate() {
                 if let Some(item) = mb.find_item(ID_RELABEL_BASE + i as i32) {
-                    let marker = if *perm == current {
+                    let marker: &str = if *perm == current {
                         "\u{25CF}  "
                     } else {
                         "    "
@@ -315,9 +315,9 @@ impl GuiState {
         }
 
         // Recipe list (repopulate, preserve selection by name).
-        let previously = self.selected_recipe();
+        let previously: Option<String> = self.selected_recipe();
         self.recipe_list.clear();
-        let names = self.registry.names();
+        let names: Vec<String> = self.registry.names();
         for name in &names {
             if let Some(recipe) = self.registry.get(name) {
                 self.recipe_list.append(&format!(
@@ -344,9 +344,9 @@ impl GuiState {
         if !self.is_won() {
             return;
         }
-        let min = self.min_moves();
-        let moves = u64::from(self.game.current_moves);
-        let verdict = if moves == min {
+        let min: u64 = self.min_moves();
+        let moves: u64 = u64::from(self.game.current_moves);
+        let verdict: String = if moves == min {
             "Optimal!".to_string()
         } else {
             format!("{} more than the minimum ({min}).", moves - min)
@@ -361,25 +361,26 @@ impl GuiState {
 // --- Handlers ---------------------------------------------------------------
 
 fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
-    let (relabelled, status, moves_for_dialog) = {
-        let mut st = state.borrow_mut();
-        let relabelled = st.labelling != Labelling::OneTwoThree;
-        let result = st.dispatch(&Command::Move {
+    let (relabelled, status, moves_for_dialog): (bool, String, Option<Vec<(u32, u32)>>) = {
+        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+        let relabelled: bool = st.labelling != Labelling::OneTwoThree;
+        let result: DispatchResult = st.dispatch(&Command::Move {
             from_label,
             to_label,
         });
-        let (status, moves) = if let Some(line) = result.lines.first() {
-            (line.clone(), None)
-        } else {
-            (
-                format!("Moved {from_label} \u{2192} {to_label}."),
-                if relabelled {
-                    Some(vec![(from_label, to_label)])
-                } else {
-                    None
-                },
-            )
-        };
+        let (status, moves): (String, Option<Vec<(u32, u32)>>) =
+            if let Some(line) = result.lines.first() {
+                (line.clone(), None)
+            } else {
+                (
+                    format!("Moved {from_label} \u{2192} {to_label}."),
+                    if relabelled {
+                        Some(vec![(from_label, to_label)])
+                    } else {
+                        None
+                    },
+                )
+            };
         st.frame.set_status_text(&status, 0);
         st.refresh();
         st.check_win();
@@ -387,8 +388,8 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
     };
     let _ = (relabelled, status);
     if let Some(moves) = moves_for_dialog {
-        let (frame, labelling) = {
-            let st = state.borrow();
+        let (frame, labelling): (Frame, Labelling) = {
+            let st: std::cell::Ref<'_, GuiState> = state.borrow();
             (st.frame.clone(), st.labelling)
         };
         show_rebinding(&frame, "Rebinding for your move", &moves, labelling);
@@ -396,7 +397,7 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
 }
 
 fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: Labelling) {
-    let table = format_rebinding_table(moves, labelling, "Your move / recipe");
+    let table: Vec<String> = format_rebinding_table(moves, labelling, "Your move / recipe");
     if table.is_empty() {
         return;
     }
@@ -406,8 +407,8 @@ fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: L
 }
 
 fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {
-    let mut st = state.borrow_mut();
-    let result = st.dispatch(&Command::Relabel(perm));
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    let result: DispatchResult = st.dispatch(&Command::Relabel(perm));
     if let Some(line) = result.lines.first() {
         st.frame.set_status_text(line, 0);
     }
@@ -415,13 +416,14 @@ fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {
 }
 
 fn on_new_game(state: &Rc<RefCell<GuiState>>) {
-    let (frame, current) = {
-        let st = state.borrow();
+    let (frame, current): (Frame, u32) = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
         (st.frame.clone(), st.disc_count)
     };
-    let dlg = TextEntryDialog::builder(&frame, "How many discs? (1-10)", "New Game")
-        .with_default_value(&current.to_string())
-        .build();
+    let dlg: TextEntryDialog =
+        TextEntryDialog::builder(&frame, "How many discs? (1-10)", "New Game")
+            .with_default_value(&current.to_string())
+            .build();
     if dlg.show_modal() != ID_OK {
         return;
     }
@@ -432,23 +434,23 @@ fn on_new_game(state: &Rc<RefCell<GuiState>>) {
     if !(1..=MAX_DISKS).contains(&n) {
         return;
     }
-    let mut st = state.borrow_mut();
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
     st.new_game(n);
     st.frame.set_status_text("", 0);
     st.refresh();
 }
 
 fn on_new_game_same(state: &Rc<RefCell<GuiState>>) {
-    let mut st = state.borrow_mut();
-    let n = st.disc_count;
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    let n: u32 = st.disc_count;
     st.new_game(n);
     st.frame.set_status_text("", 0);
     st.refresh();
 }
 
 fn on_save(state: &Rc<RefCell<GuiState>>) {
-    let (frame, default, won) = {
-        let st = state.borrow();
+    let (frame, default, won): (Frame, String, bool) = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
         (
             st.frame.clone(),
             format!("solve-{}", st.game.num_disks),
@@ -458,31 +460,32 @@ fn on_save(state: &Rc<RefCell<GuiState>>) {
     if !won {
         return;
     }
-    let dlg = TextEntryDialog::builder(&frame, "Recipe name:", "Save Recipe")
+    let dlg: TextEntryDialog = TextEntryDialog::builder(&frame, "Recipe name:", "Save Recipe")
         .with_default_value(&default)
         .build();
     if dlg.show_modal() != ID_OK {
         return;
     }
     let Some(name) = dlg.get_value() else { return };
-    let name = name.trim().to_string();
+    let name: String = name.trim().to_string();
     if name.is_empty() {
         return;
     }
-    let mut st = state.borrow_mut();
-    let msg = st.save(&name);
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    let msg: String = st.save(&name);
     st.frame.set_status_text(&msg, 0);
     st.refresh();
 }
 
 fn on_apply(state: &Rc<RefCell<GuiState>>) {
-    let (name, frame, relabelled, moves) = {
-        let st = state.borrow();
+    let (name, frame, relabelled, moves): (String, Frame, bool, Option<Vec<(u32, u32)>>) = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
         let Some(name) = st.selected_recipe() else {
             st.frame.set_status_text("Select a recipe first.", 0);
             return;
         };
-        let moves = st.registry.get(&name).map(|r| r.default_moves.clone());
+        let moves: Option<Vec<(u32, u32)>> =
+            st.registry.get(&name).map(|r| r.default_moves.clone());
         (
             name,
             st.frame.clone(),
@@ -490,10 +493,10 @@ fn on_apply(state: &Rc<RefCell<GuiState>>) {
             moves,
         )
     };
-    let labelling = {
-        let mut st = state.borrow_mut();
-        let result = st.dispatch(&Command::Apply(name.clone()));
-        let steps = result
+    let labelling: Labelling = {
+        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+        let result: DispatchResult = st.dispatch(&Command::Apply(name.clone()));
+        let steps: usize = result
             .lines
             .iter()
             .filter(|l| l.trim_start().starts_with("step "))
@@ -521,8 +524,8 @@ fn on_apply(state: &Rc<RefCell<GuiState>>) {
 }
 
 fn on_show(state: &Rc<RefCell<GuiState>>) {
-    let (name, frame) = {
-        let st = state.borrow();
+    let (name, frame): (Option<String>, Frame) = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
         (st.selected_recipe(), st.frame.clone())
     };
     let Some(name) = name else {
@@ -532,8 +535,8 @@ fn on_show(state: &Rc<RefCell<GuiState>>) {
             .set_status_text("Select a recipe first.", 0);
         return;
     };
-    let lines = {
-        let mut st = state.borrow_mut();
+    let lines: Vec<String> = {
+        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
         st.dispatch(&Command::Show(name.clone())).lines
     };
     MessageDialog::builder(&frame, &lines.join("\n"), &format!("Recipe '{name}'"))
@@ -542,7 +545,7 @@ fn on_show(state: &Rc<RefCell<GuiState>>) {
 }
 
 fn build_menu_bar(frame: &Frame) {
-    let game_menu = Menu::builder()
+    let game_menu: Menu = Menu::builder()
         .append_item(ID_NEW, "&New Game…\tCtrl+N", "Start a new game")
         .append_item(
             ID_NEW_SAME,
@@ -561,19 +564,19 @@ fn build_menu_bar(frame: &Frame) {
             "Relabel the pegs",
         );
     }
-    let relabel_menu = relabel_menu.build();
+    let relabel_menu: Menu = relabel_menu.build();
 
-    let view_menu = Menu::builder()
+    let view_menu: Menu = Menu::builder()
         .append_check_item(ID_STYLE_GRAPHICS, "Board: &Graphics", "2D graphics board")
         .append_check_item(ID_STYLE_TEXT, "Board: &Text", "Monospace text board")
         .build();
 
-    let help_menu = Menu::builder()
+    let help_menu: Menu = Menu::builder()
         .append_item(ID_HELP, "&How to play…", "Features and controls")
         .append_item(ID_ABOUT, "&About", "About Towers of Hanoi")
         .build();
 
-    let menu_bar = MenuBar::builder()
+    let menu_bar: MenuBar = MenuBar::builder()
         .append(game_menu, "&Game")
         .append(relabel_menu, "&Relabel")
         .append(view_menu, "&View")
@@ -584,27 +587,27 @@ fn build_menu_bar(frame: &Frame) {
 
 fn main() {
     let _ = wxdragon::main(|_| {
-        let frame = Frame::builder()
+        let frame: Frame = Frame::builder()
             .with_title("Towers of Hanoi")
             .with_size(Size::new(1000, 640))
             .build();
         build_menu_bar(&frame);
         frame.create_status_bar(2, 0, ID_ANY as i32, "");
 
-        let panel = Panel::builder(&frame).build();
+        let panel: Panel = Panel::builder(&frame).build();
 
         // Two board widgets stacked in the board area; one is shown at a time.
-        let board_graphics = Panel::builder(&panel).build();
+        let board_graphics: Panel = Panel::builder(&panel).build();
         board_graphics.set_background_style(BackgroundStyle::Paint);
-        let board_text = TextCtrl::builder(&panel)
+        let board_text: TextCtrl = TextCtrl::builder(&panel)
             .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
             .build();
         board_text.show(false); // graphics is the default view
 
-        let button_sizer = BoxSizer::builder(Orientation::Horizontal).build();
+        let button_sizer: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
         let mut move_buttons: Vec<Button> = Vec::new();
         for (f, t) in MOVE_PAIRS {
-            let btn = Button::builder(&panel)
+            let btn: Button = Button::builder(&panel)
                 .with_label(&format!("{f} \u{2192} {t}"))
                 .build();
             button_sizer.add(&btn, 1, SizerFlag::Expand | SizerFlag::All, 4);
@@ -612,26 +615,26 @@ fn main() {
         }
 
         // Recipe row: a list plus Save / Apply / Show buttons.
-        let recipe_list = ListBox::builder(&panel).build();
-        let save_btn = Button::builder(&panel).with_label("Save").build();
-        let apply_btn = Button::builder(&panel).with_label("Apply").build();
-        let show_btn = Button::builder(&panel).with_label("Show").build();
-        let recipe_btns = BoxSizer::builder(Orientation::Vertical).build();
+        let recipe_list: ListBox = ListBox::builder(&panel).build();
+        let save_btn: Button = Button::builder(&panel).with_label("Save").build();
+        let apply_btn: Button = Button::builder(&panel).with_label("Apply").build();
+        let show_btn: Button = Button::builder(&panel).with_label("Show").build();
+        let recipe_btns: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         recipe_btns.add(&save_btn, 0, SizerFlag::Expand | SizerFlag::All, 2);
         recipe_btns.add(&apply_btn, 0, SizerFlag::Expand | SizerFlag::All, 2);
         recipe_btns.add(&show_btn, 0, SizerFlag::Expand | SizerFlag::All, 2);
-        let recipe_row = BoxSizer::builder(Orientation::Horizontal).build();
+        let recipe_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
         recipe_row.add(&recipe_list, 1, SizerFlag::Expand | SizerFlag::All, 4);
         recipe_row.add_sizer(&recipe_btns, 0, SizerFlag::Expand | SizerFlag::All, 2);
 
-        let panel_sizer = BoxSizer::builder(Orientation::Vertical).build();
+        let panel_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         panel_sizer.add(&board_graphics, 3, SizerFlag::Expand | SizerFlag::All, 6);
         panel_sizer.add(&board_text, 3, SizerFlag::Expand | SizerFlag::All, 6);
         panel_sizer.add_sizer(&button_sizer, 0, SizerFlag::Expand | SizerFlag::All, 4);
         panel_sizer.add_sizer(&recipe_row, 1, SizerFlag::Expand | SizerFlag::All, 4);
         panel.set_sizer(panel_sizer, true);
 
-        let frame_sizer = BoxSizer::builder(Orientation::Vertical).build();
+        let frame_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         frame_sizer.add(&panel, 1, SizerFlag::Expand, 0);
         frame.set_sizer(frame_sizer, true);
 
@@ -639,7 +642,7 @@ fn main() {
             mb.check_item(ID_STYLE_GRAPHICS, true);
         }
 
-        let state = Rc::new(RefCell::new(GuiState {
+        let state: Rc<RefCell<GuiState>> = Rc::new(RefCell::new(GuiState {
             registry: RecipeRegistry::new(),
             game: HanoiGame::new(DEFAULT_DISKS),
             labelling: Labelling::OneTwoThree,
@@ -658,47 +661,47 @@ fn main() {
 
         // Graphics board paint handler.
         {
-            let st = state.clone();
-            let panel_clone = board_graphics.clone();
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let panel_clone: Panel = board_graphics.clone();
             board_graphics.on_paint(move |_| {
-                let dc = AutoBufferedPaintDC::new(&panel_clone);
-                let (w, h) = dc.get_size();
-                let s = st.borrow();
+                let dc: AutoBufferedPaintDC = AutoBufferedPaintDC::new(&panel_clone);
+                let (w, h): (i32, i32) = dc.get_size();
+                let s: std::cell::Ref<'_, GuiState> = st.borrow();
                 draw_board_dc(&dc, w, h, &s.game, s.labelling);
             });
         }
 
         // Move buttons.
         for (btn, (f, t)) in move_buttons.iter().zip(MOVE_PAIRS.iter()) {
-            let st = state.clone();
-            let (f, t) = (*f, *t);
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let (f, t): (u32, u32) = (*f, *t);
             btn.on_click(move |_| on_move(&st, f, t));
         }
 
         // Recipe buttons + double-click.
         {
-            let st = state.clone();
+            let st: Rc<RefCell<GuiState>> = state.clone();
             save_btn.on_click(move |_| on_save(&st));
         }
         {
-            let st = state.clone();
+            let st: Rc<RefCell<GuiState>> = state.clone();
             apply_btn.on_click(move |_| on_apply(&st));
         }
         {
-            let st = state.clone();
+            let st: Rc<RefCell<GuiState>> = state.clone();
             show_btn.on_click(move |_| on_show(&st));
         }
         {
-            let st = state.clone();
+            let st: Rc<RefCell<GuiState>> = state.clone();
             recipe_list.on_item_double_clicked(move |_| on_show(&st));
         }
 
         // Menu.
         {
-            let st = state.clone();
-            let frame_for_menu = frame.clone();
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let frame_for_menu: Frame = frame.clone();
             frame.on_menu_selected(move |ev: MenuEventData| {
-                let id = ev.get_id();
+                let id: i32 = ev.get_id();
                 match id {
                     ID_NEW => on_new_game(&st),
                     ID_NEW_SAME => on_new_game_same(&st),
@@ -734,8 +737,8 @@ fn main() {
                         .show_modal();
                     }
                     ID_STYLE_GRAPHICS | ID_STYLE_TEXT => {
-                        let graphics = id == ID_STYLE_GRAPHICS;
-                        let mut s = st.borrow_mut();
+                        let graphics: bool = id == ID_STYLE_GRAPHICS;
+                        let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
                         s.graphics_mode = graphics;
                         s.board_graphics.show(graphics);
                         s.board_text.show(!graphics);
@@ -747,7 +750,7 @@ fn main() {
                         s.refresh();
                     }
                     _ if (ID_RELABEL_BASE..ID_RELABEL_BASE + 6).contains(&id) => {
-                        let perm = RELABEL_PERMS[(id - ID_RELABEL_BASE) as usize];
+                        let perm: [u32; 3] = RELABEL_PERMS[(id - ID_RELABEL_BASE) as usize];
                         on_relabel(&st, perm);
                     }
                     _ => {}
