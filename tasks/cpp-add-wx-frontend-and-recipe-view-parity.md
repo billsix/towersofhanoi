@@ -1,6 +1,8 @@
 # C++ subproject: add a wxWidgets `make wx` front-end (shared XRC) + bring the ImGui GUI to recipe parity
 
-**Status:** proposed — needs go-ahead (open questions below block implementation).
+**Status:** ready — decisions made (2026-10-25, see Decisions). Part A (wx + shared XRC) can start now;
+Part B (recipe view) conforms to the feature spec `tasks/program-feature-spec-and-compliance.md`, so it
+follows that spec landing.
 **Priority:** 5 **Difficulty:** 6
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: "the hanoi CPP one needs a
 few updates. It needs a make wx target, using wxwidgets, using a shared xrc file from the python code.
@@ -97,7 +99,44 @@ matching the Python three-panel view. Python stays the behaviour oracle for both
 4. **Verify** — native + wasm build/link; the view matches the Python oracle for a sample recipe under a
    non-default labelling; `make format` clean.
 
-## Open questions
+### Spec-compliance gaps (from the 2026-10-25 audit — `tasks/program-feature-spec-and-compliance.md`)
+
+The audit against `tasks/reference/feature-spec.md` §7 found the ImGui GUI is missing more than the
+three-panel view. Part B should close all of these (ranked, biggest first):
+1. **Three-panel rebinding view on apply (row 13, biggest):** port `rebound_moves` + `format_rebinding_table`
+   (the engine has only `rebinding()`), and render three panels on invoke — recipe moves | rebinding
+   (label→peg) | rebound physical moves — shown only under a non-default labelling. Replace the current
+   one-line status + static middle-only panel.
+2. **Show a recipe without replaying (row 11):** the GUI can only replay; add a view of a recipe's moves
+   (default-label space) with disk/move counts.
+3. **Apply must record the applied moves (row 12):** `hanoi::apply` / its call site must feed the recorder
+   (as Python's `_handle_apply` does), so a replayed solve is itself saveable.
+4. **Recipe list with disk + move counts (row 10):** the Replay submenu shows names only.
+5. **Distinct move-rejection reasons (row 4):** illegal moves are only disabled buttons; surface
+   range/same-peg/empty/larger-on-smaller as a dialog (spec §6.2).
+6. **Save gated on win + overwrite reporting (row 9):** gate the save affordance on the win, and report
+   overwrite vs. new save.
+7. **Show the optimal `2^N−1` (row 3)** and the **physical 1,2,3 reference row when relabelled (row 6)**.
+8. **Help reference + an explicit in-app Quit (row 14).**
+
+## Decisions (maintainer, 2026-10-25)
+
+1. **XRC sharing (Q1): YES** — use the Rust task's recommended build-time copy of
+   `python/src/hanoigame/hanoi.xrc` into `cpp/`, drift-guarded.
+2. **Add wxGTK to the cpp image (Q2): YES** — add `wxGTK-devel` (+ `libSM/libICE-devel`), flag-gated so a
+   lean image can drop it.
+3. **Scope (Q3): FULL PARITY** — match the full Python wx GUI, including the three-panel recipe view.
+   This is the standard for **every** implementation (Rust included), not just C++.
+4. **Invoke semantics (Q4): deferred to the feature spec** — `tasks/program-feature-spec-and-compliance.md`
+   defines (from the Python oracle) what invoking a recipe shows and whether it also applies to the board;
+   this task conforms to that spec rather than guessing.
+5. **Structure (Q5): one doc** — keep Parts A and B here; commit them separately.
+
+**This task is now spec-driven:** once `tasks/program-feature-spec-and-compliance.md` lands, Parts A and B
+conform to the spec's recipe-view / rebinding definition (the parity authority), not to an ad-hoc reading
+of the other GUIs.
+
+## Open questions (resolved — see Decisions above)
 
 1. **(Part A) XRC sharing mechanism** — adopt `rust-gui-use-shared-xrc.md`'s recommended **build-time
    copy of `python/src/hanoigame/hanoi.xrc` into `cpp/`, drift-guarded**? (Recommended; wx's runtime XRC
