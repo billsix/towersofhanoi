@@ -9,6 +9,8 @@
 # them (a small native-only image). EMSDK_VERSION pins the toolchain.
 USE_EMACS ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
 USE_WASM ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
+# USE_WX installs the wxWidgets/wxGTK stack for `make wx`; dropped by a lean MINIMAL_IMAGE.
+USE_WX ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
 EMSDK_VERSION ?= 3.1.74
 
 CONTAINER_CMD ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
@@ -21,7 +23,13 @@ TMUX_REAL_PATH := $(shell readlink -f $(TMUX_FILE))
 TMUX_MOUNT := $(shell if [ -f $(TMUX_REAL_PATH) ]; then echo "-v $(TMUX_REAL_PATH):/root/.tmux.conf:Z" ; fi)
 
 REPO_MOUNT = /$(CONTAINER_NAME)
-FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(TMUX_MOUNT)
+# The shared wx XRC lives at the repo-root ui/ (hanoi.xrc is a symlink -> ../ui/hanoi.xrc).
+# Mount ui/ at /ui so the symlink resolves inside the container (a subproject at
+# /hanoi-cpp makes `..` = /, so cpp/hanoi.xrc -> ../ui/hanoi.xrc lands on /ui/hanoi.xrc).
+# Shared with the Python subproject's Makefile; see
+# tasks/cpp-add-wx-frontend-and-recipe-view-parity.md Decision 1.
+UI_MOUNT = -v $(shell pwd)/../ui:/ui:Z
+FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(UI_MOUNT) $(TMUX_MOUNT)
 
 # X11 + Wayland passthrough for the native ImGui window (SDL2/OpenGL).
 X_FLAGS_FOR_CONTAINER = -e DISPLAY=$(DISPLAY) \
@@ -48,6 +56,7 @@ image: ## Build the podman image (C++ toolchain + SDL2/GL; emsdk when USE_WASM=1
 	$(CONTAINER_CMD) build \
 	                 --build-arg USE_EMACS=$(USE_EMACS) \
 	                 --build-arg USE_WASM=$(USE_WASM) \
+	                 --build-arg USE_WX=$(USE_WX) \
 	                 --build-arg EMSDK_VERSION=$(EMSDK_VERSION) \
 	                 -t $(CONTAINER_NAME) .
 
@@ -82,6 +91,11 @@ PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
 gui: image ## Build + run the NATIVE Dear ImGui app (cmake + SDL2/OpenGL, on your display)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
 		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build && exec ./build/hanoi-cpp'
+
+.PHONY: wx
+wx: image ## Build + run the wxWidgets app (shared XRC via /ui; on your display; needs a USE_WX=1 image)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build && exec ./build/hanoi-wx'
 
 .PHONY: webassembly
 webassembly: image ## Build the WebAssembly app into ./web/ (needs a USE_WASM=1 image)

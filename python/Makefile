@@ -28,7 +28,13 @@ TMUX_MOUNT := $(shell if [ -f $(TMUX_REAL_PATH) ]; then echo "-v $(TMUX_REAL_PAT
 
 # In-container mount path for this subproject (shell.sh cds here).
 REPO_MOUNT = /$(CONTAINER_NAME)
-FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(TMUX_MOUNT)
+# hanoi.xrc is now a git-tracked symlink -> ../../../ui/hanoi.xrc (the one true file lives at
+# the repo-root ui/, shared with the C++ wx front-end). Mount ui/ at /ui so the symlink
+# resolves inside the container: /hanoi-python/src/hanoigame/hanoi.xrc -> ../../../ui/hanoi.xrc
+# lands on /ui/hanoi.xrc. Without this the wxPython GUI can't load its layout.
+# See hanoi tasks/cpp-add-wx-frontend-and-recipe-view-parity.md Decision 1.
+UI_MOUNT = -v $(shell pwd)/../ui:/ui:Z
+FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(UI_MOUNT) $(TMUX_MOUNT)
 
 # X11 display passthrough for the wxPython GUI (hanoi-gui). The security-opt label lets
 # the container talk to the host X server under SELinux.

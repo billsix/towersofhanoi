@@ -91,7 +91,13 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   (reported). Saving is only meaningful after winning. (Source: `Recorder`, `engine.save_recipe`; `save`
   dispatched mid-game returns the "only works after winning" guidance.)
 - **See:** a save confirmation (or overwrite notice); the prompt/affordance to name a recipe on winning.
-- **Do:** name and save the just-won solution.
+- **Default name (required of every UI):** the save prompt MUST **prepopulate** the name field with the
+  default **`solve-<N>`**, where N is the current disk count (e.g. a 3-disc game defaults to `solve-3`),
+  which the user accepts as-is or edits. This is the Python wx GUI's behaviour — `hanoigui.py`
+  `_save_recipe_with_prompt` opens its dialog with `value=f"solve-{num_disks}"` — and it is the canonical
+  default for all front-ends (TUI and GUI): a save affordance that collects a name must offer `solve-<N>`
+  pre-filled, so the common case is one confirmation. (Source: `python/src/hanoigame/hanoigui.py`.)
+- **Do:** name and save the just-won solution (accept or edit the prefilled `solve-<N>`).
 - **Why:** a saved small solve is the black box you replay (under a relabelling) to solve a bigger one.
 
 ### 4.6 List recipes
@@ -205,10 +211,12 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
   logic, unit-tested); the only gaps are presentation-layer in two front-ends: the **Tauri** app shows no
   three-panel view on apply (§4.8) and the **ratatui TUI** shows no valid-moves line (§4.4), plus weak
   help in wx/Tauri. → `tasks/rust-feature-parity-tauri-tui-gaps.md`.
-- **C++** — the engine has the rules + `rebinding()`, but the ImGui GUI lacks the §4.8 three-panel view,
-  §4.7 show-recipe, apply-records-moves, and several smaller items (optimal count, physical reference row,
-  distinct rejection reasons, overwrite report, save-gated-on-win, help/quit).
-  → `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md` Part B.
+- **C++** — now at full parity (implemented 2026-10-25). The ImGui/wasm GUI gained the §4.8 three-panel
+  view, §4.7 show-recipe, apply-records-moves, and the smaller items (optimal count, physical reference
+  row, distinct rejection reasons, overwrite report, save-gated-on-win, help/quit); and a **wxWidgets
+  `make wx`** front-end was added over the shared `ui/hanoi.xrc`. Verified headless (native ImGui, wasm,
+  wx); the maintainer's on-display run is the last check.
+  → `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`.
 - **bash** — a by-design non-interactive demo of the relabelling method (solve scripts composed through
   six `tr` relabel filters); embodies §3/§4.3 relabelling cleanly but is not a game UI, so most
   interactive rows are n/a. Not a parity target.

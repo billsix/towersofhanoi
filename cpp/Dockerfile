@@ -9,10 +9,13 @@ ARG USE_EMACS=0
 # USE_WASM installs the Emscripten SDK (needed only for `make webassembly`; ~1-1.5 GB). The
 # Makefile defaults it to 1; a lean MINIMAL_IMAGE build drops it (native-only image).
 ARG USE_WASM=0
+# USE_WX installs the wxWidgets/wxGTK stack for the `make wx` front-end. Default 1 in the
+# Makefile; a lean MINIMAL_IMAGE build drops it (the ImGui target doesn't need it).
+ARG USE_WX=0
 # The pinned Emscripten SDK version (reproducible; bump deliberately).
 ARG EMSDK_VERSION=3.1.74
 
-COPY entrypoint/01-install-cpp-base.sh entrypoint/02-install-emsdk.sh /usr/local/bin/
+COPY entrypoint/01-install-cpp-base.sh entrypoint/02-install-emsdk.sh entrypoint/03-install-wx.sh /usr/local/bin/
 COPY entrypoint/dotfiles/.emacs.d/install-melpa-packages.el /root/.emacs.d/install-melpa-packages.el
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
@@ -20,6 +23,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      dnf upgrade -y && \
      /usr/local/bin/01-install-cpp-base.sh && \
+     if [ "$USE_WX" = "1" ]; then /usr/local/bin/03-install-wx.sh ; fi && \
      if [ "$USE_EMACS" = "1" ]; then \
        dnf install -y emacs && \
        emacs --batch --load /root/.emacs.d/install-melpa-packages.el ; \
@@ -40,6 +44,13 @@ COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/preferenc
 
 # Bake the source LATE at the mount path. The native binary is built at runtime from the
 # bind-mount (quick, propagates host edits), not here.
+# NOTE on the shared XRC: hanoi.xrc is a git-tracked symlink -> ../ui/hanoi.xrc (the one true
+# file is ui/hanoi.xrc at the repo root). The build context is this cpp/ dir, so the baked
+# symlink dangles; at runtime the Makefile mounts the repo-root ui/ at /ui, so the wx app
+# loads /ui/hanoi.xrc (the symlink resolves there). That mount IS the XRC delivery mechanism:
+# these images are DEVELOPMENT-ONLY and never pushed to a registry, so there is no mount-less
+# pulled-image case to bake a resolved copy for. See
+# tasks/cpp-add-wx-frontend-and-recipe-view-parity.md Decision 1.
 COPY . /hanoi-cpp
 
 # Pre-warm the Emscripten cache (the SDL2 port + the system libraries emcc builds on first
