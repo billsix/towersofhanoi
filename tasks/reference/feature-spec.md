@@ -229,7 +229,7 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
 - **Rust** — the shared `hanoigame` crate implements the full spec (all recipe/rebinding/three-panel
   logic, unit-tested); the only gaps are presentation-layer in two front-ends: the **Tauri** app shows no
   three-panel view on apply (§4.8) and the **ratatui TUI** shows no valid-moves line (§4.4), plus weak
-  help in wx/Tauri. → `tasks/rust-feature-parity-tauri-tui-gaps.md`.
+  help in wx/Tauri. → `tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`.
 - **C++** — now at full parity (implemented 2026-10-25). The ImGui/wasm GUI gained the §4.8 three-panel
   view, §4.7 show-recipe, apply-records-moves, and the smaller items (optimal count, physical reference
   row, distinct rejection reasons, overwrite report, save-gated-on-win, help/quit); and a **wxWidgets

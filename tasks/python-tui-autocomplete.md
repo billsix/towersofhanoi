@@ -21,7 +21,7 @@ recipe name (single candidate fills in, several fill to the longest common prefi
   completion logic (command verbs on the first token; recipe names after `apply `/`show `, never `save `).
 - **Share the candidate logic, don't duplicate.** The Rust side just did this cleanly: a pure
   `completions(buffer, text, names)` helper, used by both the CLI and the TUI (see
-  `tasks/rust-feature-parity-tauri-tui-gaps.md` + `rust/hanoigame/src/commands.rs::completions`). Do the same in
+  `tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md` + `rust/hanoigame/src/commands.rs::completions`). Do the same in
   Python — a pure helper (verbs + recipe-name logic) that both `hanoicli.py` and `hanoigame.py` call, so
   they can't drift. `commands.COMMAND_VERBS` is the single source of verbs.
 - **Spec:** feature-spec.md §6.1 requires Tab-completion "in both a readline CLI and a full-screen/curses

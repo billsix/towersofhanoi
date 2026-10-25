@@ -48,4 +48,4 @@ decided + consistent across all UIs, per §4.8.
 
 - Oracle: `python/src/hanoigame/engine.py` (`_handle_apply`), `recipe.py` (`format_rebinding_table`).
 - Spec: `tasks/reference/feature-spec.md` §4.8. Surfaced during the Rust parity work
-  (`tasks/rust-feature-parity-tauri-tui-gaps.md`).
+  (`tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`).
