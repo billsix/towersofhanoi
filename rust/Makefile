@@ -81,6 +81,15 @@ check: image ## Compile-check the workspace INCLUDING tests/examples (cargo chec
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
 		-c '$(RUST_SETUP) && cargo check --workspace --all-targets'
 
+.PHONY: type-check
+type-check: image ## Type-check + lint the Tauri frontend JS via Deno (deno check/lint; JSDoc + checkJs, no node_modules)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c 'cd $(REPO_MOUNT)/tauri/frontend && s=0; \
+		    deno check --check-js --no-lock main.js || s=1; \
+		    deno lint main.js || s=1; \
+		    exit $$s'
+
 # --- Run a front-end. Two cargo caches on the bind-mount (both gitignored) make repeat
 # runs fast and avoid re-doing the heavy wxDragon wxWidgets build every run.
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \

@@ -1,21 +1,24 @@
 # Tauri frontend JS: JSDoc-type every binding + a safe `make type-check` (apply the JS standard)
 
-**Status:** proposed — needs go-ahead.
+**Status:** done — staged; archive after the work commit.
 **Priority:** 5 **Difficulty:** 4
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: once the JavaScript coding
 standard was written for the sandboxes, apply it to hanoi's Tauri frontend JS.
+**Done:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Implemented with **Deno** as the gate
+(not npm) — the maintainer's call, to drop the npm supply-chain surface to zero.
 
 ## BLUF
 
-Apply the new JavaScript standard (`~/.claude/reference/javascript-coding-standard.md`) to hanoi's only
+Apply the JavaScript standard (`~/.claude/reference/javascript-coding-standard.md`) to hanoi's only
 JavaScript — the **Tauri frontend** (`rust/tauri/frontend/main.js`, the static no-bundler webview UI).
 JSDoc-type **every binding** (params, returns, locals via `/** @type {} */`, `@typedef`s for the IPC
-view-models), turn on **`// @ts-check`** + a **`jsconfig.json`** (`checkJs`, strict) scoping the frontend,
-and add a safe **`make type-check`** that installs the dev tooling with **`npm ci --ignore-scripts`** and
-runs **`tsc --noEmit`** + **`eslint`** (`eslint-plugin-jsdoc`). hanoi is the maintainer's repo, so this is
-a **full sweep** of the frontend JS. "Done" = the frontend JS is fully JSDoc-typed, `make type-check` is
-green (type + lint), and the devDeps are baked into the Tauri image so it runs offline. The `.js` ships
-unchanged (no transpile; the webview loads it directly).
+view-models), add a **`deno.json`** (`checkJs`, `strict`, DOM libs) + **`// @ts-check`**, and a safe
+**`make type-check`** that runs **`deno check --check-js` + `deno lint`** — **one pinned Deno binary, no
+`node_modules`, no lockfile, npm lifecycle scripts off** (the supply-chain vector). hanoi is the
+maintainer's repo, so this was a **full sweep** of the frontend JS. "Done" = the frontend JS is fully
+JSDoc-typed and `deno check` + `deno lint` are green (verified locally with the pinned Deno 2.9.8; the
+in-container `make type-check` is the maintainer's host/rebuild confirmation). The `.js` ships unchanged
+(no transpile; the webview loads it directly).
 
 ## Context (read first)
 
@@ -30,27 +33,34 @@ unchanged (no transpile; the webview loads it directly).
 - **IPC view-models:** the `#[tauri::command]` returns (e.g. `apply_recipe`'s view-model) are the shapes
   to capture as JSDoc `@typedef`s on the JS side (the one-serde-view boundary).
 
-## Plan
+## What was done (Deno, not npm)
 
-1. **Dev tooling, safely:** add `rust/tauri/frontend/package.json` + committed `package-lock.json` pinning
-   `typescript`, `eslint`, `eslint-plugin-jsdoc` (devDependencies); install at image-build with
-   **`npm ci --ignore-scripts`** (baked → offline); add Node/npm to the image if absent.
-2. **`jsconfig.json`** in `rust/tauri/frontend/` — `checkJs`, `strict`, `noImplicitAny`, `noEmit`,
-   `include` the frontend `.js`; add `// @ts-check` atop `main.js` (belt-and-suspenders).
-3. **ESLint flat config** (`eslint.config.js`): `jsdoc.configs['flat/recommended']` +
-   `require-param-type` / `require-returns-type` / `check-types` / `no-undefined-types`.
-4. **JSDoc-type every binding** in `main.js` (full sweep): `@param`/`@returns` on each function,
-   `/** @type {} */` on opaque locals (DOM lookups, `invoke()` IPC results, empty arrays), `@typedef`s for
-   the IPC view-models + Move/Recipe shapes; parameterize all element types.
-5. **`make type-check`** (open question 1): `npm ci --ignore-scripts` (or baked deps) → `npx tsc --noEmit`
-   + `npx eslint .`, both exit statuses accumulated, run in-container. Verify green.
+1. **Deno baked into the image** — `rust/entrypoint/02-install-deno.sh` downloads a **pinned,
+   checksum-verified** Deno (`DENO_VERSION=v2.9.8`, `deno-x86_64-unknown-linux-gnu.zip` + its
+   `.sha256sum`) to `/usr/local/bin`; `rust/Dockerfile` adds the `ARG DENO_VERSION` + a source-independent
+   `RUN`. One binary, no `node_modules`, no lockfile, npm lifecycle scripts off by default.
+2. **`rust/tauri/frontend/deno.json`** — `compilerOptions` `checkJs` + `strict` + `noImplicitAny`,
+   `lib: ["dom","dom.iterable","esnext"]` (webview, not Deno globals); `lint`/`fmt` scope `main.js`.
+   `// @ts-check` atop `main.js`.
+3. **JSDoc-typed every binding** in `main.js` (full sweep): `@typedef`s for the four IPC view-models
+   (`Snapshot` / `RecipeInfo` / `ApplyView` / `ApplyStep`, transcribed from the Rust `#[derive(Serialize)]`
+   structs — snake_case fields, `Option<T>` → `T|null`), `@param`/`@returns` on every function, element
+   types on the colour-tuple arrays, and a cast at each `invoke()` / `getElementById()` opaque source.
+   `window` → `globalThis` (webview-equivalent; satisfies `deno lint`'s `no-window`).
+4. **`make type-check`** (Q1): a `tauri`-scoped target in `rust/Makefile` running
+   `deno check --check-js --no-lock main.js` + `deno lint main.js`, statuses accumulated. (`deno fmt` left
+   out of the gate so it doesn't reflow the hand-laid JSDoc casts; formatting isn't part of "done" here.)
+5. **Verified:** `deno check` exit 0 + `deno lint` exit 0 against the real `main.js` with the pinned Deno
+   2.9.8 (run directly; the in-container `make type-check` is the same invocation — maintainer confirms on
+   a host rebuild).
 
-## Open questions
+## Open questions — resolved
 
-1. **Where the target lives** — a `tauri`-scoped `make type-check` in `rust/Makefile`, or a small Makefile
-   under `rust/tauri/`? (The Tauri crate is already separate from the Rust workspace.)
-2. **Node in the image** — add Node/npm to the existing Tauri image build (recommended), or a separate
-   tool image?
+1. **Where the target lives** → `rust/Makefile`, `tauri`-scoped. No second Makefile: the Tauri app uses
+   the `rust/` image already, so a `rust/tauri/` Makefile would be drift.
+2. **Node in the image** → neither Node nor npm. **Deno** instead (the maintainer's reputation call): one
+   pinned binary, zero package tree, lifecycle scripts off — the npm supply-chain surface the standard
+   warns about is simply absent.
 
 ## Related
 

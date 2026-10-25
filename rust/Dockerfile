@@ -11,10 +11,15 @@ FROM registry.fedoraproject.org/fedora:44
 # MINIMAL_IMAGE build drops it.
 ARG USE_EMACS=0
 
+# Deno version for the JS type-check gate (entrypoint/02-install-deno.sh). A pinned,
+# checksum-verified binary baked at build so `make type-check` runs offline.
+ARG DENO_VERSION=v2.9.8
+
 # System-package installation lives in per-group scripts (entrypoint/0N-install-*.sh),
 # host-runnable with no container runtime. The dnf cache mount + keepcache stay in the
 # Dockerfile. 01-install-rust-base.sh installs the toolchain + native build stack.
 COPY entrypoint/01-install-rust-base.sh /usr/local/bin/
+COPY entrypoint/02-install-deno.sh /usr/local/bin/
 COPY entrypoint/dotfiles/.emacs.d/install-melpa-packages.el /root/.emacs.d/install-melpa-packages.el
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
@@ -27,6 +32,10 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
        emacs --batch --load /root/.emacs.d/install-melpa-packages.el ; \
      fi && \
      echo "cargo run -q -p hanoi-cli" >> ~/.bash_history
+
+# Deno for the JS type-check gate (own RUN, source-independent, so it caches across
+# frontend edits). See entrypoint/02-install-deno.sh.
+RUN DENO_VERSION="$DENO_VERSION" /usr/local/bin/02-install-deno.sh
 
 COPY entrypoint/.bashrc /root/
 COPY entrypoint/shell.sh /usr/local/bin/shell.sh
