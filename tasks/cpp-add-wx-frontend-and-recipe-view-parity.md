@@ -1,7 +1,7 @@
 # C++ subproject: add a wxWidgets `make wx` front-end (shared XRC) + bring the ImGui GUI to recipe parity
 
 **Status:** ready — decisions made (2026-10-25, see Decisions). Part A (wx + shared XRC) can start now;
-Part B (recipe view) conforms to the feature spec `tasks/program-feature-spec-and-compliance.md`, so it
+Part B (recipe view) conforms to the feature spec `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`, so it
 follows that spec landing.
 **Priority:** 5 **Difficulty:** 6
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: "the hanoi CPP one needs a
@@ -99,7 +99,7 @@ matching the Python three-panel view. Python stays the behaviour oracle for both
 4. **Verify** — native + wasm build/link; the view matches the Python oracle for a sample recipe under a
    non-default labelling; `make format` clean.
 
-### Spec-compliance gaps (from the 2026-10-25 audit — `tasks/program-feature-spec-and-compliance.md`)
+### Spec-compliance gaps (from the 2026-10-25 audit — `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`)
 
 The audit against `tasks/reference/feature-spec.md` §7 found the ImGui GUI is missing more than the
 three-panel view. Part B should close all of these (ranked, biggest first):
@@ -127,12 +127,12 @@ three-panel view. Part B should close all of these (ranked, biggest first):
    lean image can drop it.
 3. **Scope (Q3): FULL PARITY** — match the full Python wx GUI, including the three-panel recipe view.
    This is the standard for **every** implementation (Rust included), not just C++.
-4. **Invoke semantics (Q4): deferred to the feature spec** — `tasks/program-feature-spec-and-compliance.md`
+4. **Invoke semantics (Q4): deferred to the feature spec** — `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`
    defines (from the Python oracle) what invoking a recipe shows and whether it also applies to the board;
    this task conforms to that spec rather than guessing.
 5. **Structure (Q5): one doc** — keep Parts A and B here; commit them separately.
 
-**This task is now spec-driven:** once `tasks/program-feature-spec-and-compliance.md` lands, Parts A and B
+**This task is now spec-driven:** once `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md` lands, Parts A and B
 conform to the spec's recipe-view / rebinding definition (the parity authority), not to an ad-hoc reading
 of the other GUIs.
 

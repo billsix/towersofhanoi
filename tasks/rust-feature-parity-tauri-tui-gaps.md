@@ -3,7 +3,7 @@
 **Status:** proposed — needs go-ahead.
 **Priority:** 6 **Difficulty:** 3
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Filed from the feature-spec compliance
-audit (`tasks/program-feature-spec-and-compliance.md` § Audit results, 2026-10-25), after the maintainer
+audit (`tasks/archive/2026/10/25/program-feature-spec-and-compliance.md` § Audit results, 2026-10-25), after the maintainer
 set full spec parity as the standard for every implementation (Rust included).
 
 ## BLUF
@@ -34,7 +34,7 @@ against `tasks/reference/feature-spec.md` §7 rows 8, 12, 13, 14.
 ## Context (read first)
 
 - **Spec + audit:** `tasks/reference/feature-spec.md` (§4.8 the three-panel view; §7 checklist) and the
-  per-row audit in `tasks/program-feature-spec-and-compliance.md`.
+  per-row audit in `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
 - **The crate is the oracle-parity layer, don't change its behavior** — these are rendering/IPC changes in
   `rust/hanoi-gui/` (wx), `rust/hanoi/` (TUI), and `rust/tauri/` (both `src-tauri/src/main.rs` and
   `frontend/main.js`). Backend primitives already present: `recipe::format_rebinding_table`,
@@ -61,7 +61,7 @@ against `tasks/reference/feature-spec.md` §7 rows 8, 12, 13, 14.
 
 ## Related
 
-- Authority + audit: `tasks/reference/feature-spec.md`, `tasks/program-feature-spec-and-compliance.md`.
+- Authority + audit: `tasks/reference/feature-spec.md`, `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
 - Sibling parity task: `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md` (C++).
 - Rust ecosystem/build facts: the shared `rust-gui-tui-and-ecosystem.md` (runClaudeInContainer
   `tasks/reference/`) and `tauri-desktop-apps.md`; the Rust port record

@@ -199,7 +199,7 @@ as cruft, and nothing was added to the spec beyond Python). The three front-ends
 
 ## Other implementations — compliance (audited 2026-10-25)
 
-Summary (full per-row table + gaps: `tasks/program-feature-spec-and-compliance.md` § Audit results):
+Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md` § Audit results):
 
 - **Rust** — the shared `hanoigame` crate implements the full spec (all recipe/rebinding/three-panel
   logic, unit-tested); the only gaps are presentation-layer in two front-ends: the **Tauri** app shows no
@@ -220,4 +220,4 @@ Summary (full per-row table + gaps: `tasks/program-feature-spec-and-compliance.m
 - `tasks/reference/architecture-overview.md` — the dispatch data-flow + the default-label-space invariant.
 - `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md` — the rebinding teaching moment.
 - Spec-driven parity tasks: `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`,
-  `tasks/rust-gui-use-shared-xrc.md`; the audit + process: `tasks/program-feature-spec-and-compliance.md`.
+  `tasks/rust-gui-use-shared-xrc.md`; the audit + process: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
