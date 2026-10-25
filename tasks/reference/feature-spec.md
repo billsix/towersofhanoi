@@ -216,7 +216,7 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
   row, distinct rejection reasons, overwrite report, save-gated-on-win, help/quit); and a **wxWidgets
   `make wx`** front-end was added over the shared `ui/hanoi.xrc`. Verified headless (native ImGui, wasm,
   wx); the maintainer's on-display run is the last check.
-  → `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`.
+  → `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`.
 - **bash** — a by-design non-interactive demo of the relabelling method (solve scripts composed through
   six `tr` relabel filters); embodies §3/§4.3 relabelling cleanly but is not a game UI, so most
   interactive rows are n/a. Not a parity target.
@@ -227,5 +227,5 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
   three front-ends, `board_renderers`).
 - `tasks/reference/architecture-overview.md` — the dispatch data-flow + the default-label-space invariant.
 - `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md` — the rebinding teaching moment.
-- Spec-driven parity tasks: `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`,
+- Spec-driven parity tasks: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`,
   `tasks/rust-gui-use-shared-xrc.md`; the audit + process: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.

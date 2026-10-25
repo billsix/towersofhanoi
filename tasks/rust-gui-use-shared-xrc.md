@@ -53,7 +53,7 @@ XRC overview (docs.wxwidgets.org/latest/overview_xrc.html).
 ## Sharing the single `hanoi.xrc` — DECIDED: hoist to `ui/` + git-tracked symlinks
 
 **Mechanism (maintainer-decided 2026-10-25; the same mechanism the C++ task
-`cpp-add-wx-frontend-and-recipe-view-parity.md` uses, kept consistent):**
+`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md` uses, kept consistent):**
 
 - **Hoist `hanoi.xrc` to a repo-root `ui/` dir** — the one true file (`ui/hanoi.xrc`).
 - **A git-tracked relative symlink at each subproject's existing XRC path** points back to it:
