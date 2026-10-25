@@ -49,9 +49,9 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
   A `hanoigame` library crate + four front-ends: `hanoi-cli`, `hanoi` (ratatui/crossterm
   TUI), `hanoi-gui` (wxDragon GUI), and **`rust/tauri/`** (Tauri v2 desktop app, static
   webview UI over the same crate — NOT a workspace member; its own `[workspace]` root).
-  Build facts + wxDragon gotchas: `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port
+  Build facts + wxDragon gotchas: runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port
   record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
-  `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
+  runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
   `tasks/tauri-frontend-js-options.md`).
 - **C++** (`cpp/`, header-only engine in `src/` + a Dear ImGui GUI) — a single `main.cpp` building
   **native** (SDL2+OpenGL3) and **WebAssembly** (OpenGL3→WebGL-ES3) from one `CMakeLists.txt`, at feature

@@ -24,7 +24,7 @@ wxDragon loads XRC via its `include_xrc!` macro, so step (1) is done — proceed
   binds widgets by XRCID. The XRC (≈15 KB) is the canonical UI definition.
 - **Rust side:** `rust/hanoi-gui/src/main.rs` builds the window programmatically with wxDragon
   (`Rc<RefCell<GuiState>>` shared across `'static` closures; the DC-not-GraphicsContext drawing limit).
-  See `tasks/reference/rust-gui-tui-and-ecosystem.md` and
+  See runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md` and
   `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
 - **Why share:** the Python package is the canonical source; all ports mirror it and must not drift. One
   shared XRC means the window layout is defined once, not reimplemented per language.
@@ -95,5 +95,5 @@ the containerized build — which is why one was NOT created up front. Pick a sh
 ## Related
 
 - Canonical UI: `python/src/hanoigame/hanoi.xrc` + `python/src/hanoigame/hanoigui.py`.
-- `tasks/reference/rust-gui-tui-and-ecosystem.md`; `tasks/reference/per-language-subproject-layout.md`
+- runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; `tasks/reference/per-language-subproject-layout.md`
   (the self-contained-subproject model this has to work within).

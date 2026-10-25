@@ -79,5 +79,5 @@ by egui and the move/relabel/recipe interactions wired.
 - Sibling (the C++ analog): `tasks/port-to-cpp-imgui-native-and-wasm.md` +
   `tasks/reference/imgui-cpp-native-and-wasm.md`.
 - `tasks/reference/per-language-subproject-layout.md` (the subproject model) and
-  `tasks/reference/rust-gui-tui-and-ecosystem.md`.
+  runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`.
 - Upstream: github.com/emilk/egui, github.com/emilk/eframe_template.
