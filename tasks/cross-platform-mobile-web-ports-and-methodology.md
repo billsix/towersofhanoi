@@ -2,7 +2,7 @@
 
 **Status:** blocked
 **Blocked on:** (1) the desktop/web spec-parity foundation landing — the C++ parity
-(`tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`) and Rust parity
+(`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`) and Rust parity
 (`tasks/rust-feature-parity-tauri-tui-gaps.md`) tasks complete, so there is a proven, spec-conformant
 multi-language base to port *from*; and (2) the maintainer green-lighting this initiative and providing
 the mobile prerequisites that are outside the agent's control — an **Apple Developer account + a Mac with
@@ -126,7 +126,7 @@ extracts into the sandboxes.
 ## Related
 
 - The contract: `tasks/reference/feature-spec.md`; the audit: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
-- The foundation this is blocked on: `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`,
+- The foundation this is blocked on: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`,
   `tasks/rust-feature-parity-tauri-tui-gaps.md`.
 - Candidate cores: `rust/hanoigame/`, `cpp/src/{model,presenter,recipe}.hpp`.
 - Research sources (2026-10-25): cross-platform C++ (NDK/Emscripten/iOS) —

@@ -11,6 +11,7 @@
 #include "model.hpp"
 #include "presenter.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <map>
@@ -148,6 +149,84 @@ inline std::array<std::array<int, 2>, 3> rebinding(Labelling labelling) {
     pairs[i] = {label, *peg + 1}; // a label in 1..3 always resolves
   }
   return pairs;
+}
+
+// Rewrite each (from_label, to_label) move onto the 1-indexed physical pegs it
+// lands on under `labelling`. Pure (no game state); identity under OneTwoThree.
+// The C++ port of the Python `rebound_moves` -- the right-hand panel of the
+// three-panel rebinding view (both the recipe's stored moves and a single typed
+// move).
+inline std::vector<std::array<int, 2>>
+rebound_moves(const std::vector<std::array<int, 2>> &moves,
+              Labelling labelling) {
+  std::vector<std::array<int, 2>> out;
+  out.reserve(moves.size());
+  for (const std::array<int, 2> &mv : moves) {
+    const std::optional<int> fp = label_to_tower(labelling, mv[0]);
+    const std::optional<int> tp = label_to_tower(labelling, mv[1]);
+    out.push_back({*fp + 1, *tp + 1}); // labels are 1..3, always resolve
+  }
+  return out;
+}
+
+// Render the three aligned text columns -- the C++ port of the Python
+// `format_rebinding_table`, the text form of the GUI's three-panel rebinding
+// view: `<left_header> | Rebinding (label -> peg) | Rebound (physical pegs)`.
+// Empty under the default labelling. The GUIs build their own widget columns
+// from rebinding()/rebound_moves(); this text form matches the oracle and is
+// available to any text/CLI front-end.
+inline std::vector<std::string>
+format_rebinding_table(const std::vector<std::array<int, 2>> &moves,
+                       Labelling labelling,
+                       const std::string &left_header = "Recipe (its labels)") {
+  std::vector<std::string> lines;
+  if (labelling == Labelling::OneTwoThree) {
+    return lines;
+  }
+  std::vector<std::string> left;
+  std::vector<std::string> mid;
+  std::vector<std::string> right;
+  for (std::size_t i = 0; i < moves.size(); ++i) {
+    left.push_back(std::to_string(i + 1) + ": " + std::to_string(moves[i][0]) +
+                   " -> " + std::to_string(moves[i][1]));
+  }
+  for (const std::array<int, 2> &p : rebinding(labelling)) {
+    mid.push_back("label " + std::to_string(p[0]) + " -> peg " +
+                  std::to_string(p[1]));
+  }
+  const std::vector<std::array<int, 2>> rb = rebound_moves(moves, labelling);
+  for (std::size_t i = 0; i < rb.size(); ++i) {
+    right.push_back(std::to_string(i + 1) + ": " + std::to_string(rb[i][0]) +
+                    " -> " + std::to_string(rb[i][1]));
+  }
+  const std::string lhdr = left_header;
+  const std::string mhdr = "Rebinding";
+  const std::string rhdr = "Rebound (pegs)";
+  std::size_t lw = lhdr.size();
+  for (const std::string &s : left) {
+    lw = std::max(lw, s.size());
+  }
+  std::size_t mw = mhdr.size();
+  for (const std::string &s : mid) {
+    mw = std::max(mw, s.size());
+  }
+  const std::size_t rows = std::max({left.size(), mid.size(), right.size()});
+  const auto ljust = [](const std::string &s, std::size_t w) {
+    return s.size() >= w ? s : s + std::string(w - s.size(), ' ');
+  };
+  const auto cell = [&](const std::vector<std::string> &col, std::size_t i,
+                        std::size_t w) {
+    return ljust(i < col.size() ? col[i] : std::string(), w);
+  };
+  lines.push_back("  " + ljust(lhdr, lw) + "   " + ljust(mhdr, mw) + "   " +
+                  rhdr);
+  lines.push_back("  " + std::string(lw, '-') + "   " + std::string(mw, '-') +
+                  "   " + std::string(rhdr.size(), '-'));
+  for (std::size_t i = 0; i < rows; ++i) {
+    lines.push_back("  " + cell(left, i, lw) + "   " + cell(mid, i, mw) +
+                    "   " + cell(right, i, 0));
+  }
+  return lines;
 }
 
 } // namespace hanoi

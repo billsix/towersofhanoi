@@ -66,11 +66,13 @@ it builds wxWidgets from source; later runs reuse the cached build.)
 
 ## C++
 
-A **Dear ImGui** GUI over the same game engine, built two ways from one codebase:
+Two GUIs over the same game engine: a **Dear ImGui** app (native + WebAssembly) and a **wxWidgets** app
+(built from the shared `ui/hanoi.xrc`, same layout as the Python GUI).
 
 ```sh
 cd cpp
-make gui          # native desktop window (X11 + Wayland forwarded automatically)
+make gui          # native Dear ImGui window (X11 + Wayland forwarded automatically)
+make wx           # native wxWidgets window (shared XRC layout)
 make webassembly  # build web/index.{html,js,wasm}
 make serve        # build the wasm if needed, then serve it at http://localhost:8000
 ```

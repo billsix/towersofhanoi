@@ -46,4 +46,18 @@ else()
   target_include_directories(hanoi-cpp PRIVATE ${SDL2_INCLUDE_DIRS})
   target_link_libraries(hanoi-cpp PRIVATE ${SDL2_LIBRARIES} GL dl)
   target_compile_options(hanoi-cpp PRIVATE ${SDL2_CFLAGS_OTHER})
+
+  # The wxWidgets front-end (make wx), built from the shared XRC. Only when
+  # wxGTK-devel is present (the USE_WX image) -- QUIET + the FOUND guard so a lean
+  # image without wx still configures + builds the ImGui target. wxWidgets is not
+  # available under Emscripten, so this is native-only.
+  find_package(wxWidgets COMPONENTS xrc html adv core base QUIET)
+  if(wxWidgets_FOUND)
+    include(${wxWidgets_USE_FILE})
+    add_executable(hanoi-wx hanoiwx.cpp)
+    target_include_directories(hanoi-wx PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(hanoi-wx PRIVATE ${wxWidgets_LIBRARIES})
+  else()
+    message(STATUS "wxWidgets not found -- skipping hanoi-wx (build a USE_WX=1 image for `make wx`).")
+  endif()
 endif()

@@ -3,7 +3,7 @@
 **Status:** COMPLETE (2026-10-25) — spec written (`tasks/reference/feature-spec.md`), Python reconciled
 to it (the authority; no cruft found, nothing added beyond Python), and the Rust/C++/bash audit documented
 below (§ Audit results). Gap-fixing is spun into per-language parity tasks (C++:
-`tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`; Rust: `tasks/rust-feature-parity-tauri-tui-gaps.md`).
+`tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`; Rust: `tasks/rust-feature-parity-tauri-tui-gaps.md`).
 Ready to archive after the work commit.
 **Priority:** 4 **Difficulty:** 6
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: "let's make a reference
@@ -43,7 +43,7 @@ compliance result (gaps feeding the relevant parity tasks).
 - **Why Python is the authority:** the project convention is that the Python package is the **behaviour
   oracle**; all ports mirror it and must not drift (`CLAUDE.md`). This spec makes that authority explicit
   and UI-independent so ports conform to a *written* definition, not to each other.
-- **Relationship to the parity tasks:** `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md` (C++) and
+- **Relationship to the parity tasks:** `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md` (C++) and
   `tasks/rust-gui-use-shared-xrc.md` (Rust) become **spec-driven** — their "parity" is conformance to
   this spec. The maintainer decided (2026-10-25) full parity is the standard for *every* implementation.
 - **Reference-doc nature:** this is durable knowledge ("what is TRUE"), so it lives in
@@ -132,7 +132,7 @@ Biggest: **row 13** (no three-panel view — only a one-line status + a static m
 panel; engine lacks `rebound_moves`/`format_rebinding_table`), **row 11** (no view-recipe), **row 12**
 (apply doesn't record applied moves). Plus partials: row 10 (names only), row 4 (no rejection reasons),
 row 9 (save not win-gated, no overwrite report), row 3 (no optimal), row 6 (no physical ref row), row 14
-(no help/in-app quit). → folded into `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md` Part B.
+(no help/in-app quit). → folded into `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md` Part B.
 
 **bash** — a **by-design non-interactive demo** of the relabelling method (solve scripts composed through
 six `tr` relabel filters); it has no board/state, so rows 4,6,7,8,10,14 are legitimately **n/a**, not
@@ -157,7 +157,7 @@ disks) and demonstrates apply/recipe-representation as stream composition (rows 
 ## Related
 
 - Authority: `python/src/hanoigame/` (see Context for the per-file map).
-- Spec-driven parity tasks: `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md`,
+- Spec-driven parity tasks: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`,
   `tasks/rust-gui-use-shared-xrc.md`.
 - `tasks/reference/architecture-overview.md` (dispatch data-flow + recipe invariant) and
   `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md` (rebinding teaching rationale).

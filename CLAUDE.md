@@ -16,9 +16,10 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 - **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including the
   Tauri app** at `rust/tauri/` (just another UI, like the wx one). `cd rust`, then
   `make cli | tui | wx | tauri | format | shell`. See `rust/CLAUDE.md`.
-- **`cpp/`** — a **Dear ImGui** GUI over the engine, building a **native** binary (`make gui`)
-  **and** **WebAssembly** (`make webassembly`/`make serve`) from one `CMakeLists.txt`. `cd cpp`,
-  then `make gui | webassembly | serve | format | shell`. See `cpp/CLAUDE.md`.
+- **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
+  **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
+  app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
+  `make gui | wx | webassembly | serve | format | shell`. See `cpp/CLAUDE.md`.
 - **the root** (this dir) — the **book + workbook + bash + umbrella**: the Sphinx book
   (`docs/`), the printable worksheets (`workbook/`), the bash demos (`bash/`), and a thin
   umbrella Makefile. `make docs` builds the book; `make format`/`make type-check` delegate
@@ -53,11 +54,13 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
   record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
   runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
   `tasks/tauri-frontend-js-options.md`).
-- **C++** (`cpp/`, header-only engine in `src/` + a Dear ImGui GUI) — a single `main.cpp` building
-  **native** (SDL2+OpenGL3) and **WebAssembly** (OpenGL3→WebGL-ES3) from one `CMakeLists.txt`, at feature
-  parity with the wx GUI; Dear ImGui vendored at `cpp/imgui/`. Python stays the behaviour oracle. Build +
-  wasm gotchas: `tasks/reference/imgui-cpp-native-and-wasm.md`; port record:
-  `tasks/archive/2026/10/25/port-to-cpp-imgui-native-and-wasm.md`.
+- **C++** (`cpp/`, header-only engine in `src/`) — **two GUIs** from one `CMakeLists.txt`: a Dear ImGui
+  `main.cpp` (native SDL2+OpenGL3 and WebAssembly OpenGL3→WebGL-ES3; ImGui vendored at `cpp/imgui/`), and
+  a **wxWidgets `hanoiwx.cpp`** (`make wx`) built from the shared `ui/hanoi.xrc`. Both at feature parity
+  with the Python oracle (`tasks/reference/feature-spec.md`). Build + wasm gotchas:
+  `tasks/reference/imgui-cpp-native-and-wasm.md`; the port + parity records:
+  `tasks/archive/2026/10/25/port-to-cpp-imgui-native-and-wasm.md` and
+  `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`.
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..5`), and
   printable **worksheets** (`workbook/`) all reinforce the relabelling method.
 
@@ -65,8 +68,14 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 
 - `python/` — the Python subproject (self-contained; see `python/CLAUDE.md`). Its package
   is `src/hanoigame/`: `hanoimodel`, `presenter` (render + 6 peg labellings), `commands`,
-  `engine`, `recipe`, the three front-ends, `board_renderers`, `hanoi.xrc`; `tests/`.
+  `engine`, `recipe`, the three front-ends, `board_renderers`, `hanoi.xrc` (a symlink to `ui/hanoi.xrc`);
+  `tests/`.
 - `rust/` — the Rust subproject (self-contained; see `rust/CLAUDE.md`), incl. `rust/tauri/`.
+- `cpp/` — the C++ subproject (self-contained; see `cpp/CLAUDE.md`): the ImGui `main.cpp` + wxWidgets
+  `hanoiwx.cpp` GUIs over the header-only engine in `src/`, with vendored `imgui/`.
+- `ui/` — the **one shared wx UI definition** (`ui/hanoi.xrc`). Each wx front-end
+  (`python/src/hanoigame/hanoi.xrc`, `cpp/hanoi.xrc`) is a git-tracked symlink to it, and each
+  subproject's Makefile mounts `ui/` at `/ui` so the symlink resolves in-container — one file, no drift.
 - `bash/` — 12 scripts (solves + relabel filters).
 - `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
   (guarded by `python/tests/test_byhand_drift.py`; regenerate, don't hand-edit those pages).
@@ -88,10 +97,10 @@ root builds the book.
 - **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` run the front-ends; `format`
   (rustfmt). The crates build at runtime (cached in `rust/.container-*`) because wxDragon
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
-- **`cd cpp && make`** — `gui` (native ImGui app, on X11/Wayland) / `webassembly` (→ gitignored
-  `web/`) / `serve` (http at :8000); `format` (clang-format, never the vendored `imgui/`). `USE_EMACS`
-  (default 1) installs emacs + clangd; `USE_WASM` (default 1) installs the pinned Emscripten SDK;
-  `MINIMAL_IMAGE=1` drops both (a lean native-only image). `update-imgui` re-vendors Dear ImGui.
+- **`cd cpp && make`** — `gui` (native ImGui) / `wx` (wxWidgets, from the shared `ui/hanoi.xrc`) /
+  `webassembly` (→ gitignored `web/`) / `serve` (http at :8000); `format` (clang-format, never the
+  vendored `imgui/`). `USE_EMACS` installs emacs+clangd, `USE_WASM` the Emscripten SDK, `USE_WX` the wxGTK
+  stack (all default 1; `MINIMAL_IMAGE=1` drops them). `update-imgui` re-vendors Dear ImGui.
 - Every subproject has `shell` / `shell-exec` (sharing one invocation), `image-export` /
   `image-import`, `PODMAN_RUN_FLAGS` (nested-podman), and `update-emacs-packages`.
 

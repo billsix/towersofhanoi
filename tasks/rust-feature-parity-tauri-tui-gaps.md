@@ -62,7 +62,7 @@ against `tasks/reference/feature-spec.md` §7 rows 8, 12, 13, 14.
 ## Related
 
 - Authority + audit: `tasks/reference/feature-spec.md`, `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
-- Sibling parity task: `tasks/cpp-add-wx-frontend-and-recipe-view-parity.md` (C++).
+- Sibling parity task: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md` (C++).
 - Rust ecosystem/build facts: the shared `rust-gui-tui-and-ecosystem.md` (runClaudeInContainer
   `tasks/reference/`) and `tauri-desktop-apps.md`; the Rust port record
   `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
