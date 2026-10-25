@@ -15,7 +15,7 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
   then `make cli | tui | wx | format | type-check | shell`. See `python/CLAUDE.md`.
 - **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including the
   Tauri app** at `rust/tauri/` (just another UI, like the wx one). `cd rust`, then
-  `make cli | tui | wx | tauri | format | shell`. See `rust/CLAUDE.md`.
+  `make cli | tui | wx | tauri | format | check | shell`. See `rust/CLAUDE.md`.
 - **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
   **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
   app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
@@ -95,7 +95,8 @@ root builds the book.
   `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs — no OpenGL/mesa (the board is 2D
   wx/Cairo). `USE_EMACS` (default 1) installs emacs + the Python dev set.
 - **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` run the front-ends; `format`
-  (rustfmt). The crates build at runtime (cached in `rust/.container-*`) because wxDragon
+  (rustfmt) and `check` (`cargo check --workspace --all-targets`, which compiles the test
+  modules bare `cargo check` skips) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
 - **`cd cpp && make`** — `gui` (native ImGui) / `wx` (wxWidgets, from the shared `ui/hanoi.xrc`) /
   `webassembly` (→ gitignored `web/`) / `serve` (http at :8000); `format` (clang-format, never the

@@ -24,8 +24,8 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use hanoigame::commands::parse;
-use hanoigame::engine::GameSession;
+use hanoigame::commands::{parse, Command};
+use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::presenter::{self, change_labels_on_pegs, peg_color, Labelling};
 use hanoigame::recipe::RecipeRegistry;
 
@@ -94,19 +94,19 @@ fn board_lines(session: &GameSession) -> Vec<Line<'static>> {
 
     // Vertical pegs (rows 0..=n), white.
     for peg in 0..3 {
-        let cx = presenter::peg_center_x(n, peg);
+        let cx: usize = presenter::peg_center_x(n, peg);
         for row in grid.iter_mut().take(n + 1) {
             row[cx] = ('|', Color::White);
         }
     }
 
     // Discs, cyan.
-    let pvw = presenter::peg_visual_width(n);
+    let pvw: usize = presenter::peg_visual_width(n);
     for (peg, stack) in session.game.towers.iter().enumerate() {
-        let cx = presenter::peg_center_x(n, peg);
+        let cx: usize = presenter::peg_center_x(n, peg);
         for (i, &size) in stack.iter().enumerate() {
-            let row = n - i;
-            let start = cx - pvw / 2 + presenter::padding_left(n, size as usize);
+            let row: usize = n - i;
+            let start: usize = cx - pvw / 2 + presenter::padding_left(n, size as usize);
             for col in start..start + presenter::disk_char_width(size as usize) {
                 grid[row][col] = ('*', Color::Cyan);
             }
@@ -120,15 +120,15 @@ fn board_lines(session: &GameSession) -> Vec<Line<'static>> {
 
     // Active labels, coloured per peg.
     for peg in 0..3 {
-        let cx = presenter::peg_center_x(n, peg);
-        let digit = digit_char(change_labels_on_pegs(labelling, peg) + 1);
+        let cx: usize = presenter::peg_center_x(n, peg);
+        let digit: char = digit_char(change_labels_on_pegs(labelling, peg) + 1);
         grid[n + 2][cx] = (digit, peg_fg(labelling, peg));
     }
 
     // Default-reference row when relabelled.
     if relabelled {
         for peg in 0..3 {
-            let cx = presenter::peg_center_x(n, peg);
+            let cx: usize = presenter::peg_center_x(n, peg);
             grid[n + 3][cx] = (digit_char(peg + 1), peg_fg(Labelling::OneTwoThree, peg));
         }
     }
@@ -143,9 +143,9 @@ fn digit_char(d: usize) -> char {
 
 /// The one-line status: disc count, active labelling, move count, recipe count.
 fn status_line(session: &GameSession) -> String {
-    let a = change_labels_on_pegs(session.labelling, 0) + 1;
-    let b = change_labels_on_pegs(session.labelling, 1) + 1;
-    let c = change_labels_on_pegs(session.labelling, 2) + 1;
+    let a: usize = change_labels_on_pegs(session.labelling, 0) + 1;
+    let b: usize = change_labels_on_pegs(session.labelling, 1) + 1;
+    let c: usize = change_labels_on_pegs(session.labelling, 2) + 1;
     format!(
         " Discs: {}    Labelling: {a} {b} {c}    Moves: {}    Recipes: {} ",
         session.num_disks(),
@@ -222,7 +222,7 @@ fn draw_play(
 
 /// Render the modal disc-count prompt on a clean screen.
 fn draw_disc_prompt(f: &mut Frame, input: &str) {
-    let lines = vec![
+    let lines: Vec<Line<'static>> = vec![
         Line::from(""),
         Line::from(Span::styled(
             " Towers of Hanoi — type 'help' for commands.",
@@ -238,8 +238,8 @@ fn draw_disc_prompt(f: &mut Frame, input: &str) {
 
 /// Render the full-screen pager for output taller than the message area.
 fn draw_pager(f: &mut Frame, lines: &[String], top: usize) {
-    let area = f.area();
-    let view_h = area.height.saturating_sub(1) as usize;
+    let area: Rect = f.area();
+    let view_h: usize = area.height.saturating_sub(1) as usize;
     let mut shown: Vec<Line> = lines
         .iter()
         .skip(top)
@@ -282,7 +282,7 @@ fn read_key() -> std::io::Result<Key> {
             if k.kind != KeyEventKind::Press {
                 continue;
             }
-            let key = match k.code {
+            let key: Key = match k.code {
                 KeyCode::Char('c' | 'C') if k.modifiers.contains(KeyModifiers::CONTROL) => {
                     Key::Interrupt
                 }
@@ -316,7 +316,7 @@ where
     F: Fn(&mut Frame, &str),
     C: Fn(&str) -> String,
 {
-    let mut input = String::from(initial);
+    let mut input: String = String::from(initial);
     loop {
         terminal.draw(|f| draw(f, &input))?;
         match read_key()? {
@@ -338,15 +338,15 @@ where
 /// longest common prefix; none leaves `input` unchanged. Mirrors the CLI's
 /// readline completion so the two front-ends behave the same.
 fn complete_line(input: &str, recipe_names: &[String]) -> String {
-    let text = input.rsplit(' ').next().unwrap_or("");
-    let cands = hanoigame::commands::completions(input, text, recipe_names);
+    let text: &str = input.rsplit(' ').next().unwrap_or("");
+    let cands: Vec<String> = hanoigame::commands::completions(input, text, recipe_names);
     if cands.is_empty() {
         return input.to_string();
     }
-    let fill = if cands.len() == 1 {
+    let fill: String = if cands.len() == 1 {
         cands[0].clone()
     } else {
-        let mut prefix = cands[0].clone();
+        let mut prefix: String = cands[0].clone();
         for c in &cands[1..] {
             while !c.starts_with(&prefix) {
                 prefix.pop();
@@ -354,7 +354,7 @@ fn complete_line(input: &str, recipe_names: &[String]) -> String {
         }
         prefix
     };
-    let base = input.strip_suffix(text).unwrap_or(input);
+    let base: &str = input.strip_suffix(text).unwrap_or(input);
     format!("{base}{fill}")
 }
 
@@ -363,8 +363,8 @@ fn pager(terminal: &mut DefaultTerminal, lines: &[String]) -> std::io::Result<()
     let mut top: usize = 0;
     loop {
         terminal.draw(|f| draw_pager(f, lines, top))?;
-        let view_h = terminal.size()?.height.saturating_sub(1) as usize;
-        let maxtop = lines.len().saturating_sub(view_h);
+        let view_h: usize = terminal.size()?.height.saturating_sub(1) as usize;
+        let maxtop: usize = lines.len().saturating_sub(view_h);
         match read_key()? {
             Key::Char('q' | 'Q') | Key::Enter | Key::Interrupt => return Ok(()),
             Key::Down | Key::Char('j') => top = (top + 1).min(maxtop),
@@ -386,7 +386,7 @@ fn prompt_disc_count(terminal: &mut DefaultTerminal) -> std::io::Result<Option<u
         let Some(line) = read_line_on(terminal, "", draw_disc_prompt, |s| s.to_string())? else {
             return Ok(None);
         };
-        let s = line.trim().to_lowercase();
+        let s: String = line.trim().to_lowercase();
         if matches!(s.as_str(), "quit" | "q" | "exit") {
             return Ok(None);
         }
@@ -404,7 +404,7 @@ fn play_game(
     n: u32,
     registry: &mut RecipeRegistry,
 ) -> std::io::Result<bool> {
-    let mut session = GameSession::new(n, registry);
+    let mut session: GameSession<'_> = GameSession::new(n, registry);
     let mut msg: Vec<String> = Vec::new();
 
     while !session.is_won() {
@@ -417,12 +417,12 @@ fn play_game(
         else {
             return Ok(false);
         };
-        let cmd = parse(&line);
-        let result = session.dispatch(&cmd);
+        let cmd: Command = parse(&line);
+        let result: DispatchResult = session.dispatch(&cmd);
         if result.quit {
             return Ok(false);
         }
-        let mut show = result.lines.clone();
+        let mut show: Vec<String> = result.lines.clone();
         show.extend(session.move_teaching_lines(&cmd, &result));
         if show.len() > MSG_AREA_LINES {
             pager(terminal, &show)?;
@@ -433,33 +433,34 @@ fn play_game(
     }
 
     // Won.
-    let min = session.min_moves();
-    let moves = u64::from(session.current_moves());
-    let mut banner = vec![format!("Solved! {moves} moves (minimum {min}).")];
+    let min: u64 = session.min_moves();
+    let moves: u64 = u64::from(session.current_moves());
+    let mut banner: Vec<String> = vec![format!("Solved! {moves} moves (minimum {min}).")];
     if moves == min {
         banner.push("Optimal solution!".to_string());
     } else {
         banner.push(format!("{} more than the minimum.", moves - min));
     }
 
-    let default_name = format!("solve-{}", session.num_disks());
-    let save_hint = ["Save this solution? Edit the name and press Enter, or clear it to skip."];
-    let name = read_line_on(
+    let default_name: String = format!("solve-{}", session.num_disks());
+    let save_hint: [&str; 1] =
+        ["Save this solution? Edit the name and press Enter, or clear it to skip."];
+    let name: Option<String> = read_line_on(
         terminal,
         &default_name,
         |f, input| draw_play(f, &session, &banner, &save_hint, input),
         |s| s.to_string(),
     )?;
     if let Some(name) = name {
-        let name = name.trim();
+        let name: &str = name.trim();
         if !name.is_empty() {
-            let msg = session.save_recipe(name);
+            let msg: String = session.save_recipe(name);
             banner.push(msg);
         }
     }
 
-    let again_hint = ["Play again? (y/n)"];
-    let again = read_line_on(
+    let again_hint: [&str; 1] = ["Play again? (y/n)"];
+    let again: Option<String> = read_line_on(
         terminal,
         "",
         |f, input| draw_play(f, &session, &banner, &again_hint, input),
@@ -470,7 +471,7 @@ fn play_game(
 
 /// The game loop: prompt for a disc count, play, repeat until the user quits.
 fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
-    let mut registry = RecipeRegistry::new();
+    let mut registry: RecipeRegistry = RecipeRegistry::new();
     loop {
         let Some(n) = prompt_disc_count(terminal)? else {
             return Ok(());
@@ -482,8 +483,8 @@ fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
 }
 
 fn main() -> std::io::Result<()> {
-    let mut terminal = ratatui::init();
-    let result = app(&mut terminal);
+    let mut terminal: DefaultTerminal = ratatui::init();
+    let result: std::io::Result<()> = app(&mut terminal);
     ratatui::restore();
     result
 }

@@ -169,7 +169,7 @@ impl Replay {
         if self.stopped || self.idx >= self.moves.len() {
             return None;
         }
-        let (from_label, to_label) = self.moves[self.idx];
+        let (from_label, to_label): (u32, u32) = self.moves[self.idx];
         self.idx += 1;
 
         let Some((fp, tp)) = labels_to_towers(self.labelling, from_label, to_label) else {

@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn postinit() {
-        let game = HanoiGame::new(3);
+        let game: HanoiGame = HanoiGame::new(3);
         assert_eq!(game.num_disks, 3);
         assert_eq!(game.current_moves, 0);
         assert_eq!(game.towers, [vec![3, 2, 1], vec![], vec![]]);
@@ -162,12 +162,12 @@ mod tests {
 
     #[test]
     fn makemove() {
-        let mut game = HanoiGame::new(3);
+        let mut game: HanoiGame = HanoiGame::new(3);
 
         assert_eq!(game.move_options(), vec![Move::new(0, 1), Move::new(0, 2)]);
 
         // make_move(0)
-        let mv = game.move_options()[0];
+        let mv: Move = game.move_options()[0];
         game.apply_move(mv).unwrap();
         assert_eq!(game.towers, [vec![3, 2], vec![1], vec![]]);
         assert_eq!(
@@ -176,7 +176,7 @@ mod tests {
         );
 
         // make_move(2)
-        let mv = game.move_options()[2];
+        let mv: Move = game.move_options()[2];
         game.apply_move(mv).unwrap();
         assert_eq!(game.towers, [vec![3, 2], vec![], vec![1]]);
         assert_eq!(
@@ -185,7 +185,7 @@ mod tests {
         );
 
         // make_move(0)
-        let mv = game.move_options()[0];
+        let mv: Move = game.move_options()[0];
         game.apply_move(mv).unwrap();
         assert_eq!(game.towers, [vec![3], vec![2], vec![1]]);
         assert_eq!(
@@ -194,7 +194,7 @@ mod tests {
         );
 
         // make_move(2)
-        let mv = game.move_options()[2];
+        let mv: Move = game.move_options()[2];
         game.apply_move(mv).unwrap();
         assert_eq!(game.towers, [vec![3], vec![2, 1], vec![]]);
         assert_eq!(
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn win_condition() {
-        let mut game = HanoiGame::new(1);
+        let mut game: HanoiGame = HanoiGame::new(1);
         assert!(!game.check_win_condition());
         game.apply_move(Move::new(0, 2)).unwrap();
         assert!(game.check_win_condition());
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn illegal_moves_are_rejected() {
-        let mut game = HanoiGame::new(3);
+        let mut game: HanoiGame = HanoiGame::new(3);
         assert_eq!(
             game.apply_move(Move::new(1, 0)),
             Err(MoveError::SourceEmpty)
