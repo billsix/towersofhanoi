@@ -43,41 +43,46 @@ XRC overview (docs.wxwidgets.org/latest/overview_xrc.html).
   viable: replace the programmatic construction with `include_xrc!` + binding events to the typed
   widgets.
 - **Implication 2 — `include_xrc!` is COMPILE-TIME** (like `include_str!`): the XRC file must be present
-  **under the rust crate at build time**, at a path the macro references. This reshapes the sharing
-  decision below — a *live* cross-subproject symlink dangles inside the isolated rust container, so a
-  **build-time copy of the canonical XRC into the rust crate** (drift-guarded) is the robust mechanism.
+  **under the rust crate at build time**, at the path the macro references. The decided sharing mechanism
+  (hoist + git-tracked symlink + a mounted `ui/`, below) satisfies this: with `ui/` mounted, the symlink
+  at the crate's XRC path resolves to a real file at build time, so `include_xrc!` works with no copy.
 - **Residual risk to check during the work:** that every widget type used in `hanoi.xrc` (authored for
   wxPython) is supported by wxDragon's XRC loader. If a widget isn't, adjust the XRC or fall back for
   that piece.
 
-## Sharing the single `hanoi.xrc` — the real obstacle
+## Sharing the single `hanoi.xrc` — DECIDED: hoist to `ui/` + git-tracked symlinks
 
-`git` **does** track symlinks (`core.symlinks=true` on Linux), so a symlink is mechanically possible.
-**But** the per-language subprojects are self-contained: `rust/`'s container mounts only `rust/` at
-`/hanoi-rust`, and `python/`'s mounts only `python/` — so a symlink `rust/.../hanoi.xrc →
-../../python/src/hanoigame/hanoi.xrc` resolves in a full checkout (and on the host) but **dangles inside
-the isolated rust container** (the target escapes the mount). So a naive cross-subproject symlink breaks
-the containerized build — which is why one was NOT created up front. Pick a sharing mechanism:
+**Mechanism (maintainer-decided 2026-10-25; the same mechanism the C++ task
+`cpp-add-wx-frontend-and-recipe-view-parity.md` uses, kept consistent):**
 
-1. **Canonical-in-python + build-time copy (recommended — robust with the compile-time macro).** Keep
-   `hanoi.xrc` canonical in `python/`; the rust build copies it into the rust crate before `include_xrc!`
-   runs (a generated-from-canonical artifact), guarded by a check that the two bytes match so they can't
-   drift. No cross-subproject symlink to dangle in the container; self-containment preserved. Because
-   `include_xrc!` only needs the file present at build, a copy is exactly enough.
-2. **Shared top-level location + mount** — move `hanoi.xrc` to a repo-level `ui/` dir; both `python/`
-   and `rust/` reference it, and each subproject's Makefile mounts it into its container. One true copy,
-   but costs a break in strict self-containment (an extra mount) + updating Python's loader path.
-3. **Symlink** — `git` tracks symlinks, and a `rust/… → ../../python/…/hanoi.xrc` symlink resolves in a
-   full checkout / on the host, so `include_xrc!` works there — but it **dangles inside the isolated
-   rust container** (target escapes the `/hanoi-rust` mount), so it needs the python xrc mounted in too.
-   Looser self-containment; option 1 is cleaner.
+- **Hoist `hanoi.xrc` to a repo-root `ui/` dir** — the one true file (`ui/hanoi.xrc`).
+- **A git-tracked relative symlink at each subproject's existing XRC path** points back to it:
+  `python/src/hanoigame/hanoi.xrc → ../../../ui/hanoi.xrc`, `rust/hanoi-gui/<xrc-path> → …/ui/hanoi.xrc`
+  (and `cpp/hanoi.xrc → ../ui/hanoi.xrc`). `git` tracks symlinks as mode `120000` (confirmed:
+  `core.symlinks` is default/true on this Linux host). **Because each symlink sits at the path the loader
+  already uses, nothing in code changes** (Python's `importlib.resources.files("hanoigame")/"hanoi.xrc"`
+  still finds it; `include_xrc!` still references the crate path) — and there is **one physical file, so
+  drift is impossible** (no bytes-match drift-guard needed).
+- **In-container resolution:** each subproject's Makefile mounts the repo-root `ui/` at **`/ui`**
+  (read-only). A subproject mounted at `/hanoi-<lang>` makes `..` resolve to `/`, so the relative symlink
+  `../…/ui/hanoi.xrc` lands on `/ui/hanoi.xrc` inside the container. This is the one real cost — an extra
+  mount per subproject (a small, deliberate break in strict self-containment).
+- **Offline / baked image:** the subproject build context doesn't include `ui/`, so each Dockerfile must
+  **bake the resolved `ui/hanoi.xrc`** into the image at the symlink's target path, so a pulled/offline
+  image still has the UI definition (the "self-contained images" rule). Handle per Dockerfile.
+
+This supersedes the earlier three-option sketch (canonical-in-python + build-time copy vs. shared `ui/`
+mount vs. naive symlink): it is the shared-`ui/`-mount option refined with symlinks-back-to-the-old-path,
+which removes that option's only costs (no loader-path change; no drift because it's one file).
 
 ## Plan
 
 1. Feasibility — DONE (wxDragon has `include_xrc!`). Confirm the exact macro signature/options against
    the current wxDragon crate version pinned in `rust/` (it moves fast), and that the widget types in
    `hanoi.xrc` load.
-2. Pick + implement the sharing mechanism (open question 1; recommend the build-time copy).
+2. Implement the decided sharing mechanism: hoist `hanoi.xrc` to `ui/`, create the git-tracked relative
+   symlinks (python + rust at their existing XRC paths), mount `ui/` → `/ui` in each subproject's
+   Makefile, and bake the resolved file per Dockerfile. (Do this hoist once, shared with the C++ task.)
 3. Rewrite `rust/hanoi-gui/src/main.rs`: replace the programmatic UI with `include_xrc!(<xrc>, Ui)` and
    drive the generated typed struct (`ui.<widget>`), binding events to its fields; keep the wxDragon DC
    board renderer and the `Rc<RefCell<GuiState>>` pattern. Mirror the Python window structure so the two
@@ -87,10 +92,9 @@ the containerized build — which is why one was NOT created up front. Pick a sh
 
 ## Open questions
 
-1. **Which sharing mechanism?** Recommend the **build-time copy** (option 1 above): canonical `hanoi.xrc`
-   stays in `python/`, the rust build copies it in before `include_xrc!`, guarded by a bytes-match drift
-   check. It's the robust fit for the compile-time macro and keeps both subprojects self-contained. The
-   shared-`ui/`-dir + mount (option 2) is the alternative if you prefer one physical copy. Your call.
+1. **Which sharing mechanism? — RESOLVED (maintainer, 2026-10-25): hoist to `ui/` + git-tracked
+   symlinks** (see "Sharing the single `hanoi.xrc`" above). One physical file, no drift, no loader
+   changes; each container mounts `ui/` so the symlink resolves. Done consistently with the C++ task.
 
 ## Related
 

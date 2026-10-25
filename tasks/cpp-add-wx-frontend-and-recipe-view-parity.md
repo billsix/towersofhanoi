@@ -59,10 +59,10 @@ matching the Python three-panel view. Python stays the behaviour oracle for both
 - **The split/parity rule:** each language is a self-contained subproject (`cpp/CLAUDE.md`,
   `tasks/reference/per-language-subproject-layout.md`); the Python package is the behaviour oracle and
   is never removed to satisfy a port. New front-ends stay thin — logic lives in `cpp/src/`.
-- **Prior art to mirror:** `tasks/rust-gui-use-shared-xrc.md` analyzed sharing the single `hanoi.xrc`
-  across self-contained subprojects. Its finding applies here with one easing: **C++ wxWidgets loads XRC
-  at RUNTIME** (`wxXmlResource::Load`), unlike wxDragon's compile-time `include_xrc!` macro — so a
-  runtime-present copy is enough and there is no compile-time path constraint.
+- **Prior art, same mechanism:** `tasks/rust-gui-use-shared-xrc.md` uses the identical shared-XRC
+  mechanism — hoist to `ui/` + git-tracked symlinks + a mounted `ui/` (see Decision 1). C++ has it
+  easier: wxWidgets loads XRC at **RUNTIME** (`wxXmlResource::Load`), unlike wxDragon's compile-time
+  `include_xrc!`, so there is no build-time path constraint at all.
 
 ## Part A — wxWidgets `make wx` front-end from the shared XRC
 
@@ -70,10 +70,11 @@ matching the Python three-panel view. Python stays the behaviour oracle for both
 1. **Add wxWidgets to the cpp image** — `wxGTK-devel` (+ `libSM-devel`/`libICE-devel`) in
    `01-install-cpp-base.sh`, under a flag so a lean image can drop it (`USE_X_WINDOWS`-style, per the
    `MINIMAL_IMAGE` idiom). Keep SDL2/GL for the ImGui target.
-2. **Share `hanoi.xrc`** (open question 1) — recommended: canonical in `python/`, **build-time copy into
-   `cpp/` drift-guarded** (bytes must match), mirroring `rust-gui-use-shared-xrc.md` option 1. Because wx
-   loads XRC at runtime, the copied file just needs to be present at run; a dangling cross-subproject
-   symlink inside the isolated `/hanoi-cpp` mount is the thing to avoid.
+2. **Share `hanoi.xrc` (hoist + symlink; see Decision 1).** Hoist to `ui/hanoi.xrc`; add the git-tracked
+   symlink `cpp/hanoi.xrc → ../ui/hanoi.xrc`; mount `ui/` → `/ui` in `cpp/Makefile` so it resolves inside
+   the `/hanoi-cpp` container; bake the resolved file in `cpp/Dockerfile` for offline images. wx loads
+   XRC at **runtime** (`wxXmlResource::Load`), so a resolved symlink/mounted file is all it needs — no
+   compile-time constraint. Do the hoist once (shared with the python + rust symlinks).
 3. **`cpp/hanoi-wx` front-end** — a thin wxWidgets `wxApp`/`wxFrame` that `wxXmlResource::Load`s the
    shared XRC, binds widgets by `XRCID`, custom-draws the board (wxDC — same limit the Rust GUI hit), and
    drives `cpp/src/` (model/presenter/recipe) exactly as the ImGui and Python front-ends do. Parity with
@@ -121,8 +122,12 @@ three-panel view. Part B should close all of these (ranked, biggest first):
 
 ## Decisions (maintainer, 2026-10-25)
 
-1. **XRC sharing (Q1): YES** — use the Rust task's recommended build-time copy of
-   `python/src/hanoigame/hanoi.xrc` into `cpp/`, drift-guarded.
+1. **XRC sharing (Q1): hoist + git-tracked symlinks.** Hoist `hanoi.xrc` to a repo-root `ui/` dir (the
+   one true file); each subproject keeps a git-tracked relative symlink at its existing XRC path
+   (`cpp/hanoi.xrc → ../ui/hanoi.xrc`; `python/src/hanoigame/hanoi.xrc → ../../../ui/hanoi.xrc`), and each
+   Makefile mounts `ui/` → `/ui` so the symlink resolves in-container; bake the resolved file per
+   Dockerfile for offline images. One file, no drift, no loader-path changes — the same mechanism as
+   `tasks/rust-gui-use-shared-xrc.md`. (Supersedes the earlier build-time-copy answer.)
 2. **Add wxGTK to the cpp image (Q2): YES** — add `wxGTK-devel` (+ `libSM/libICE-devel`), flag-gated so a
    lean image can drop it.
 3. **Scope (Q3): FULL PARITY** — match the full Python wx GUI, including the three-panel recipe view.
@@ -131,6 +136,11 @@ three-panel view. Part B should close all of these (ranked, biggest first):
    defines (from the Python oracle) what invoking a recipe shows and whether it also applies to the board;
    this task conforms to that spec rather than guessing.
 5. **Structure (Q5): one doc** — keep Parts A and B here; commit them separately.
+6. **Order (approved 2026-10-25):** (i) port the shared C++ engine primitives `rebound_moves` +
+   `format_rebinding_table` into `cpp/src/recipe.hpp` (both GUIs consume them); then (ii) **Part B** (the
+   ImGui recipe view — smaller, unblocked, the gap the maintainer flagged); then (iii) **Part A** (the wx
+   front-end — the bigger piece: wxGTK image dep + the `ui/` hoist + symlinks). The `ui/` hoist is done
+   once and is shared with `rust-gui-use-shared-xrc.md`.
 
 **This task is now spec-driven:** once `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md` lands, Parts A and B
 conform to the spec's recipe-view / rebinding definition (the parity authority), not to an ad-hoc reading
