@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Minimal Emscripten shell for the hanoi C++ wasm build. SDL2's Emscripten port renders
+     to the canvas with id "canvas"; emcc substitutes {{{ SCRIPT }}} with the module glue. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Towers of Hanoi</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #1e1e24; height: 100%;
+                   width: 100%; overflow: hidden; }
+      /* Fill the viewport; main.cpp matches the SDL window/GL drawable to this CSS size
+         each frame (via emscripten_get_element_css_size) so input stays 1:1. */
+      canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <script type="text/javascript">
+      var Module = {
+        canvas: (function () { return document.getElementById('canvas'); })(),
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

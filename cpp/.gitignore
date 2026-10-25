@@ -1,0 +1,18 @@
+# cmake build trees + the wasm output (regenerable via `make gui` / `make webassembly`)
+build/
+build-web/
+web/
+# exported OCI image tars
+*.tar
+# emacs / lsp-mode runtime junk + compiled package caches (vendored elpa is force-added
+# by `make update-emacs-packages`)
+.lsp-session-v1
+*~
+\#*\#
+.\#*
+entrypoint/dotfiles/.emacs.d/eln-cache/
+entrypoint/dotfiles/.emacs.d/elpa/*.elc
+entrypoint/dotfiles/.emacs.d/elpa/**/*.elc
+entrypoint/dotfiles/.emacs.d/elpa/**/*.eln
+# ImGui runtime-generated layout state (window positions); regenerated on run
+imgui.ini

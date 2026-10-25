@@ -16,6 +16,9 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 - **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including the
   Tauri app** at `rust/tauri/` (just another UI, like the wx one). `cd rust`, then
   `make cli | tui | wx | tauri | format | shell`. See `rust/CLAUDE.md`.
+- **`cpp/`** — a **Dear ImGui** GUI over the engine, building a **native** binary (`make gui`)
+  **and** **WebAssembly** (`make webassembly`/`make serve`) from one `CMakeLists.txt`. `cd cpp`,
+  then `make gui | webassembly | serve | format | shell`. See `cpp/CLAUDE.md`.
 - **the root** (this dir) — the **book + workbook + bash + umbrella**: the Sphinx book
   (`docs/`), the printable worksheets (`workbook/`), the bash demos (`bash/`), and a thin
   umbrella Makefile. `make docs` builds the book; `make format`/`make type-check` delegate
@@ -29,9 +32,9 @@ natural home. The root is also where the cross-tree pytest / by-hand **drift gua
 Python image). So the root build files are deliberate, not leftover from the split: a language
 subproject is self-contained, the book sits above them.
 
-A future C++ port (Dear ImGui, native + WebAssembly) lands as a `cpp/` subproject in the
-same shape — see `tasks/port-to-cpp-imgui-native-and-wasm.md`. The split itself:
-`tasks/archive/2026/10/24/split-into-per-language-containers.md`.
+The C++ port (Dear ImGui, native + WebAssembly) is the `cpp/` subproject in that same shape — see
+`cpp/CLAUDE.md`; the port record is `tasks/archive/2026/10/25/port-to-cpp-imgui-native-and-wasm.md`.
+The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.md`.
 
 ## Status
 
@@ -50,6 +53,11 @@ same shape — see `tasks/port-to-cpp-imgui-native-and-wasm.md`. The split itsel
   record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
   `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
   `tasks/tauri-frontend-js-options.md`).
+- **C++** (`cpp/`, header-only engine in `src/` + a Dear ImGui GUI) — a single `main.cpp` building
+  **native** (SDL2+OpenGL3) and **WebAssembly** (OpenGL3→WebGL-ES3) from one `CMakeLists.txt`, at feature
+  parity with the wx GUI; Dear ImGui vendored at `cpp/imgui/`. Python stays the behaviour oracle. Build +
+  wasm gotchas: `tasks/reference/imgui-cpp-native-and-wasm.md`; port record:
+  `tasks/archive/2026/10/25/port-to-cpp-imgui-native-and-wasm.md`.
 - **Bash demos** (`bash/`), **Sphinx book** (`docs/`, `intro` + `byhand1..5`), and
   printable **worksheets** (`workbook/`) all reinforce the relabelling method.
 
@@ -80,6 +88,10 @@ root builds the book.
 - **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` run the front-ends; `format`
   (rustfmt). The crates build at runtime (cached in `rust/.container-*`) because wxDragon
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
+- **`cd cpp && make`** — `gui` (native ImGui app, on X11/Wayland) / `webassembly` (→ gitignored
+  `web/`) / `serve` (http at :8000); `format` (clang-format, never the vendored `imgui/`). `USE_EMACS`
+  (default 1) installs emacs + clangd; `USE_WASM` (default 1) installs the pinned Emscripten SDK;
+  `MINIMAL_IMAGE=1` drops both (a lean native-only image). `update-imgui` re-vendors Dear ImGui.
 - Every subproject has `shell` / `shell-exec` (sharing one invocation), `image-export` /
   `image-import`, `PODMAN_RUN_FLAGS` (nested-podman), and `update-emacs-packages`.
 
