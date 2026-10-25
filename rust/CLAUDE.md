@@ -34,6 +34,10 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
 - `make check` — `cargo check --workspace --all-targets`: the compile gate. `--all-targets`
   is load-bearing — bare `cargo check` and `make format` both skip the test modules, so a
   test that stopped compiling slips through without it (caught one here 2026-10-25).
+- `make type-check` — the **Tauri frontend JS** gate (`tauri/frontend/main.js`), via **Deno**:
+  `deno check --check-js` (JSDoc + `checkJs`/strict from `tauri/frontend/deno.json`) + `deno lint`.
+  Deno is a pinned binary baked by `entrypoint/02-install-deno.sh` — no `node_modules`, no npm. The
+  JS house style + the Deno-first rationale: `~/.claude/reference/javascript-coding-standard.md`.
 - `make image-export` / `make image-import FILE=…`, `make update-emacs-packages`.
 
 ## Emacs

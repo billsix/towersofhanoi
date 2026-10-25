@@ -1,0 +1,15 @@
+{
+  "//": "JS type-check config for the Tauri frontend (vanilla, no bundler). `deno check` reads checkJs+strict here to type-check main.js via its JSDoc; `deno lint`/`deno fmt` scope to the frontend. DOM libs only -- this code runs in the webview, not under Deno's own globals. See ~/.claude/reference/javascript-coding-standard.md.",
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "lib": ["dom", "dom.iterable", "esnext"]
+  },
+  "lint": {
+    "include": ["main.js"]
+  },
+  "fmt": {
+    "include": ["main.js"]
+  }
+}
