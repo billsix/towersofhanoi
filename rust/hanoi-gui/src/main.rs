@@ -36,6 +36,7 @@ const ID_NEW: i32 = 1001;
 const ID_NEW_SAME: i32 = 1002;
 const ID_EXIT: i32 = 1003;
 const ID_ABOUT: i32 = 1004;
+const ID_HELP: i32 = 1005;
 const ID_STYLE_TEXT: i32 = 1010;
 const ID_STYLE_GRAPHICS: i32 = 1011;
 const ID_RELABEL_BASE: i32 = 1020;
@@ -568,6 +569,7 @@ fn build_menu_bar(frame: &Frame) {
         .build();
 
     let help_menu = Menu::builder()
+        .append_item(ID_HELP, "&How to play…", "Features and controls")
         .append_item(ID_ABOUT, "&About", "About Towers of Hanoi")
         .build();
 
@@ -701,6 +703,25 @@ fn main() {
                     ID_NEW => on_new_game(&st),
                     ID_NEW_SAME => on_new_game_same(&st),
                     ID_EXIT => frame_for_menu.close(true),
+                    ID_HELP => {
+                        MessageDialog::builder(
+                            &frame_for_menu,
+                            "Move: click a legal 'from \u{2192} to' button (in the current labels); \
+                             illegal moves are disabled.\n\n\
+                             Relabel: rename the physical pegs (Relabel menu). Discs don't move, and \
+                             the colours track the label \u{2014} so a solved sub-problem can be \
+                             replayed under a new name.\n\n\
+                             Recipes: after you win, Save the solution (default name solve-N). Apply \
+                             replays a saved recipe under the current labelling and, when relabelled, \
+                             shows the three-panel rebinding (the recipe's labels, the label \u{2192} \
+                             peg key, and the rebound moves on the physical pegs). Show lists a \
+                             recipe's moves.\n\n\
+                             New Game: pick a disc count (1–10).",
+                            "How to play",
+                        )
+                        .build()
+                        .show_modal();
+                    }
                     ID_ABOUT => {
                         MessageDialog::builder(
                             &frame_for_menu,

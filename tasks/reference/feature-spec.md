@@ -137,6 +137,21 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
 - **Help:** show the command/feature reference. **Quit:** exit. **Empty input:** redraw / re-prompt, no
   state change. (Source: `commands.HELP_TEXT`, `engine.dispatch`.)
 
+### 4.11 Move history / running tally (PLANNED — not yet implemented in any front-end)
+
+- **Does:** keep a **running tally of every move made** this game — typed, applied-from-a-recipe, or
+  from any other path — expressed in the **default 1-2-3 (physical) labelling**, independent of whatever
+  labelling was active when each move was made. The tally is **inspectable**: the user can view the full
+  move list at any time.
+- **See:** the ordered list of moves so far in default-label space (e.g. `1 -> 3`, `1 -> 2`, …), on
+  demand, ideally with a live count.
+- **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
+  ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
+- **Status:** being built **first in the wxPython GUI** (the behaviour oracle) per
+  `tasks/wxpython-running-move-tally.md`; the exact presentation (how it's shown and inspected) will be
+  **finalized into this section from that implementation**, then fanned out to every UI. Until then this
+  entry is the intent, not a settled contract.
+
 ## 5. What a UI must SHOW (summary)
 
 A conformant UI must be able to present: the **board** (pegs + disks); the **current labelling** on the
@@ -154,8 +169,10 @@ These are recommendations for *how* a category of UI presents the features above
 - A **command grammar** drives everything: moves as `<from> -> <to>` (also accept `1 3` and `13`), and
   the verbs `relabel a b c`, `save <name>`, `apply <name>`, `show <name>`, `list`, `help`, `quit`
   (`quit`/`q`/`exit`, `help`/`h`/`?`). (Source: `commands.parse`, `HELP_TEXT`, `COMMAND_VERBS`.)
-- **Tab-completion** of the command verbs and saved-recipe names where the terminal supports it; keep
-  `COMMAND_VERBS` the single source so completion can't drift from the grammar.
+- **Tab-completion** of the command verbs and saved-recipe names at the prompt — in **both** a readline
+  CLI **and** a full-screen / curses TUI (the TUI must implement it on its own input line, not rely on
+  readline). Keep `COMMAND_VERBS` the single source so completion can't drift from the grammar, and share
+  the candidate logic across front-ends (a pure `completions(buffer, text, names)` helper).
 - Render the board and the three-panel rebinding as **aligned text columns**
   (`format_rebinding_table`); after a single move under a relabelling, a text UI may print that one move's
   rebinding inline (`engine.move_teaching_lines`). Keep a **plain stdin/stdout** mode usable by screen
@@ -192,6 +209,8 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
 13. **The three-panel rebinding view on apply** — recipe moves | rebinding (label→peg) | rebound physical
     moves; rebinding shown only under a non-default labelling.
 14. Help/quit/empty-input behavior (interactive UIs).
+15. Inspectable running move tally in default-label space (PLANNED — see §4.11; not yet a pass/fail row
+    until finalized from the wxPython implementation).
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 
