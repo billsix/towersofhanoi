@@ -95,9 +95,10 @@ root builds the book.
   `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs — no OpenGL/mesa (the board is 2D
   wx/Cairo). `USE_EMACS` (default 1) installs emacs + the Python dev set.
 - **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` run the front-ends; `format`
-  (rustfmt), `check` (`cargo check --workspace --all-targets`, which compiles the test
-  modules bare `cargo check` skips), and `type-check` (the Tauri frontend JS, via Deno —
-  `deno check` + `deno lint`, no `node_modules`) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
+  (rustfmt + `deno fmt` of the Tauri frontend web files), `check` (`cargo check --workspace
+  --all-targets`, which compiles the test modules bare `cargo check` skips), and `type-check`
+  (the Tauri frontend web files via Deno — `deno check` + `deno lint` + `deno fmt --check`, no
+  `node_modules`) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
 - **`cd cpp && make`** — `gui` (native ImGui) / `wx` (wxWidgets, from the shared `ui/hanoi.xrc`) /
   `webassembly` (→ gitignored `web/`) / `serve` (http at :8000); `format` (clang-format, never the
