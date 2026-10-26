@@ -448,14 +448,39 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
     }
 }
 
+/// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
+/// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
+/// a proportional font, which collapses the columns (hence the misalignment the maintainer
+/// saw). A read-only teletype `TextCtrl` keeps the columns aligned, matching the Python wx.
+fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
+    let dlg: Dialog = Dialog::builder(parent, title).with_size(640, 460).build();
+    let text: TextCtrl = TextCtrl::builder(&dlg)
+        .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
+        .build();
+    if let Some(mono) = Font::builder()
+        .with_point_size(11)
+        .with_family(FontFamily::Teletype)
+        .build()
+    {
+        text.set_font(&mono);
+    }
+    text.set_value(&lines.join("\n"));
+    let close: Button = Button::builder(&dlg).with_label("Close").build();
+    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    sizer.add(&text, 1, SizerFlag::Expand | SizerFlag::All, 8);
+    sizer.add(&close, 0, SizerFlag::All, 8);
+    dlg.set_sizer(sizer, true);
+    let dlg_for_close: Dialog = dlg.clone();
+    close.on_click(move |_| dlg_for_close.end_modal(ID_OK));
+    dlg.show_modal();
+}
+
 fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: Labelling) {
     let table: Vec<String> = format_rebinding_table(moves, labelling, "Your move / recipe");
     if table.is_empty() {
         return;
     }
-    MessageDialog::builder(frame, &table.join("\n"), title)
-        .build()
-        .show_modal();
+    show_monospace_dialog(frame, title, &table);
 }
 
 fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {
@@ -591,9 +616,7 @@ fn on_show(state: &Rc<RefCell<GuiState>>) {
         let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
         st.dispatch(&Command::Show(name.clone())).lines
     };
-    MessageDialog::builder(&frame, &lines.join("\n"), &format!("Recipe '{name}'"))
-        .build()
-        .show_modal();
+    show_monospace_dialog(&frame, &format!("Recipe '{name}'"), &lines);
 }
 
 fn main() {
