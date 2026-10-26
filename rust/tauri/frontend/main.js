@@ -71,7 +71,11 @@ const invoke = /** @type {any} */ (globalThis).__TAURI__.core.invoke;
 /** @type {[number, number][]} */
 const MOVE_PAIRS = [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]];
 /** @type {[number, number, number][]} */
-const RELABEL_PERMS = [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]];
+const RELABEL_PERMS = [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [
+  3,
+  2,
+  1,
+]];
 
 /** @type {string} */
 const HELP_TEXT = [
@@ -92,8 +96,16 @@ const HELP_TEXT = [
 // Disc colour by size (1-indexed); cycles past 10 discs.
 /** @type {[number, number, number][]} */
 const DISC_RGB = [
-  [232, 80, 80], [232, 145, 70], [235, 200, 75], [170, 210, 80], [85, 195, 130],
-  [75, 170, 220], [100, 130, 220], [160, 110, 220], [220, 110, 200], [185, 145, 110],
+  [232, 80, 80],
+  [232, 145, 70],
+  [235, 200, 75],
+  [170, 210, 80],
+  [85, 195, 130],
+  [75, 170, 220],
+  [100, 130, 220],
+  [160, 110, 220],
+  [220, 110, 200],
+  [185, 145, 110],
 ];
 // Label-badge colour by 0-indexed label (blue / yellow / red).
 /** @type {[number, number, number][]} */
@@ -103,7 +115,9 @@ const LABEL_RGB = [[70, 130, 200], [230, 195, 70], [220, 90, 80]];
 const rgb = ([r, g, b]) => `rgb(${r},${g},${b})`;
 /** @type {(c: [number, number, number], amt: number) => string} */
 const darken = ([r, g, b], amt) =>
-  `rgb(${Math.floor(r * (1 - amt))},${Math.floor(g * (1 - amt))},${Math.floor(b * (1 - amt))})`;
+  `rgb(${Math.floor(r * (1 - amt))},${Math.floor(g * (1 - amt))},${
+    Math.floor(b * (1 - amt))
+  })`;
 
 /**
  * Width of a disc of `size` in an `n`-disc game, up to `maxW` (smallest is 1/3 the
@@ -144,7 +158,8 @@ function roundRect(ctx, x, y, w, h, r) {
  * @returns {void}
  */
 function drawBoard(s) {
-  const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+  const canvas =
+    /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
   const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
   const w = canvas.width;
   const h = canvas.height;
@@ -219,7 +234,9 @@ function drawBoard(s) {
   // Default 1-2-3 reference row when relabelled (the physical peg numbers).
   if (relabelled) {
     ctx.fillStyle = "rgb(170,178,195)";
-    pegCentres.forEach((cx, p) => ctx.fillText(String(p + 1), cx, activeLabelY + 26));
+    pegCentres.forEach((cx, p) =>
+      ctx.fillText(String(p + 1), cx, activeLabelY + 26)
+    );
   }
 }
 
@@ -231,7 +248,8 @@ function drawBoard(s) {
  */
 function render(s) {
   drawBoard(s);
-  /** @type {HTMLElement} */ (document.getElementById("board")).textContent = s.board.join("\n");
+  /** @type {HTMLElement} */ (document.getElementById("board")).textContent = s
+    .board.join("\n");
   /** @type {HTMLElement} */ (document.getElementById("status")).textContent =
     `Discs: ${s.num_disks}    Labelling: ${s.labels.join(" ")}    ` +
     `Moves: ${s.moves}    Recipes: ${s.recipes.length}`;
@@ -241,22 +259,27 @@ function render(s) {
     const verdict = s.moves === s.min_moves
       ? "Optimal!"
       : `${s.moves - s.min_moves} more than the minimum (${s.min_moves}).`;
-    message = `Solved in ${s.moves} moves — ${verdict}  Save it below to keep it.`;
+    message =
+      `Solved in ${s.moves} moves — ${verdict}  Save it below to keep it.`;
   }
-  /** @type {HTMLElement} */ (document.getElementById("message")).textContent = message;
+  /** @type {HTMLElement} */ (document.getElementById("message")).textContent =
+    message;
 
-  /** @type {HTMLElement} */ (document.getElementById("rebinding")).textContent = s.rebinding.length
-    ? "Rebinding: " + s.rebinding.map(([l, p]) => `label ${l} → peg ${p}`).join(",   ")
-    : "";
+  /** @type {HTMLElement} */ (document.getElementById("rebinding"))
+    .textContent = s.rebinding.length
+      ? "Rebinding: " +
+        s.rebinding.map(([l, p]) => `label ${l} → peg ${p}`).join(",   ")
+      : "";
 
   /** @type {Set<string>} */
   const legal = new Set(s.legal.map(([f, t]) => `${f}-${t}`));
   for (const [f, t] of MOVE_PAIRS) {
-    /** @type {HTMLButtonElement} */ (document.getElementById(`move-${f}-${t}`)).disabled =
-      s.won || !legal.has(`${f}-${t}`);
+    /** @type {HTMLButtonElement} */ (document.getElementById(`move-${f}-${t}`))
+      .disabled = s.won || !legal.has(`${f}-${t}`);
   }
 
-  const sel = /** @type {HTMLSelectElement} */ (document.getElementById("recipes"));
+  const sel =
+    /** @type {HTMLSelectElement} */ (document.getElementById("recipes"));
   const previous = sel.value;
   sel.innerHTML = "";
   for (const r of s.recipes) {
@@ -267,8 +290,10 @@ function render(s) {
   }
   if (previous) sel.value = previous;
 
-  /** @type {HTMLButtonElement} */ (document.getElementById("save")).disabled = !s.won;
-  const sn = /** @type {HTMLInputElement} */ (document.getElementById("savename"));
+  /** @type {HTMLButtonElement} */ (document.getElementById("save")).disabled =
+    !s.won;
+  const sn =
+    /** @type {HTMLInputElement} */ (document.getElementById("savename"));
   if (!sn.value) sn.value = `solve-${s.num_disks}`; // prefill the default name (feature-spec §4.5)
 
   renderApplyView(s.apply);
@@ -290,14 +315,21 @@ function renderApplyView(apply) {
   }
   /** @type {(title: string, rows: string[]) => string} */
   const col = (title, rows) =>
-    `<div class="apply-col"><h4>${title}</h4>${rows.map((r) => `<div>${r}</div>`).join("")}</div>`;
-  const recipeCol = apply.recipe_moves.map(([a, b], i) => `${i + 1}: ${a} → ${b}`);
+    `<div class="apply-col"><h4>${title}</h4>${
+      rows.map((r) => `<div>${r}</div>`).join("")
+    }</div>`;
+  const recipeCol = apply.recipe_moves.map(([a, b], i) =>
+    `${i + 1}: ${a} → ${b}`
+  );
   const rebindCol = apply.rebinding.map(([l, p]) => `label ${l} → peg ${p}`);
-  const reboundCol = apply.rebound_moves.map(([a, b], i) => `${i + 1}: ${a} → ${b}`);
+  const reboundCol = apply.rebound_moves.map(([a, b], i) =>
+    `${i + 1}: ${a} → ${b}`
+  );
   const steps = apply.steps.map((st, i) =>
     st.error
       ? `step ${i + 1}: stopped — ${st.error}`
-      : `step ${i + 1}: ${st.from_label} → ${st.to_label}`);
+      : `step ${i + 1}: ${st.from_label} → ${st.to_label}`
+  );
   el.innerHTML =
     `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
     `<div class="apply-cols">` +
@@ -305,7 +337,9 @@ function renderApplyView(apply) {
     col("Rebinding (label &rarr; peg)", rebindCol) +
     col("Rebound (physical pegs)", reboundCol) +
     `</div>` +
-    `<div class="apply-steps"><h4>Steps</h4>${steps.map((r) => `<div>${r}</div>`).join("")}</div>`;
+    `<div class="apply-steps"><h4>Steps</h4>${
+      steps.map((r) => `<div>${r}</div>`).join("")
+    }</div>`;
   el.classList.remove("hidden");
 }
 
@@ -315,48 +349,85 @@ function renderApplyView(apply) {
  */
 async function init() {
   for (const [f, t] of MOVE_PAIRS) {
-    /** @type {HTMLElement} */ (document.getElementById(`move-${f}-${t}`)).addEventListener("click", async () => {
-      render(/** @type {Snapshot} */ (await invoke("do_move", { from: f, to: t })));
-    });
+    /** @type {HTMLElement} */ (document.getElementById(`move-${f}-${t}`))
+      .addEventListener("click", async () => {
+        render(
+          /** @type {Snapshot} */ (await invoke("do_move", { from: f, to: t })),
+        );
+      });
   }
   for (const perm of RELABEL_PERMS) {
-    /** @type {HTMLElement} */ (document.getElementById(`relabel-${perm.join("")}`)).addEventListener("click", async () => {
-      render(/** @type {Snapshot} */ (await invoke("relabel", { labels: perm })));
+    /** @type {HTMLElement} */ (document.getElementById(
+      `relabel-${perm.join("")}`,
+    )).addEventListener("click", async () => {
+      render(
+        /** @type {Snapshot} */ (await invoke("relabel", { labels: perm })),
+      );
     });
   }
-  /** @type {HTMLElement} */ (document.getElementById("newgame")).addEventListener("click", async () => {
-    const discs = parseInt(/** @type {HTMLInputElement} */ (document.getElementById("discs")).value, 10) || 3;
-    render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
-  });
-  /** @type {HTMLElement} */ (document.getElementById("save")).addEventListener("click", async () => {
-    const sn = /** @type {HTMLInputElement} */ (document.getElementById("savename"));
-    const s = /** @type {Snapshot} */ (await invoke("save_recipe", { name: sn.value.trim() }));
-    render(s);
-    sn.value = `solve-${s.num_disks}`; // reset to the default name for the next recipe
-  });
-  /** @type {HTMLElement} */ (document.getElementById("help")).addEventListener("click", () => alert(HELP_TEXT));
-  /** @type {HTMLElement} */ (document.getElementById("apply")).addEventListener("click", async () => {
-    const name = /** @type {HTMLSelectElement} */ (document.getElementById("recipes")).value;
-    if (name) render(/** @type {Snapshot} */ (await invoke("apply_recipe", { name })));
-  });
-  /** @type {HTMLElement} */ (document.getElementById("show")).addEventListener("click", async () => {
-    const name = /** @type {HTMLSelectElement} */ (document.getElementById("recipes")).value;
-    if (name) {
-      const steps = /** @type {string[]} */ (await invoke("show_recipe", { name }));
-      alert(steps.join("\n"));
-    }
-  });
+  /** @type {HTMLElement} */ (document.getElementById("newgame"))
+    .addEventListener("click", async () => {
+      const discs = parseInt(
+        /** @type {HTMLInputElement} */ (document.getElementById("discs"))
+          .value,
+        10,
+      ) || 3;
+      render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
+    });
+  /** @type {HTMLElement} */ (document.getElementById("save")).addEventListener(
+    "click",
+    async () => {
+      const sn =
+        /** @type {HTMLInputElement} */ (document.getElementById("savename"));
+      const s = /** @type {Snapshot} */ (await invoke("save_recipe", {
+        name: sn.value.trim(),
+      }));
+      render(s);
+      sn.value = `solve-${s.num_disks}`; // reset to the default name for the next recipe
+    },
+  );
+  /** @type {HTMLElement} */ (document.getElementById("help")).addEventListener(
+    "click",
+    () => alert(HELP_TEXT),
+  );
+  /** @type {HTMLElement} */ (document.getElementById("apply"))
+    .addEventListener("click", async () => {
+      const name =
+        /** @type {HTMLSelectElement} */ (document.getElementById("recipes"))
+          .value;
+      if (name) {
+        render(
+          /** @type {Snapshot} */ (await invoke("apply_recipe", { name })),
+        );
+      }
+    });
+  /** @type {HTMLElement} */ (document.getElementById("show")).addEventListener(
+    "click",
+    async () => {
+      const name =
+        /** @type {HTMLSelectElement} */ (document.getElementById("recipes"))
+          .value;
+      if (name) {
+        const steps =
+          /** @type {string[]} */ (await invoke("show_recipe", { name }));
+        alert(steps.join("\n"));
+      }
+    },
+  );
 
   // Text / Graphics board toggle (the graphics canvas is the default view, as in
   // the wxDragon GUI; the monospace text board is one click away).
-  /** @type {HTMLElement} */ (document.getElementById("toggle-view")).addEventListener("click", (e) => {
-    const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
-    const text = /** @type {HTMLElement} */ (document.getElementById("board"));
-    const btn = /** @type {HTMLElement} */ (e.target);
-    const showText = canvas.classList.toggle("hidden");
-    text.classList.toggle("hidden", !showText);
-    btn.textContent = showText ? "Graphics view" : "Text view";
-  });
+  /** @type {HTMLElement} */ (document.getElementById("toggle-view"))
+    .addEventListener("click", (e) => {
+      const canvas =
+        /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+      const text =
+        /** @type {HTMLElement} */ (document.getElementById("board"));
+      const btn = /** @type {HTMLElement} */ (e.target);
+      const showText = canvas.classList.toggle("hidden");
+      text.classList.toggle("hidden", !showText);
+      btn.textContent = showText ? "Graphics view" : "Text view";
+    });
 
   render(/** @type {Snapshot} */ (await invoke("snapshot")));
 }

@@ -1,5 +1,5 @@
 {
-  "//": "JS type-check config for the Tauri frontend (vanilla, no bundler). `deno check` reads checkJs+strict here to type-check main.js via its JSDoc; `deno lint`/`deno fmt` scope to the frontend. DOM libs only -- this code runs in the webview, not under Deno's own globals. See ~/.claude/reference/javascript-coding-standard.md.",
+  "//": "Format/lint/type-check config for the Tauri frontend (vanilla, no bundler). `deno check` reads checkJs+strict here to type-check main.js via its JSDoc; `deno fmt` formats all three static files (HTML/CSS/JS -- `make format` writes, `make type-check` runs `--check`); `deno lint` scopes to the JS. DOM libs only -- this code runs in the webview, not under Deno's own globals. See ~/.claude/reference/javascript-coding-standard.md.",
   "compilerOptions": {
     "checkJs": true,
     "strict": true,
@@ -10,6 +10,6 @@
     "include": ["main.js"]
   },
   "fmt": {
-    "include": ["main.js"]
+    "include": ["index.html", "main.js", "style.css"]
   }
 }
