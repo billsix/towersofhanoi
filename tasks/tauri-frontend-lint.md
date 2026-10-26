@@ -1,73 +1,54 @@
 # Lint/format the Tauri frontend web files
 
-**Status:** proposed — go-ahead given (the maintainer asked for this task; not yet started).
+**Status:** DONE 2026-10-26 (William Emerison Six <billsix@gmail.com>). Gate green in-container.
 **Priority:** 5 **Difficulty:** 2
-**Next:** `tasks/tauri-frontend-js-options.md` (investigate the JS code's future — do this lint first).
-**Created:** 2026-10-23 (William Emerison Six <billsix@gmail.com>). Requested as the deferred-optional
-item from the completed Tauri port (`tasks/archive/2026/10/23/port-to-tauri.md`): wire a lint/format
-for the web side.
+**Created:** 2026-10-23. Requested as the deferred-optional item from the completed Tauri port
+(`tasks/archive/2026/10/23/port-to-tauri.md`): wire a lint/format for the web side.
+**Next:** `tasks/tauri-frontend-js-options.md` (investigate the JS code's future).
 
 ## BLUF
 
-The Tauri front-end's three static web files — `rust/tauri/frontend/{index.html,main.js,style.css}` — have
-no linter/formatter, the one unmet item from the Tauri port's original "done" bar. Add one and wire it
-into the project's gate so the web side is held to a consistent style the way `cargo fmt`/`clippy`
-holds the Rust side. "Done" = the three files pass a formatter + linter, the check is runnable from a
-`make` target (and ideally the same place `format` lives), and the choice honours the port's
-**no-Node-toolchain** decision (keep the image lean). Small, mechanical; no behaviour change.
+The Tauri front-end's three static web files — `rust/tauri/frontend/{index.html,main.js,style.css}` —
+now pass a formatter + linter, wired into the project's gate the way `cargo fmt`/`clippy` holds the
+Rust side. **Deno** (already baked into the rust image for the JS type-check) does it — one binary, no
+Node, honouring the port's no-Node-toolchain decision. `deno fmt` was folded into `make format`
+(writes) and `deno fmt --check` into `make type-check` (verifies), with no new target.
 
-## Context (read first)
+## What was done (2026-10-26)
 
-- **The frontend is deliberately plain vanilla JS, no bundler, no Node** (`port-to-tauri.md` decision 1;
-  runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` "Frontend without a bundler"). So adding
-  a JS linter must NOT quietly drag a full Node/npm toolchain into the hanoi image — that would undo
-  that decision and bloat a Python+Rust image.
-- **`main.js` is ~130 lines** of vanilla JS over `window.__TAURI__.core.invoke` + a `<canvas>` renderer;
-  `index.html` and `style.css` are small. This is a style/consistency gate, not a type system (the
-  type-safety question is the follow-up task, below — keep that out of scope here).
-- The Rust side's gate is `cargo fmt --check` + `cargo clippy -D warnings`; this task gives the web
-  side a parallel, so a future contributor's frontend edits stay tidy.
+- **`rust/tauri/frontend/deno.json`** — `fmt.include` extended from `["main.js"]` to all three files
+  (`index.html`, `main.js`, `style.css`). `lint.include` stays `["main.js"]` — `deno lint` is JS/TS
+  only; `deno fmt` is what covers HTML + CSS. Note string updated.
+- **`rust/entrypoint/format.sh`** — after `cargo fmt`, `make format` now also runs
+  `( cd tauri/frontend && deno fmt )`, guarded on `command -v deno` so the portable host caller (no
+  deno) still works; the container always has it.
+- **`rust/Makefile` `type-check`** — the gate now runs `deno fmt --check` in addition to the existing
+  `deno check --check-js main.js` + `deno lint main.js`, so the three files must stay formatted.
+- **`rust/tauri/frontend/main.js`** — applied `deno fmt` once (it had never been run through fmt; the
+  gate only had check + lint). 185-line reflow of the long `addEventListener` chains; no behaviour
+  change. `index.html`/`style.css` were already deno-fmt-clean.
 
-## Options for the tool (decide in Open questions)
+## Decisions (resolved the Open questions)
 
-1. **Biome** (recommended to evaluate first) — a single self-contained binary (Rust-based) that does
-   **both** format and lint for JS/TS/CSS/JSON, with **no Node project required**. Fits the
-   no-Node-toolchain constraint best: install the one binary in the Rust install group
-   (`entrypoint/04-install-rust.sh`) or fetch it, run `biome check`/`biome format`. Verify it is
-   packaged/fetchable for Fedora 44 without npm.
-2. **Prettier + ESLint** — the conventional pair, but both are npm packages → needs Node in the image
-   (against the decision) or a one-off `npx` with network (against offline/self-contained). Only if
-   Biome doesn't fit.
-3. **Deno fmt/lint** — Deno is a single binary that formats+lints JS/TS; another no-npm option if
-   Biome is unavailable.
+1. **Which tool → Deno.** The task recommended evaluating Biome first, but Deno was *already installed*
+   (`entrypoint/02-install-deno.sh`) and wired for the JS type-check, and it formats HTML/CSS/JS from
+   one baked binary with no Node — it already satisfies the no-Node-toolchain constraint, so adding
+   Biome would have been redundant. Chose Deno.
+2. **Where it runs → folded into the existing `format` + `type-check` targets, no new `tauri-lint`
+   target.** `deno fmt` (writing) belongs with the other formatters in `make format`; `deno fmt
+   --check` (read-only) belongs with the other gates in `make type-check`. This is "the same place
+   `format` lives" that the task preferred, and avoids a one-off target.
 
-## Plan (sketch — refine after the tool decision)
+## Gate / verify (passed)
 
-1. Pick the tool (Open question 1) and get it into the image's Rust/web install group (or document a
-   host-run path), keeping the image lean.
-2. Add an `entrypoint/<name>.sh` (or extend the existing format path) that runs the formatter + linter
-   over `rust/tauri/frontend/`, with the accumulate-`status` shape (every step runs, nonzero if any failed)
-   — the cross-project multi-step-check-script rule.
-3. Add a `make` target (e.g. `tauri-lint`, or fold into `format`) that runs it in the container, source
-   bind-mounted so fixes land on the host. `## `-document it for `make help`.
-4. Apply the formatter once (commit the reformat), fix any lint findings, and confirm the gate is green
-   and idempotent (`--check` clean on a second run).
-
-## Gates / verify
-
-- The three files pass the chosen formatter (`--check` clean) and linter (no findings) in-container.
-- `make <target>` runs it and the image stays lean (no Node/npm pulled in unless explicitly chosen).
-
-## Open questions
-
-1. **Which tool** — Biome (single binary, no Node; recommended), Deno, or Prettier+ESLint (needs Node)?
-   Recommend confirming Biome is Fedora-44-installable without npm, else Deno.
-2. **Where it runs** — a new `make tauri-lint`, or folded into the existing `make format`? (The Rust
-   ports aren't in `format` either, so a dedicated target may be cleaner.)
+In-container (`localhost/hanoi-rust`), from `tauri/frontend`:
+`deno check --check-js --no-lock main.js` → OK; `deno lint main.js` → OK; `deno fmt --check` →
+clean across 3 files. `make format` re-run is idempotent (second `--check` clean).
 
 ## Pointers
 
-- `tasks/archive/2026/10/23/port-to-tauri.md` — the completed port; this is its deferred-optional item.
-- runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` — the frontend-without-a-bundler setup.
-- The multi-step-check-script shape (`status=0; cmd || status=1; … exit $status`): runClaudeInContainer
-  `tasks/reference/shell-and-gate-scripts.md`.
+- `tasks/archive/2026/10/23/port-to-tauri.md` — the completed port; this was its deferred-optional item.
+- The JS house style + Deno-first rationale: `~/.claude/reference/javascript-coding-standard.md`
+  (shared, from runClaudeInContainer). The rust gate wiring is summarized in `rust/CLAUDE.md`.
+- The multi-step-check-script shape (`status=0; cmd || status=1; … exit $status`):
+  `~/.claude/reference/shell-and-gate-scripts.md`.

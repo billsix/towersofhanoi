@@ -30,14 +30,17 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
 - `make shell` / `make shell-exec` — dev shell (cargo caches preset).
 - `make cli` / `make tui` / `make wx` / `make tauri` — run a front-end (X11 + Wayland
   passthrough; Tauri also sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`).
-- `make format` — rustfmt (workspace + the Tauri crate).
+- `make format` — rustfmt (workspace + the Tauri crate), plus `deno fmt` over the Tauri frontend's
+  three static web files (`tauri/frontend/{index.html,main.js,style.css}`, scoped by
+  `tauri/frontend/deno.json`'s `fmt.include`).
 - `make check` — `cargo check --workspace --all-targets`: the compile gate. `--all-targets`
   is load-bearing — bare `cargo check` and `make format` both skip the test modules, so a
   test that stopped compiling slips through without it (caught one here 2026-10-25).
-- `make type-check` — the **Tauri frontend JS** gate (`tauri/frontend/main.js`), via **Deno**:
-  `deno check --check-js` (JSDoc + `checkJs`/strict from `tauri/frontend/deno.json`) + `deno lint`.
-  Deno is a pinned binary baked by `entrypoint/02-install-deno.sh` — no `node_modules`, no npm. The
-  JS house style + the Deno-first rationale: `~/.claude/reference/javascript-coding-standard.md`.
+- `make type-check` — the **Tauri frontend web** gate, via **Deno**: `deno check --check-js`
+  (JSDoc + `checkJs`/strict from `tauri/frontend/deno.json`) + `deno lint` (JS only) + `deno fmt
+  --check` (all three files). Deno is a pinned binary baked by `entrypoint/02-install-deno.sh` —
+  no `node_modules`, no npm. The JS house style + the Deno-first rationale:
+  `~/.claude/reference/javascript-coding-standard.md`.
 - `make image-export` / `make image-import FILE=…`, `make update-emacs-packages`.
 
 ## Emacs
