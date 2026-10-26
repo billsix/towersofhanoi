@@ -74,8 +74,9 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 - `cpp/` — the C++ subproject (self-contained; see `cpp/CLAUDE.md`): the ImGui `main.cpp` + wxWidgets
   `hanoiwx.cpp` GUIs over the header-only engine in `src/`, with vendored `imgui/`.
 - `ui/` — the **one shared wx UI definition** (`ui/hanoi.xrc`). Each wx front-end
-  (`python/src/hanoigame/hanoi.xrc`, `cpp/hanoi.xrc`) is a git-tracked symlink to it, and each
-  subproject's Makefile mounts `ui/` at `/ui` so the symlink resolves in-container — one file, no drift.
+  (`python/src/hanoigame/hanoi.xrc`, `cpp/hanoi.xrc`, `rust/hanoi-gui/hanoi.xrc`) is a git-tracked
+  symlink to it, and each subproject's Makefile mounts `ui/` at `/ui` so the symlink resolves
+  in-container — one file, no drift. (Rust bakes it in via `include_str!`; Python/C++ load it at runtime.)
 - `bash/` — 12 scripts (solves + relabel filters).
 - `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
   (guarded by `python/tests/test_byhand_drift.py`; regenerate, don't hand-edit those pages).

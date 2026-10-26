@@ -12,7 +12,11 @@ sync, never a replacement (the Python stays the behaviour oracle). Self-containe
 - Four front-ends over that crate:
   - `hanoi-cli/` — plain CLI (`make cli`)
   - `hanoi/` — ratatui/crossterm TUI (`make tui`)
-  - `hanoi-gui/` — wxDragon GUI; programmatic UI, solid-fill DC board (`make wx`)
+  - `hanoi-gui/` — wxDragon GUI; loads the shared `ui/hanoi.xrc` (menu bar + panel +
+    move/recipe controls) via `XmlResource` (wxdragon `xrc` feature), with a solid-fill DC
+    board drawn into the XRC `board_slot` (`make wx`). `hanoi.xrc` is a git-tracked symlink to
+    `../../ui/hanoi.xrc`, baked into the binary by `include_str!`; the Makefile mounts `ui/` at
+    `/ui` so it resolves in-container.
   - `tauri/` — Tauri v2 desktop app (static webview UI over the same crate; `make tauri`).
     Just another UI, like the wx one. NOT a workspace member (Tauri needs its own build);
     it depends on `../hanoigame` by path.
