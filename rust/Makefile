@@ -22,7 +22,13 @@ TMUX_REAL_PATH := $(shell readlink -f $(TMUX_FILE))
 TMUX_MOUNT := $(shell if [ -f $(TMUX_REAL_PATH) ]; then echo "-v $(TMUX_REAL_PATH):/root/.tmux.conf:Z" ; fi)
 
 REPO_MOUNT = /$(CONTAINER_NAME)
-FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(TMUX_MOUNT)
+# The shared wx UI definition lives at the repo-root ui/ (one file). hanoi-gui's
+# hanoi.xrc is a git-tracked symlink to ../../ui/hanoi.xrc; mounting ui/ at /ui makes
+# that symlink resolve in-container (/hanoi-rust/hanoi-gui/../../ui = /ui) at
+# cargo-build time, when the GUI's include_str! reads it. Read-only -- the UI file is
+# never written from here.
+UI_MOUNT := -v $(CURDIR)/../ui:/ui:ro,Z
+FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(UI_MOUNT) $(TMUX_MOUNT)
 
 # X11 display passthrough for the wxDragon GUI and the Tauri webview.
 X_FLAGS_FOR_CONTAINER = -e DISPLAY=$(DISPLAY) \
