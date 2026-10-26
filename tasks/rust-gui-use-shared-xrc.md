@@ -1,8 +1,10 @@
 # Rust wx GUI: load the shared wx XRC instead of building the UI in code
 
-**Status:** proposed — needs go-ahead (feasibility CONFIRMED 2026-10-24: wxDragon supports XRC via the
-`include_xrc!` macro — so this is actionable).
-**Priority:** 7 **Difficulty:** 5
+**Status:** proposed — needs go-ahead. Feasibility CONFIRMED (wxDragon has XRC: `include_xrc!` +
+runtime `XmlResource`). **But a 2026-10-26 code read found this is an architectural migration with a
+design fork, not a mechanical swap** (see "Findings 2026-10-26" below) — best done **on-display,
+iteratively**, not blind. Difficulty revised 5 → 6.
+**Priority:** 7 **Difficulty:** 6
 **Created:** 2026-10-24 (William Emerison Six <billsix@gmail.com>). Requested alongside the C++ port:
 "make a new task for the Rust one, to use that xrc file if it can, which will involve changing the rust
 wx code, because that currently doesn't use xrc, it builds everything in code."
@@ -50,6 +52,42 @@ XRC overview (docs.wxwidgets.org/latest/overview_xrc.html).
   wxPython) is supported by wxDragon's XRC loader. If a widget isn't, adjust the XRC or fall back for
   that piece.
 
+## Findings 2026-10-26 (read `rust/hanoi-gui/src/main.rs` + `ui/hanoi.xrc`) — a migration, not a swap
+
+The original framing ("replace the programmatic construction with `include_xrc!`") understated the
+work: the Rust GUI (765 lines) and the shared XRC (the Python layout) have **diverged**, so loading the
+XRC — which then becomes the authority for BOTH languages — forces reconciliation decisions. Concretely:
+
+- **Board model differs.** The XRC has **one `board_slot` `wxPanel`** (Python swaps a text/graphics
+  *renderer* into that one slot — `_swap_renderer`). The Rust GUI has **two stacked widgets**
+  (`board_graphics: Panel` + `board_text: TextCtrl`), shows one at a time, and paints the graphics with
+  a wxDC `on_paint` handler. Adopting `board_slot` means re-architecting the Rust board: either draw
+  both text and graphics into the single slot, or restructure the toggle.
+- **Move buttons differ.** The XRC lays the six buttons out as **three from-peg columns**
+  (`move_1_2`/`move_1_3` | `move_2_1`/`move_2_3` | `move_3_1`/`move_3_2`); Rust builds a **flat 6-button
+  row** in order `(1,2),(1,3),(2,1),(2,3),(3,1),(3,2)`. The IDs become XRCIDs (`move_1_2`…), so the
+  Rust event wiring must look buttons up by XRCID.
+- **Menu differs.** XRC `main_menubar`: Game (`wxID_NEW`/`game_new_same`/`wxID_EXIT`), Relabel (6 normal
+  items), View (`style_text`/`style_graphics` as **radio**), `wxID_ABOUT`. Rust adds a **"How to play"**
+  item and uses **check** items for the board style. So either the XRC gains a how-to-play item (and
+  Rust keeps it) or Rust drops it; radio-vs-check must be reconciled.
+- **The board_slot has a fixed `<size>-1,280</size>`** and sits in a `wxStaticBoxSizer` labelled
+  "Board"; Rust's board is proportion-3 in a plain sizer. Visual parity is a judgment only a human on
+  screen can confirm.
+
+**Implication — a design fork to settle first (new Open question 2):** because the shared XRC becomes
+the single UI authority, the divergences above must be resolved in ONE direction. Recommended: **extend
+the XRC to be the superset** (add a how-to-play menu item; keep the board as one `board_slot` and have
+Rust paint into it; decide radio vs check once) so neither language loses a feature, then make BOTH
+Python and Rust match it. That is a bigger change than "rewrite the Rust GUI" — it touches Python too.
+
+**Recommended mode:** do this **on-display, iteratively** (`cd rust && make wx`, watch the window,
+adjust) — a blind autonomous rewrite can't verify layout/board/menu parity and risks a large broken
+`main.rs`. Also prefer **`include_str!(crate-relative symlink) + XmlResource::load_from_string`** over
+`include_xrc!`: it bakes the XRC bytes into the binary at compile time (no runtime file, so **no
+Dockerfile bake needed**) and looks widgets up by XRCID like the Python/C++ code already does — only
+the compile-time symlink-resolution (needs `ui/` mounted during the runtime `cargo build`) remains.
+
 ## Sharing the single `hanoi.xrc` — DECIDED: hoist to `ui/` + git-tracked symlinks
 
 **Mechanism (maintainer-decided 2026-10-25; the same mechanism the C++ task
@@ -95,6 +133,13 @@ which removes that option's only costs (no loader-path change; no drift because 
 1. **Which sharing mechanism? — RESOLVED (maintainer, 2026-10-25): hoist to `ui/` + git-tracked
    symlinks** (see "Sharing the single `hanoi.xrc`" above). One physical file, no drift, no loader
    changes; each container mounts `ui/` so the symlink resolves. Done consistently with the C++ task.
+2. **The divergence fork (NEW, from the 2026-10-26 code read) — which direction?** The Rust GUI and the
+   XRC differ on the board model (two widgets vs one `board_slot`), move-button layout (flat row vs
+   3 columns), and menu (Rust's extra "How to play" + check-vs-radio style items). Loading the XRC
+   makes it the authority for both, so these must reconcile one way. **Recommend: extend the XRC to the
+   superset and bring both Python and Rust to it** (keeps every feature) — note this touches the Python
+   GUI too, not just Rust. Alternative: Rust conforms to the XRC as-is and loses the how-to-play item /
+   two-widget board. Your call before the rewrite starts.
 
 ## Related
 
