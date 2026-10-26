@@ -20,6 +20,7 @@
 import pytest
 
 from hanoigame.commands import (
+    COMMAND_VERBS,
     ApplyCmd,
     Command,
     EmptyCmd,
@@ -31,6 +32,7 @@ from hanoigame.commands import (
     RelabelCmd,
     SaveCmd,
     ShowCmd,
+    completions,
     parse,
 )
 
@@ -201,3 +203,28 @@ def test_parse_empty(line: str) -> None:
 def test_parse_garbage_returns_parse_error(line: str) -> None:
     """Unrecognised input returns a ParseError."""
     assert isinstance(parse(line), ParseError)
+
+
+# --- Shared tab-completion (used by both the CLI and the curses TUI) ------
+
+_NAMES: list[str] = ["other", "solve-2"]
+
+
+def test_completions_verbs_at_line_start() -> None:
+    """On the first token, candidates are the command verbs matching text."""
+    assert set(completions("", "", _NAMES)) == set(COMMAND_VERBS)
+    assert completions("ap", "ap", _NAMES) == ["apply"]
+    assert completions("s", "s", _NAMES) == ["save", "show"]
+
+
+def test_completions_recipe_names_after_apply_and_show() -> None:
+    """After 'apply '/'show ', candidates are the recipe names matching text."""
+    assert completions("apply ", "", _NAMES) == ["other", "solve-2"]
+    assert completions("apply so", "so", _NAMES) == ["solve-2"]
+    assert completions("show ot", "ot", _NAMES) == ["other"]
+
+
+def test_completions_none_after_save_or_other_verbs() -> None:
+    """'save ' never offers existing names (no overwrite invitation)."""
+    assert completions("save so", "so", _NAMES) == []
+    assert completions("list ", "", _NAMES) == []

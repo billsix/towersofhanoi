@@ -1,7 +1,40 @@
 # Rust egui front-end for hanoi — native standalone AND web-delivered
 
-**Status:** proposed — needs go-ahead
+**Status:** IMPLEMENTED 2026-10-26 (William Emerison Six <billsix@gmail.com>) — native **confirmed
+working on-display by the maintainer**; web build **compiles to wasm + produces a `dist/`** (browser
+render is the maintainer's check after `make image` rebuilds with the `USE_WASM` toolchain).
 **Priority:** 7 **Difficulty:** 5
+
+## What was done (2026-10-26)
+
+- **`rust/hanoi-egui/`** — a new eframe/egui crate over the shared `hanoigame` engine, its **own
+  workspace** (like Tauri), egui/eframe pinned `=0.29.1` (glow renderer). One `HanoiApp: eframe::App`
+  renders the board (egui `Painter`, solid fills), move/relabel buttons, a recipe list + Save/Apply/
+  Show, and a status line; native and web share it (`cfg(target_arch = "wasm32")` entry).
+- **Native** — `make egui` (`cargo run`, X11/Wayland passthrough). Maintainer confirmed it runs.
+- **Web** — `cfg(wasm32)` entry starts `eframe::WebRunner` on the `#hanoi_canvas`; `index.html` +
+  `Trunk.toml` drive trunk. `make egui-web` (→ gitignored `dist/`) + `make egui-serve` (`:8080`).
+- **Toolchain baked** — `entrypoint/03-install-wasm.sh` (`dnf`: wasm32 std + trunk) under a `USE_WASM`
+  build-arg (Makefile default 1; `MINIMAL_IMAGE` drops it), like the other image deps.
+- **Verified** — `cargo check`/`fmt --check` clean (native); `trunk build` compiles the crate to wasm
+  and emits `dist/` (the `.wasm` + `.js`), so the web entry is correct, not just native.
+
+## Decisions (resolved the Open questions)
+
+1. **Native renderer → glow** (OpenGL; the recommended option — lighter, WebGL on web). The image's
+   libGL/libEGL (from the wxGTK stack) satisfy it.
+2. **Web toolchain → baked behind `USE_WASM`** (wasm32 std + trunk, both Fedora rpms — no `cargo
+   install`, offline after). Mirrors the C++ `USE_WASM` idea.
+3. **Publishable web build → local for now** (gitignored `dist/` + `make egui-serve`); GitHub Pages
+   deferred (same call as the C++ web build).
+4. **Relationship to the other Rust GUIs → keep all** (parallel teaching demos of the one engine).
+
+## Residual / follow-up
+
+- trunk fetches its matching **wasm-bindgen** CLI on first `egui-web` (then caches) — the one runtime
+  download; bake it too if a fully-offline web build is wanted.
+- The egui layout/visual is first-cut; on-display polish (sizing, board proportions) may follow, like
+  the wx GUI got.
 **Created:** 2026-10-24 (William Emerison Six <billsix@gmail.com>). Requested as a follow-up to the C++
 ImGui/WebAssembly task: "make one for rust to use egui, both as standalone and as web delivered."
 

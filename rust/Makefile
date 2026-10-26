@@ -10,6 +10,13 @@
 # small export/airgap image. To refresh the vendored elpa: make update-emacs-packages.
 USE_EMACS ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
 
+# USE_WASM bakes the WebAssembly toolchain (wasm32 Rust std + trunk + the wasm-bindgen CLI)
+# for the egui web build (make egui-web/egui-serve). On by default; MINIMAL_IMAGE drops it.
+USE_WASM ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
+# The wasm-bindgen CLI version to bake, read from hanoi-egui/Cargo.lock so the baked tool
+# matches the crate (else trunk ignores it and re-downloads). Falls back if unreadable.
+WASM_BINDGEN_VERSION := $(or $(shell grep -A1 '^name = "wasm-bindgen"$$' hanoi-egui/Cargo.lock 2>/dev/null | awk -F'"' '/version/{print $$2}'),0.2.129)
+
 CONTAINER_CMD ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 CONTAINER_NAME = hanoi-rust
 
@@ -22,7 +29,13 @@ TMUX_REAL_PATH := $(shell readlink -f $(TMUX_FILE))
 TMUX_MOUNT := $(shell if [ -f $(TMUX_REAL_PATH) ]; then echo "-v $(TMUX_REAL_PATH):/root/.tmux.conf:Z" ; fi)
 
 REPO_MOUNT = /$(CONTAINER_NAME)
-FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(TMUX_MOUNT)
+# The shared wx UI definition lives at the repo-root ui/ (one file). hanoi-gui's
+# hanoi.xrc is a git-tracked symlink to ../../ui/hanoi.xrc; mounting ui/ at /ui makes
+# that symlink resolve in-container (/hanoi-rust/hanoi-gui/../../ui = /ui) at
+# cargo-build time, when the GUI's include_str! reads it. Read-only -- the UI file is
+# never written from here.
+UI_MOUNT := -v $(CURDIR)/../ui:/ui:ro,Z
+FILES_TO_MOUNT = -v $(shell pwd):$(REPO_MOUNT):Z $(UI_MOUNT) $(TMUX_MOUNT)
 
 # X11 display passthrough for the wxDragon GUI and the Tauri webview.
 X_FLAGS_FOR_CONTAINER = -e DISPLAY=$(DISPLAY) \
@@ -46,7 +59,7 @@ all: shell ## Build the image and get a shell in it
 
 .PHONY: image
 image: ## Build the podman image (Rust toolchain + native build stack)
-	$(CONTAINER_CMD) build --build-arg USE_EMACS=$(USE_EMACS) -t $(CONTAINER_NAME) .
+	$(CONTAINER_CMD) build --build-arg USE_EMACS=$(USE_EMACS) --build-arg USE_WASM=$(USE_WASM) --build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) -t $(CONTAINER_NAME) .
 
 # --- shell / shell-exec share ONE invocation so they can never drift (scoped to this
 # pair only). shell.sh sets the cargo caches on the mount.
@@ -82,12 +95,13 @@ check: image ## Compile-check the workspace INCLUDING tests/examples (cargo chec
 		-c '$(RUST_SETUP) && cargo check --workspace --all-targets'
 
 .PHONY: type-check
-type-check: image ## Type-check + lint the Tauri frontend JS via Deno (deno check/lint; JSDoc + checkJs, no node_modules)
+type-check: image ## Type-check + lint + fmt-check the Tauri frontend web files via Deno (deno check/lint/fmt; JSDoc + checkJs, no node_modules)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
 		-c 'cd $(REPO_MOUNT)/tauri/frontend && s=0; \
 		    deno check --check-js --no-lock main.js || s=1; \
 		    deno lint main.js || s=1; \
+		    deno fmt --check || s=1; \
 		    exit $$s'
 
 # --- Run a front-end. Two cargo caches on the bind-mount (both gitignored) make repeat
@@ -97,6 +111,8 @@ PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
 RUST_SETUP = cd $(REPO_MOUNT) && export CARGO_TARGET_DIR=$(REPO_MOUNT)/.container-target && export CARGO_HOME=$(REPO_MOUNT)/.container-cargo
 # Tauri is not a workspace member and keeps its own target dir; it shares the crate cache.
 TAURI_SETUP = cd $(REPO_MOUNT)/tauri/src-tauri && export CARGO_TARGET_DIR=$(REPO_MOUNT)/tauri/.container-target && export CARGO_HOME=$(REPO_MOUNT)/.container-cargo && export WEBKIT_DISABLE_DMABUF_RENDERER=1
+# egui (eframe) is its own workspace too (own target dir, shared crate cache).
+EGUI_SETUP = cd $(REPO_MOUNT)/hanoi-egui && export CARGO_TARGET_DIR=$(REPO_MOUNT)/hanoi-egui/.container-target && export CARGO_HOME=$(REPO_MOUNT)/.container-cargo
 
 .PHONY: cli
 cli: image ## Run the CLI front-end (hanoi-cli)
@@ -117,6 +133,21 @@ wx: image ## Run the wxDragon GUI front-end (first run builds wxWidgets from sou
 tauri: image ## Run the Tauri desktop front-end (webkit2gtk; another UI like wx)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
 		-c '$(TAURI_SETUP) && exec cargo run'
+
+.PHONY: egui
+egui: image ## Run the egui native GUI front-end (eframe/glow)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(EGUI_SETUP) && exec cargo run'
+
+.PHONY: egui-web
+egui-web: image ## Build the egui WebAssembly app with trunk (-> hanoi-egui/dist; needs a USE_WASM image)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(EGUI_SETUP) && exec trunk build --release'
+
+.PHONY: egui-serve
+egui-serve: image ## Serve the egui web app with trunk at http://localhost:8080 (needs a USE_WASM image)
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm -p 8080:8080 $(PLAY_FLAGS) $(CONTAINER_NAME) \
+		-c '$(EGUI_SETUP) && exec trunk serve --address 0.0.0.0'
 
 .PHONY: image-export
 image-export: ## export the OCI image to a timestamped tar in this dir

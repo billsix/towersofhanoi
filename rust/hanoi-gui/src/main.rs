@@ -9,18 +9,22 @@
 //! (Rust port of the wxPython `python/src/hanoigame/hanoigui.py` +
 //! `board_renderers.py`, kept in sync.)
 //!
-//! Port notes: the UI is built programmatically (the Python used `hanoi.xrc`);
+//! Port notes: the window (menu bar + panel layout + move/recipe controls) is
+//! loaded from the **shared `ui/hanoi.xrc`** — the one UI definition the Python
+//! and C++ wx front-ends also use — via wxDragon's `XmlResource`
+//! (`load_from_string` on the `include_str!`'d XRC, then `load_panel` /
+//! `MenuBar::from_xrc_name`, with children fetched by `find_child_by_xrc_name`).
+//! The graphics board is still drawn in code with the wxDC model (solid fills,
+//! rounded rectangles, circles) into a sub-panel of the XRC `board_slot`.
 //! GUI state is shared across wxDragon's `'static` event closures via
-//! `Rc<RefCell<GuiState>>`. The graphics renderer draws with the wxDC model
-//! (solid fills, rounded rectangles, circles) — **not** the wxPython
-//! `GraphicsContext` gradients/shadows, which wxDragon does not expose. The
-//! recipe-show and rebinding views are message dialogs rather than the Python's
-//! scrollable 3-panel dialog (the teaching content is the same). See
-//! `tasks/port-to-rust-wxdragon.md`.
+//! `Rc<RefCell<GuiState>>`. The recipe-show and rebinding views are message
+//! dialogs rather than the Python's scrollable 3-panel dialog (the teaching
+//! content is the same). See `tasks/rust-gui-use-shared-xrc.md`.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use wxdragon::dc::{GradientDirection, Rect as DcRect};
 use wxdragon::prelude::*;
 
 use hanoigame::commands::Command;
@@ -29,22 +33,20 @@ use hanoigame::model::HanoiGame;
 use hanoigame::presenter::{self, change_labels_on_pegs, Labelling};
 use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
 
+/// The shared wx UI definition (repo-root `ui/hanoi.xrc`, reached via the
+/// git-tracked `hanoi.xrc` symlink in this crate). `include_str!` bakes the
+/// bytes into the binary at compile time, so no XRC file is needed at run time.
+const XRC_DATA: &str = include_str!("../hanoi.xrc");
+
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
 
-const ID_NEW: i32 = 1001;
-const ID_NEW_SAME: i32 = 1002;
-const ID_EXIT: i32 = 1003;
-const ID_ABOUT: i32 = 1004;
-const ID_HELP: i32 = 1005;
-const ID_STYLE_TEXT: i32 = 1010;
-const ID_STYLE_GRAPHICS: i32 = 1011;
-const ID_RELABEL_BASE: i32 = 1020;
-
-/// The six (from_label, to_label) move-button pairs, in display order.
+/// The six (from_label, to_label) move-button pairs, in display order; each maps
+/// to the XRC button named `move_<from>_<to>`.
 const MOVE_PAIRS: [(u32, u32); 6] = [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)];
 
-/// The six peg-label permutations, in menu order.
+/// The six peg-label permutations; each maps to the XRC menu item
+/// `relabel_<a>_<b>_<c>`.
 const RELABEL_PERMS: [[u32; 3]; 6] = [
     [1, 2, 3],
     [1, 3, 2],
@@ -53,6 +55,11 @@ const RELABEL_PERMS: [[u32; 3]; 6] = [
     [3, 1, 2],
     [3, 2, 1],
 ];
+
+/// The XRC name of the relabel menu item for a permutation.
+fn relabel_item_name(perm: [u32; 3]) -> String {
+    format!("relabel_{}_{}_{}", perm[0], perm[1], perm[2])
+}
 
 // --- Colour palettes (from board_renderers.py) ------------------------------
 
@@ -104,9 +111,16 @@ fn disc_width(size: u32, n: u32, max_w: f64) -> f64 {
 
 /// Draw the board onto a device context (solid fills; no gradients/shadows).
 fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, labelling: Labelling) {
-    dc.set_background(Colour::rgb(30, 36, 50));
-    dc.set_background_mode(BackgroundMode::Solid);
-    dc.clear();
+    // Vertical background gradient (top lighter), matching the wxPython renderer's
+    // GraphicsContext gradient; the DC can't gradient-fill the rounded pegs/discs, so
+    // those stay flat. Transparent text background so the label digits have no box.
+    dc.gradient_fill_linear(
+        DcRect::new(0, 0, w, h),
+        Colour::rgb(45, 52, 68),
+        Colour::rgb(20, 26, 38),
+        GradientDirection::South,
+    );
+    dc.set_background_mode(BackgroundMode::Transparent);
 
     let n: u32 = game.num_disks;
     if n == 0 {
@@ -166,7 +180,7 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
         }
     }
 
-    // Active label badges (coloured circles with the label digit).
+    // Active label badges (coloured circles with the label digit, bold + centred).
     let active_label_y: f64 = base_y
         + f64::from(base_h)
         + if relabelled {
@@ -174,26 +188,36 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
         } else {
             f64::from(label_band_h) / 2.0
         };
+    if let Some(badge_font) = Font::builder()
+        .with_point_size(13)
+        .with_weight(FontWeight::Bold)
+        .build()
+    {
+        dc.set_font(&badge_font);
+    }
+    dc.set_text_foreground(Colour::rgb(255, 255, 255));
     for (p, &cx) in peg_centres.iter().enumerate() {
         let label: usize = change_labels_on_pegs(labelling, p);
         let rgb: (u8, u8, u8) = label_rgb(label);
         dc.set_pen(darken(rgb, 0.40), 1, PenStyle::Solid);
         dc.set_brush(colour(rgb), BrushStyle::Solid);
         dc.draw_circle(cx as i32, active_label_y as i32, 14);
-        dc.set_text_foreground(Colour::rgb(255, 255, 255));
-        dc.draw_text(
-            &(label + 1).to_string(),
-            cx as i32 - 4,
-            active_label_y as i32 - 8,
-        );
+        let text: String = (label + 1).to_string();
+        let (tw, th): (i32, i32) = dc.get_text_extent(&text);
+        dc.draw_text(&text, cx as i32 - tw / 2, active_label_y as i32 - th / 2);
     }
 
-    // Default 1-2-3 reference row when relabelled.
+    // Default 1-2-3 reference row when relabelled (smaller, neutral, centred).
     if relabelled {
         let ref_y: f64 = active_label_y + 26.0;
+        if let Some(ref_font) = Font::builder().with_point_size(10).build() {
+            dc.set_font(&ref_font);
+        }
         dc.set_text_foreground(Colour::rgb(170, 178, 195));
         for (p, &cx) in peg_centres.iter().enumerate() {
-            dc.draw_text(&(p + 1).to_string(), cx as i32 - 4, ref_y as i32 - 8);
+            let text: String = (p + 1).to_string();
+            let (tw, th): (i32, i32) = dc.get_text_extent(&text);
+            dc.draw_text(&text, cx as i32 - tw / 2, ref_y as i32 - th / 2);
         }
     }
 }
@@ -207,6 +231,7 @@ struct GuiState {
     disc_count: u32,
     graphics_mode: bool,
     frame: Frame,
+    board_slot: Panel,
     board_text: TextCtrl,
     board_graphics: Panel,
     move_buttons: Vec<Button>,
@@ -272,10 +297,33 @@ impl GuiState {
     }
 
     /// Redraw the board and re-sync every control to the session.
+    /// The text board, horizontally centred and pushed to the bottom of the text
+    /// control — matching the wxPython TextBoardRenderer (which the maintainer prefers),
+    /// rather than sitting top-left. Recomputed on every refresh from the control's
+    /// current size (wxDragon exposes no resize hook, so a bare window-resize reflows
+    /// only on the next state change — close enough for a teaching board).
+    fn centred_board_text(&self) -> String {
+        let lines: Vec<String> = presenter::render(&self.game, self.labelling);
+        let Some(first) = lines.first() else {
+            return String::new();
+        };
+        let size: Size = self.board_text.get_size();
+        let char_w: i32 = self.board_text.get_char_width().max(1);
+        let line_h: i32 = self.board_text.get_char_height().max(1);
+        let visible_cols: i32 = (size.width / char_w).max(1);
+        let visible_rows: i32 = (size.height / line_h).max(1);
+        let line_width: i32 = first.chars().count() as i32;
+        let h_pad: usize = ((visible_cols - line_width) / 2).max(0) as usize;
+        let pad: String = " ".repeat(h_pad);
+        let centred: Vec<String> = lines.iter().map(|l| format!("{pad}{l}")).collect();
+        // -1 of slack so the bottom line isn't under a horizontal scrollbar.
+        let v_pad: usize = (visible_rows - centred.len() as i32 - 1).max(0) as usize;
+        format!("{}{}", "\n".repeat(v_pad), centred.join("\n"))
+    }
+
     fn refresh(&self) {
         // Board.
-        self.board_text
-            .set_value(&presenter::render(&self.game, self.labelling).join("\n"));
+        self.board_text.set_value(&self.centred_board_text());
         if self.graphics_mode {
             self.board_graphics.refresh(true, None);
         }
@@ -297,12 +345,16 @@ impl GuiState {
             btn.enable(!won && legal.contains(&(f, t)));
         }
 
-        // Relabel-menu bullets (active permutation marked; display-only).
+        // Relabel-menu bullets (active permutation marked; display-only). The
+        // items are NORMAL (not radio) in the XRC — a radio's checked state is
+        // unreliable on wxGTK — so the active one is marked by rewriting its
+        // label, which never emits an event.
         let current: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
         if let Some(mb) = self.frame.get_menu_bar() {
-            for (i, perm) in RELABEL_PERMS.iter().enumerate() {
-                if let Some(item) = mb.find_item(ID_RELABEL_BASE + i as i32) {
+            for perm in RELABEL_PERMS.iter() {
+                let id: i32 = XmlResource::get_xrc_id(&relabel_item_name(*perm));
+                if let Some(item) = mb.find_item(id) {
                     let marker: &str = if *perm == current {
                         "\u{25CF}  "
                     } else {
@@ -396,14 +448,39 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
     }
 }
 
+/// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
+/// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
+/// a proportional font, which collapses the columns (hence the misalignment the maintainer
+/// saw). A read-only teletype `TextCtrl` keeps the columns aligned, matching the Python wx.
+fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
+    let dlg: Dialog = Dialog::builder(parent, title).with_size(640, 460).build();
+    let text: TextCtrl = TextCtrl::builder(&dlg)
+        .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
+        .build();
+    if let Some(mono) = Font::builder()
+        .with_point_size(11)
+        .with_family(FontFamily::Teletype)
+        .build()
+    {
+        text.set_font(&mono);
+    }
+    text.set_value(&lines.join("\n"));
+    let close: Button = Button::builder(&dlg).with_label("Close").build();
+    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    sizer.add(&text, 1, SizerFlag::Expand | SizerFlag::All, 8);
+    sizer.add(&close, 0, SizerFlag::All, 8);
+    dlg.set_sizer(sizer, true);
+    let dlg_for_close: Dialog = dlg.clone();
+    close.on_click(move |_| dlg_for_close.end_modal(ID_OK));
+    dlg.show_modal();
+}
+
 fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: Labelling) {
     let table: Vec<String> = format_rebinding_table(moves, labelling, "Your move / recipe");
     if table.is_empty() {
         return;
     }
-    MessageDialog::builder(frame, &table.join("\n"), title)
-        .build()
-        .show_modal();
+    show_monospace_dialog(frame, title, &table);
 }
 
 fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {
@@ -539,107 +616,89 @@ fn on_show(state: &Rc<RefCell<GuiState>>) {
         let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
         st.dispatch(&Command::Show(name.clone())).lines
     };
-    MessageDialog::builder(&frame, &lines.join("\n"), &format!("Recipe '{name}'"))
-        .build()
-        .show_modal();
-}
-
-fn build_menu_bar(frame: &Frame) {
-    let game_menu: Menu = Menu::builder()
-        .append_item(ID_NEW, "&New Game…\tCtrl+N", "Start a new game")
-        .append_item(
-            ID_NEW_SAME,
-            "New Game (&same discs)",
-            "Restart with the same disc count",
-        )
-        .append_separator()
-        .append_item(ID_EXIT, "E&xit\tCtrl+Q", "Exit")
-        .build();
-
-    let mut relabel_menu = Menu::builder();
-    for (i, perm) in RELABEL_PERMS.iter().enumerate() {
-        relabel_menu = relabel_menu.append_item(
-            ID_RELABEL_BASE + i as i32,
-            &format!("    {} {} {}", perm[0], perm[1], perm[2]),
-            "Relabel the pegs",
-        );
-    }
-    let relabel_menu: Menu = relabel_menu.build();
-
-    let view_menu: Menu = Menu::builder()
-        .append_check_item(ID_STYLE_GRAPHICS, "Board: &Graphics", "2D graphics board")
-        .append_check_item(ID_STYLE_TEXT, "Board: &Text", "Monospace text board")
-        .build();
-
-    let help_menu: Menu = Menu::builder()
-        .append_item(ID_HELP, "&How to play…", "Features and controls")
-        .append_item(ID_ABOUT, "&About", "About Towers of Hanoi")
-        .build();
-
-    let menu_bar: MenuBar = MenuBar::builder()
-        .append(game_menu, "&Game")
-        .append(relabel_menu, "&Relabel")
-        .append(view_menu, "&View")
-        .append(help_menu, "&Help")
-        .build();
-    frame.set_menu_bar(menu_bar);
+    show_monospace_dialog(&frame, &format!("Recipe '{name}'"), &lines);
 }
 
 fn main() {
     let _ = wxdragon::main(|_| {
+        // Load the shared UI definition (menu bar + panel) from the baked XRC.
+        let res: XmlResource = XmlResource::get();
+        res.init_all_handlers();
+        if let Err(e) = res.load_from_string(XRC_DATA) {
+            eprintln!("failed to load hanoi.xrc: {e}");
+            return;
+        }
+
         let frame: Frame = Frame::builder()
             .with_title("Towers of Hanoi")
             .with_size(Size::new(1000, 640))
             .build();
-        build_menu_bar(&frame);
+        if let Some(menu_bar) = MenuBar::from_xrc_name("main_menubar") {
+            frame.set_menu_bar(menu_bar);
+        }
         frame.create_status_bar(2, 0, ID_ANY as i32, "");
 
-        let panel: Panel = Panel::builder(&frame).build();
+        let panel: Panel = res
+            .load_panel(Some(&frame), "HanoiPanel")
+            .expect("HanoiPanel in hanoi.xrc");
 
-        // Two board widgets stacked in the board area; one is shown at a time.
-        let board_graphics: Panel = Panel::builder(&panel).build();
+        // The board_slot is an empty placeholder panel in the XRC; put the two
+        // board widgets (one shown at a time) inside it, as the Python renderer
+        // slot does.
+        let board_slot: Panel = panel
+            .find_child_by_xrc_name("board_slot")
+            .expect("board_slot in hanoi.xrc");
+        let board_graphics: Panel = Panel::builder(&board_slot).build();
         board_graphics.set_background_style(BackgroundStyle::Paint);
-        let board_text: TextCtrl = TextCtrl::builder(&panel)
+        let board_text: TextCtrl = TextCtrl::builder(&board_slot)
             .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
             .build();
         board_text.show(false); // graphics is the default view
+        let slot_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+        slot_sizer.add(&board_graphics, 1, SizerFlag::Expand, 0);
+        slot_sizer.add(&board_text, 1, SizerFlag::Expand, 0);
+        board_slot.set_sizer(slot_sizer, true);
 
-        let button_sizer: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
-        let mut move_buttons: Vec<Button> = Vec::new();
-        for (f, t) in MOVE_PAIRS {
-            let btn: Button = Button::builder(&panel)
-                .with_label(&format!("{f} \u{2192} {t}"))
-                .build();
-            button_sizer.add(&btn, 1, SizerFlag::Expand | SizerFlag::All, 4);
-            move_buttons.push(btn);
-        }
+        let move_buttons: Vec<Button> = MOVE_PAIRS
+            .iter()
+            .map(|(f, t)| {
+                panel
+                    .find_child_by_xrc_name(&format!("move_{f}_{t}"))
+                    .unwrap_or_else(|| panic!("move_{f}_{t} in hanoi.xrc"))
+            })
+            .collect();
+        let recipe_list: ListBox = panel
+            .find_child_by_xrc_name("recipe_list")
+            .expect("recipe_list in hanoi.xrc");
+        let save_btn: Button = panel
+            .find_child_by_xrc_name("recipe_save")
+            .expect("recipe_save in hanoi.xrc");
+        let apply_btn: Button = panel
+            .find_child_by_xrc_name("recipe_apply")
+            .expect("recipe_apply in hanoi.xrc");
+        let show_btn: Button = panel
+            .find_child_by_xrc_name("recipe_show")
+            .expect("recipe_show in hanoi.xrc");
 
-        // Recipe row: a list plus Save / Apply / Show buttons.
-        let recipe_list: ListBox = ListBox::builder(&panel).build();
-        let save_btn: Button = Button::builder(&panel).with_label("Save").build();
-        let apply_btn: Button = Button::builder(&panel).with_label("Apply").build();
-        let show_btn: Button = Button::builder(&panel).with_label("Show").build();
-        let recipe_btns: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-        recipe_btns.add(&save_btn, 0, SizerFlag::Expand | SizerFlag::All, 2);
-        recipe_btns.add(&apply_btn, 0, SizerFlag::Expand | SizerFlag::All, 2);
-        recipe_btns.add(&show_btn, 0, SizerFlag::Expand | SizerFlag::All, 2);
-        let recipe_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
-        recipe_row.add(&recipe_list, 1, SizerFlag::Expand | SizerFlag::All, 4);
-        recipe_row.add_sizer(&recipe_btns, 0, SizerFlag::Expand | SizerFlag::All, 2);
-
-        let panel_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-        panel_sizer.add(&board_graphics, 3, SizerFlag::Expand | SizerFlag::All, 6);
-        panel_sizer.add(&board_text, 3, SizerFlag::Expand | SizerFlag::All, 6);
-        panel_sizer.add_sizer(&button_sizer, 0, SizerFlag::Expand | SizerFlag::All, 4);
-        panel_sizer.add_sizer(&recipe_row, 1, SizerFlag::Expand | SizerFlag::All, 4);
-        panel.set_sizer(panel_sizer, true);
-
+        // The XRC panel carries its own sizer; drop it into the frame to fill it.
         let frame_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         frame_sizer.add(&panel, 1, SizerFlag::Expand, 0);
         frame.set_sizer(frame_sizer, true);
 
+        // XRC menu-item ids (resolved by name once; the match below compares to
+        // these, since they aren't compile-time constants).
+        let id_new: i32 = XmlResource::get_xrc_id("wxID_NEW");
+        let id_new_same: i32 = XmlResource::get_xrc_id("game_new_same");
+        let id_exit: i32 = XmlResource::get_xrc_id("wxID_EXIT");
+        let id_about: i32 = XmlResource::get_xrc_id("wxID_ABOUT");
+        let id_style_text: i32 = XmlResource::get_xrc_id("style_text");
+        let id_style_graphics: i32 = XmlResource::get_xrc_id("style_graphics");
+        let relabel_ids: [i32; 6] =
+            RELABEL_PERMS.map(|p| XmlResource::get_xrc_id(&relabel_item_name(p)));
+
+        // Graphics is the default board; mark its (radio) menu item.
         if let Some(mb) = frame.get_menu_bar() {
-            mb.check_item(ID_STYLE_GRAPHICS, true);
+            mb.check_item(id_style_graphics, true);
         }
 
         let state: Rc<RefCell<GuiState>> = Rc::new(RefCell::new(GuiState {
@@ -650,6 +709,7 @@ fn main() {
             disc_count: DEFAULT_DISKS,
             graphics_mode: true,
             frame: frame.clone(),
+            board_slot: board_slot.clone(),
             board_text: board_text.clone(),
             board_graphics: board_graphics.clone(),
             move_buttons: move_buttons.clone(),
@@ -696,64 +756,44 @@ fn main() {
             recipe_list.on_item_double_clicked(move |_| on_show(&st));
         }
 
-        // Menu.
+        // Menu. The item ids come from the XRC (resolved above), so this is an
+        // if/else chain rather than a match on constants.
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
             let frame_for_menu: Frame = frame.clone();
             frame.on_menu_selected(move |ev: MenuEventData| {
                 let id: i32 = ev.get_id();
-                match id {
-                    ID_NEW => on_new_game(&st),
-                    ID_NEW_SAME => on_new_game_same(&st),
-                    ID_EXIT => frame_for_menu.close(true),
-                    ID_HELP => {
-                        MessageDialog::builder(
-                            &frame_for_menu,
-                            "Move: click a legal 'from \u{2192} to' button (in the current labels); \
-                             illegal moves are disabled.\n\n\
-                             Relabel: rename the physical pegs (Relabel menu). Discs don't move, and \
-                             the colours track the label \u{2014} so a solved sub-problem can be \
-                             replayed under a new name.\n\n\
-                             Recipes: after you win, Save the solution (default name solve-N). Apply \
-                             replays a saved recipe under the current labelling and, when relabelled, \
-                             shows the three-panel rebinding (the recipe's labels, the label \u{2192} \
-                             peg key, and the rebound moves on the physical pegs). Show lists a \
-                             recipe's moves.\n\n\
-                             New Game: pick a disc count (1–10).",
-                            "How to play",
-                        )
-                        .build()
-                        .show_modal();
+                if id == id_new {
+                    on_new_game(&st);
+                } else if id == id_new_same {
+                    on_new_game_same(&st);
+                } else if id == id_exit {
+                    frame_for_menu.close(true);
+                } else if id == id_about {
+                    MessageDialog::builder(
+                        &frame_for_menu,
+                        "Towers of Hanoi\n\nA teaching tool: solve small, relabel pegs, \
+                         replay. Shares its model and dispatcher with the CLI and TUI \
+                         front-ends.",
+                        "About Towers of Hanoi",
+                    )
+                    .build()
+                    .show_modal();
+                } else if id == id_style_graphics || id == id_style_text {
+                    let graphics: bool = id == id_style_graphics;
+                    let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
+                    s.graphics_mode = graphics;
+                    s.board_graphics.show(graphics);
+                    s.board_text.show(!graphics);
+                    if let Some(mb) = s.frame.get_menu_bar() {
+                        mb.check_item(id_style_graphics, graphics);
+                        mb.check_item(id_style_text, !graphics);
                     }
-                    ID_ABOUT => {
-                        MessageDialog::builder(
-                            &frame_for_menu,
-                            "Towers of Hanoi\n\nA teaching tool: solve small, relabel pegs, \
-                             replay. Shares its model and dispatcher with the CLI and TUI \
-                             front-ends.",
-                            "About Towers of Hanoi",
-                        )
-                        .build()
-                        .show_modal();
-                    }
-                    ID_STYLE_GRAPHICS | ID_STYLE_TEXT => {
-                        let graphics: bool = id == ID_STYLE_GRAPHICS;
-                        let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
-                        s.graphics_mode = graphics;
-                        s.board_graphics.show(graphics);
-                        s.board_text.show(!graphics);
-                        if let Some(mb) = s.frame.get_menu_bar() {
-                            mb.check_item(ID_STYLE_GRAPHICS, graphics);
-                            mb.check_item(ID_STYLE_TEXT, !graphics);
-                        }
-                        s.frame.layout();
-                        s.refresh();
-                    }
-                    _ if (ID_RELABEL_BASE..ID_RELABEL_BASE + 6).contains(&id) => {
-                        let perm: [u32; 3] = RELABEL_PERMS[(id - ID_RELABEL_BASE) as usize];
-                        on_relabel(&st, perm);
-                    }
-                    _ => {}
+                    s.board_slot.layout();
+                    s.frame.layout();
+                    s.refresh();
+                } else if let Some(pos) = relabel_ids.iter().position(|&x| x == id) {
+                    on_relabel(&st, RELABEL_PERMS[pos]);
                 }
             });
         }

@@ -21,6 +21,7 @@ A `parse(line)` returns a typed Command (or ParseError) so that CLI, curses,
 and wxWidgets front-ends can dispatch identically. Pure: no I/O, no state.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -105,7 +106,7 @@ Command = (
 
 # The keyword commands `parse` recognises at the start of a line, in the order
 # they appear in HELP_TEXT. The single source of truth for tab-completion (see
-# hanoicli._completions). Moves use the `<from> -> <to>` syntax, not a keyword,
+# `completions` below). Moves use the `<from> -> <to>` syntax, not a keyword,
 # so there is no "move" verb here.
 COMMAND_VERBS: tuple[str, ...] = (
     "relabel",
@@ -129,6 +130,32 @@ Commands:
   list             list saved recipes
   help             show this help
   quit             quit the game"""
+
+
+def completions(buffer: str, text: str, names: Iterable[str]) -> list[str]:
+    """Tab-completion candidates for `text`, given the whole input line.
+
+    Shared by every front-end's completer (the readline CLI and the curses
+    TUI) so they can't drift: command verbs while still on the first token,
+    saved-recipe `names` after ``apply ``/``show `` (the load side).
+    Deliberately nothing after other verbs — notably ``save ``, so completion
+    never suggests overwriting an existing recipe. Pure: no I/O, no readline.
+
+    Args:
+        buffer: The whole line being edited (leading space is ignored).
+        text: The partial word being completed (the token under the cursor).
+        names: The saved-recipe names, offered only on the load side.
+
+    Returns:
+        The matching candidates, in the order `names`/`COMMAND_VERBS` yield
+        them.
+    """
+    stripped: str = buffer.lstrip()
+    if stripped.startswith(("apply ", "show ")):
+        return [name for name in names if name.startswith(text)]
+    if " " in stripped:
+        return []
+    return [verb for verb in COMMAND_VERBS if verb.startswith(text)]
 
 
 def _move_or_error(a: int, b: int) -> Command:

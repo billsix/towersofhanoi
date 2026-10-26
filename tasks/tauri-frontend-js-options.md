@@ -3,8 +3,9 @@
 **Status:** proposed — needs go-ahead (an **investigation/survey**; read-only until a direction is
 chosen). The deliverable is a recommendation, not code.
 **Priority:** 7 **Difficulty:** 4
-**Depends on:** `tasks/tauri-frontend-lint.md` (do the lint first — the maintainer asked for this as a
-follow-up; whatever this task recommends may reshape the lint setup).
+**Depends on:** the lint task — DONE 2026-10-26, `tasks/archive/2026/10/26/tauri-frontend-lint.md`
+(Deno fmt/lint/check wired into `make format` + `make type-check`; whatever this task recommends may
+reshape that setup).
 **Created:** 2026-10-23 (William Emerison Six <billsix@gmail.com>). Requested: "investigate what other
 options there are to do with the JavaScript code; my first inclination is to rewrite the JavaScript in
 TypeScript, but I want to hear if there are other options."
@@ -77,7 +78,7 @@ cheaper type-check-the-JS option (1), since that may meet the real goal at a fra
 
 ## Pointers
 
-- `tasks/tauri-frontend-lint.md` — the predecessor (lint first).
+- `tasks/archive/2026/10/26/tauri-frontend-lint.md` — the predecessor (lint, done 2026-10-26).
 - `tasks/archive/2026/10/23/port-to-tauri.md` — the port; the no-bundler/no-Node decision lives here.
 - runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` — the Tauri frontend setup + constraints.
 - Personal overlay "Self-contained images + live source" — the offline-rebuild constraint any build

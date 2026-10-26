@@ -340,6 +340,29 @@ def render_with_legend(game: HanoiGame, labelling: Labelling) -> list[str]:
     return lines
 
 
+def format_move_tally(moves: Sequence[tuple[int, int]]) -> list[str]:
+    """Numbered running move list in the default 1-2-3 (physical) labelling.
+
+    Each move is a ``(from, to)`` pair of 1-indexed *physical* pegs as recorded
+    by `recipe.Recorder` (default-label space — the ground truth beneath any
+    relabelling), so the list is independent of whatever labelling was active
+    when each move was made. Shared by every front-end's move-history view so
+    they present the tally identically.
+
+    Args:
+        moves: The recorded moves so far, in order (e.g.
+            `recorder.default_moves`).
+
+    Returns:
+        One ``"<n>. <from> -> <to>"`` line per move, in order; empty when there
+        are no moves.
+    """
+    return [
+        f"{index}. {from_peg} -> {to_peg}"
+        for index, (from_peg, to_peg) in enumerate(moves, 1)
+    ]
+
+
 # --- Move translation through the current labelling ------------------------
 
 

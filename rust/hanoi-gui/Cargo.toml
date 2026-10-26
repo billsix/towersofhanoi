@@ -11,4 +11,6 @@ path = "src/main.rs"
 
 [dependencies]
 hanoigame = { path = "../hanoigame" }
-wxdragon = "0.9.23"
+# The "xrc" feature (not on by default) enables loading the UI from the shared
+# ui/hanoi.xrc (XmlResource + find_child_by_xrc_name + MenuBar::from_xrc_name).
+wxdragon = { version = "0.9.23", features = ["xrc"] }

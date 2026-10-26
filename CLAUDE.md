@@ -14,8 +14,9 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 - **`python/`** — the **canonical** implementation (the behaviour oracle). `cd python`,
   then `make cli | tui | wx | format | type-check | shell`. See `python/CLAUDE.md`.
 - **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including the
-  Tauri app** at `rust/tauri/` (just another UI, like the wx one). `cd rust`, then
-  `make cli | tui | wx | tauri | format | check | type-check | shell`. See `rust/CLAUDE.md`.
+  Tauri app** at `rust/tauri/` and the **egui app** at `rust/hanoi-egui/` (native + web; each its
+  own workspace, like the wx one is just another UI). `cd rust`, then
+  `make cli | tui | wx | tauri | egui | egui-web | format | check | type-check | shell`. See `rust/CLAUDE.md`.
 - **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
   **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
   app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
@@ -47,13 +48,15 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
   isolated Python image).
 - **Rust** (`rust/`, a Cargo workspace) — a parallel reimplementation kept **in sync with
   the Python, feature-for-feature** (the Python stays the behaviour oracle; never removed).
-  A `hanoigame` library crate + four front-ends: `hanoi-cli`, `hanoi` (ratatui/crossterm
-  TUI), `hanoi-gui` (wxDragon GUI), and **`rust/tauri/`** (Tauri v2 desktop app, static
-  webview UI over the same crate — NOT a workspace member; its own `[workspace]` root).
+  A `hanoigame` library crate + five front-ends: `hanoi-cli`, `hanoi` (ratatui/crossterm
+  TUI), `hanoi-gui` (wxDragon GUI, loads the shared `ui/hanoi.xrc`), **`rust/tauri/`** (Tauri v2
+  desktop app, static webview UI over the same crate — NOT a workspace member; its own
+  `[workspace]` root), and **`rust/hanoi-egui/`** (egui/eframe GUI, native + WebAssembly; its own
+  workspace too).
   Build facts + wxDragon gotchas: runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port
   record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
-  runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
-  `tasks/tauri-frontend-js-options.md`).
+  runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (follow-ups: the frontend lint is done —
+  `tasks/archive/2026/10/26/tauri-frontend-lint.md`; `tasks/tauri-frontend-js-options.md` remains).
 - **C++** (`cpp/`, header-only engine in `src/`) — **two GUIs** from one `CMakeLists.txt`: a Dear ImGui
   `main.cpp` (native SDL2+OpenGL3 and WebAssembly OpenGL3→WebGL-ES3; ImGui vendored at `cpp/imgui/`), and
   a **wxWidgets `hanoiwx.cpp`** (`make wx`) built from the shared `ui/hanoi.xrc`. Both at feature parity
@@ -74,8 +77,9 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 - `cpp/` — the C++ subproject (self-contained; see `cpp/CLAUDE.md`): the ImGui `main.cpp` + wxWidgets
   `hanoiwx.cpp` GUIs over the header-only engine in `src/`, with vendored `imgui/`.
 - `ui/` — the **one shared wx UI definition** (`ui/hanoi.xrc`). Each wx front-end
-  (`python/src/hanoigame/hanoi.xrc`, `cpp/hanoi.xrc`) is a git-tracked symlink to it, and each
-  subproject's Makefile mounts `ui/` at `/ui` so the symlink resolves in-container — one file, no drift.
+  (`python/src/hanoigame/hanoi.xrc`, `cpp/hanoi.xrc`, `rust/hanoi-gui/hanoi.xrc`) is a git-tracked
+  symlink to it, and each subproject's Makefile mounts `ui/` at `/ui` so the symlink resolves
+  in-container — one file, no drift. (Rust bakes it in via `include_str!`; Python/C++ load it at runtime.)
 - `bash/` — 12 scripts (solves + relabel filters).
 - `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
   (guarded by `python/tests/test_byhand_drift.py`; regenerate, don't hand-edit those pages).
@@ -94,10 +98,12 @@ root builds the book.
   passthrough for the wx GUI); `format` (ruff) / `type-check` (ty) are the gates; `shell`.
   `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs — no OpenGL/mesa (the board is 2D
   wx/Cairo). `USE_EMACS` (default 1) installs emacs + the Python dev set.
-- **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` run the front-ends; `format`
-  (rustfmt), `check` (`cargo check --workspace --all-targets`, which compiles the test
-  modules bare `cargo check` skips), and `type-check` (the Tauri frontend JS, via Deno —
-  `deno check` + `deno lint`, no `node_modules`) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
+- **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` / `egui` run the front-ends (`egui-web` /
+  `egui-serve` for the egui WebAssembly build, behind the `USE_WASM` toolchain); `format`
+  (rustfmt + `deno fmt` of the Tauri frontend web files), `check` (`cargo check --workspace
+  --all-targets`, which compiles the test modules bare `cargo check` skips), and `type-check`
+  (the Tauri frontend web files via Deno — `deno check` + `deno lint` + `deno fmt --check`, no
+  `node_modules`) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
 - **`cd cpp && make`** — `gui` (native ImGui) / `wx` (wxWidgets, from the shared `ui/hanoi.xrc`) /
   `webassembly` (→ gitignored `web/`) / `serve` (http at :8000); `format` (clang-format, never the

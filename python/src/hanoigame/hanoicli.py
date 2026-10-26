@@ -32,7 +32,7 @@ import sys
 from typing import TextIO
 
 from . import presenter
-from .commands import COMMAND_VERBS, Command, parse
+from .commands import Command, completions, parse
 from .engine import DispatchResult, GameSession
 from .recipe import RecipeRegistry
 
@@ -86,12 +86,11 @@ def _read_line(prompt: str, in_: TextIO, out: TextIO) -> str | None:
 
 
 def _completions(buffer: str, text: str, registry: RecipeRegistry) -> list[str]:
-    """Candidate completions for `text` given the whole input line `buffer`.
+    """Readline-side adapter over the shared `commands.completions`.
 
-    Command verbs while still on the first token; saved-recipe names after
-    ``apply ``/``show `` (the load side). Deliberately nothing after other verbs
-    — notably ``save ``, so completion never suggests overwriting an existing
-    recipe. Pure: no `readline`, no I/O, so it is unit-testable on its own.
+    Supplies the recipe names from `registry`; the candidate logic itself
+    lives in `commands.completions` so the CLI and the curses TUI share one
+    copy and can't drift.
 
     Args:
         buffer: The whole line being edited (`readline.get_line_buffer()`).
@@ -101,12 +100,7 @@ def _completions(buffer: str, text: str, registry: RecipeRegistry) -> list[str]:
     Returns:
         The matching completion candidates, in display order.
     """
-    stripped: str = buffer.lstrip()
-    if stripped.startswith(("apply ", "show ")):
-        return [name for name in registry.names() if name.startswith(text)]
-    if " " in stripped:
-        return []
-    return [verb for verb in COMMAND_VERBS if verb.startswith(text)]
+    return completions(buffer, text, registry.names())
 
 
 def _install_completion(registry: RecipeRegistry, in_: TextIO) -> None:

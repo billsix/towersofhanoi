@@ -24,7 +24,7 @@ result/error message sits just above the prompt.
 """
 
 import curses
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from curses import (
     COLOR_BLACK,
@@ -39,9 +39,10 @@ from curses import (
     init_pair,
     start_color,
 )
+from os.path import commonprefix
 
 from . import presenter
-from .commands import Command, parse
+from .commands import Command, completions, parse
 from .engine import DispatchResult, GameSession
 from .presenter import Labelling, change_labels_on_pegs, peg_color
 from .recipe import RecipeRegistry
@@ -67,7 +68,9 @@ PAIR_BLUE: int = 5  # also used by presenter.peg_color
 
 
 @contextmanager
-def stdscr_attr(stdscr: curses.window, attr: int) -> Iterator[None]:
+def stdscr_attr(
+    stdscr: curses.window, attr: int
+) -> Generator[None, None, None]:
     """Turn a curses attribute on for the body, then off again.
 
     Args:
@@ -360,15 +363,52 @@ def _redraw(
 # --- Input ---------------------------------------------------------------
 
 
-def _read_line(stdscr: curses.window, prompt: str = "> ") -> str | None:
+def _complete_buffer(buffer: str, names: Sequence[str]) -> str:
+    """Return `buffer` with a Tab-completion applied to its final token.
+
+    Fills in the one matching candidate, or the longest common prefix when
+    several match; returns `buffer` unchanged when nothing matches or nothing
+    can be added. The candidate logic itself is `commands.completions`, shared
+    with the readline CLI so the two front-ends can't drift.
+
+    Args:
+        buffer: The line typed so far (the cursor is always at its end, so the
+            token being completed is the text after the last space).
+        names: Saved-recipe names, offered after ``apply ``/``show ``.
+
+    Returns:
+        The possibly-extended line.
+    """
+    text: str = buffer.rsplit(" ", 1)[-1]
+    candidates: list[str] = completions(buffer, text, names)
+    if not candidates:
+        return buffer
+    # Every candidate starts with `text`, so the common prefix does too; the
+    # part past `text` is what Tab fills in.
+    fill: str = (
+        candidates[0] if len(candidates) == 1 else commonprefix(candidates)
+    )
+    return buffer + fill[len(text) :] if len(fill) > len(text) else buffer
+
+
+def _read_line(
+    stdscr: curses.window,
+    prompt: str = "> ",
+    registry: RecipeRegistry | None = None,
+) -> str | None:
     """Read one line of input at the bottom row.
 
     Echoes printable characters, handles backspace, ignores resize events,
-    and returns on Enter.
+    and returns on Enter. When `registry` is given (the command prompt), Tab
+    completes the current token — command verbs on the first token, recipe
+    names after ``apply ``/``show `` — matching the CLI; prompts that pass no
+    registry (disc count, save name, play again) leave Tab inert.
 
     Args:
         stdscr: The curses window to read from and echo onto.
         prompt: The prompt string drawn before the input.
+        registry: The recipe store whose names feed Tab-completion, or
+            ``None`` to disable completion at this prompt.
 
     Returns:
         The typed string, or ``None`` on Ctrl-C / EOF.
@@ -401,6 +441,16 @@ def _read_line(stdscr: curses.window, prompt: str = "> ") -> str | None:
                     if cx > len(prompt):
                         stdscr.move(cy, cx - 1)
                         stdscr.delch()
+                        stdscr.refresh()
+                continue
+            if ch == 9:  # Tab
+                if registry is not None:
+                    old: str = "".join(buf)
+                    new: str = _complete_buffer(old, registry.names())
+                    if new != old:
+                        added: str = new[len(old) :]
+                        buf.extend(added)
+                        stdscr.addstr(added)
                         stdscr.refresh()
                 continue
             if 32 <= ch < 127:
@@ -477,7 +527,7 @@ def _play_game(stdscr: curses.window, n: int, registry: RecipeRegistry) -> bool:
 
     while not session.is_won():
         _redraw(stdscr, session, msg_lines)
-        text: str | None = _read_line(stdscr)
+        text: str | None = _read_line(stdscr, registry=registry)
         if text is None:
             return False
         cmd: Command = parse(text)
