@@ -157,7 +157,7 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
 - **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
   ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
 - **Status:** implemented in the **wxPython GUI** (the oracle) 2026-10-26
-  (`tasks/wxpython-running-move-tally.md`). Fan-out to every other UI is tracked by
+  (`tasks/archive/2026/10/26/wxpython-running-move-tally.md`). Fan-out to every other UI is tracked by
   `tasks/fan-out-move-tally.md`.
 
 ## 5. What a UI must SHOW (summary)
@@ -257,4 +257,4 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
 - `tasks/reference/architecture-overview.md` — the dispatch data-flow + the default-label-space invariant.
 - `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md` — the rebinding teaching moment.
 - Spec-driven parity tasks: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`,
-  `tasks/rust-gui-use-shared-xrc.md`; the audit + process: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
+  `tasks/archive/2026/10/26/rust-gui-use-shared-xrc.md`; the audit + process: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.

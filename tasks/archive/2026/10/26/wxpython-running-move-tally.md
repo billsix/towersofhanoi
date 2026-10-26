@@ -1,9 +1,8 @@
 # Inspectable running move tally (default 1-2-3 labels) — build in wxPython first, then spec it, then fan out
 
-**Status:** implemented 2026-10-26 (William Emerison Six <billsix@gmail.com>) — Phase 1 (wx) + Phase 2
-(spec) DONE; **awaiting the maintainer's on-display confirmation** of the wx dialog before archiving
-(the code + logic are tested + gate-green; only the on-screen rendering needs a human look). Phase 3
-(fan-out) split to its own task.
+**Status:** DONE 2026-10-26 (William Emerison Six <billsix@gmail.com>) — Phase 1 (wx tally) + Phase 2
+(spec §4.11/§7 finalized) complete and confirmed on-display by the maintainer. Phase 3 (fan-out to the
+other UIs) split to `tasks/fan-out-move-tally.md`.
 **Priority:** 4 **Difficulty:** 4
 **Created:** 2026-10-25. Requested: "there should be a running tally that shows all moves done, relative
 to the original labelling 1 2 3 … inspectable. add a task for the wxpython one … then extract out what

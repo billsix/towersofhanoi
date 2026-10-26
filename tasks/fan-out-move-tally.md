@@ -3,7 +3,7 @@
 **Status:** proposed — needs go-ahead.
 **Priority:** 5 **Difficulty:** 5 (spread across UIs/languages; each UI is small, the breadth is the cost)
 **Created:** 2026-10-26 (William Emerison Six <billsix@gmail.com>). Phase 3 of
-`tasks/wxpython-running-move-tally.md` (Phase 1 wx oracle + Phase 2 spec done 2026-10-26); split out
+`tasks/archive/2026/10/26/wxpython-running-move-tally.md` (Phase 1 wx oracle + Phase 2 spec done 2026-10-26); split out
 per that task's plan ("fan out … scope this as its own task/umbrella when Phase 2 lands").
 
 ## BLUF
@@ -56,7 +56,7 @@ shows the tally, each checked against §4.11/§7 row 15.
 
 ## Related
 
-- `tasks/wxpython-running-move-tally.md` — Phase 1/2 (the oracle + the spec this fans out).
+- `tasks/archive/2026/10/26/wxpython-running-move-tally.md` — Phase 1/2 (the oracle + the spec this fans out).
 - `tasks/reference/feature-spec.md` §4.11 + §7 row 15 (the contract).
 - Fan-out precedent: `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md` (a spec driving
   multi-implementation work).

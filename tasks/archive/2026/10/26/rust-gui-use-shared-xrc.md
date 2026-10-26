@@ -1,10 +1,12 @@
 # Rust wx GUI: load the shared wx XRC instead of building the UI in code
 
-**Status:** IMPLEMENTED 2026-10-26 (William Emerison Six <billsix@gmail.com>) — compiles + formatted;
-**awaiting the maintainer's on-display confirmation** (`cd rust && make wx`) that the window matches the
-Python one before archiving. The design fork (below) was resolved by the maintainer: **Rust conforms to
-the XRC** (Python layout unchanged); Rust's dropped extras tracked in
-`tasks/rust-wx-extra-features-to-python.md`.
+**Status:** DONE 2026-10-26 (William Emerison Six <billsix@gmail.com>) — maintainer confirmed the wx
+window on-display ("the rust wx one works"/"looks good"). The design fork was resolved: **Rust conforms
+to the XRC** (Python layout unchanged); Rust's dropped extras tracked in
+`tasks/rust-wx-extra-features-to-python.md`. Two on-display polish fixes followed and are included
+(same session): the board rendering was brought in line with the Python wx (transparent + centred bold
+label badges, gradient background, bottom-centred text mode), and the rebinding / recipe-show views now
+use a monospace dialog so the columns align (they were in a proportional `MessageDialog`).
 **Priority:** 7 **Difficulty:** 6
 
 ## What was done (2026-10-26)

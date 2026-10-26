@@ -3,7 +3,7 @@
 **Status:** proposed — needs the maintainer's decision (which features, if any).
 **Priority:** 6 **Difficulty:** 3 (the decision + a Python impl; the fan-out, if triggered, is its own set)
 **Created:** 2026-10-26 (William Emerison Six <billsix@gmail.com>). Spun off from
-`tasks/rust-gui-use-shared-xrc.md`: when the Rust wx GUI was migrated to load the shared `ui/hanoi.xrc`
+`tasks/archive/2026/10/26/rust-gui-use-shared-xrc.md`: when the Rust wx GUI was migrated to load the shared `ui/hanoi.xrc`
 (the Python layout, which the maintainer "already like[s] how … is"), the Rust GUI **lost** a few things
 it had that the Python wx doesn't. The maintainer asked: capture those as a task that **asks whether
 they belong in the Python wx version**; if yes, implement in Python (the oracle) and then **schedule
@@ -17,7 +17,7 @@ from Rust. This task lists them and asks, per item, **do you want it in the Pyth
 "yes": implement it in the Python wx (the behaviour oracle) first, update `feature-spec.md`, then this
 task **schedules a fan-out task per accepted feature** to port it to all UIs (Python CLI/TUI, C++
 ImGui/wx, Rust CLI/TUI/wx/Tauri) — mirroring the move-tally pattern
-(`tasks/wxpython-running-move-tally.md` → `tasks/fan-out-move-tally.md`).
+(`tasks/archive/2026/10/26/wxpython-running-move-tally.md` → `tasks/fan-out-move-tally.md`).
 
 ## The Rust-wx-only items (verified 2026-10-26 against `hanoigui.py` + `ui/hanoi.xrc`)
 
@@ -56,9 +56,9 @@ not here.)
 
 ## Related
 
-- `tasks/rust-gui-use-shared-xrc.md` — the migration that dropped these from Rust (the parent).
+- `tasks/archive/2026/10/26/rust-gui-use-shared-xrc.md` — the migration that dropped these from Rust (the parent).
 - `tasks/reference/feature-spec.md` — where an accepted feature gets specified before fan-out.
-- Pattern precedent: `tasks/wxpython-running-move-tally.md` + `tasks/fan-out-move-tally.md` (build in the
+- Pattern precedent: `tasks/archive/2026/10/26/wxpython-running-move-tally.md` + `tasks/fan-out-move-tally.md` (build in the
   oracle → spec → fan out to all UIs).
-- The old Rust "How to play" text: `tasks/rust-gui-use-shared-xrc.md` points at the pre-migration
+- The old Rust "How to play" text: `tasks/archive/2026/10/26/rust-gui-use-shared-xrc.md` points at the pre-migration
   `rust/hanoi-gui/src/main.rs` `ID_HELP` handler (in git history after the migration lands).
