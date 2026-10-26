@@ -1,0 +1,7 @@
+# Cargo build output (never committed).
+/target
+# The container's Cargo target cache on the bind-mount (set by `make egui`); the crate
+# registry cache is shared at ../.container-cargo.
+/.container-target
+# trunk's web build output (gitignored; `make egui-web` regenerates it).
+/dist
