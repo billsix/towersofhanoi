@@ -9,7 +9,7 @@ sync, never a replacement (the Python stays the behaviour oracle). Self-containe
 
 - `hanoigame/` — the shared library crate (model / commands / engine / presenter / recipe /
   solvers), mirroring the Python package module-for-module.
-- Four front-ends over that crate:
+- Five front-ends over that crate:
   - `hanoi-cli/` — plain CLI (`make cli`)
   - `hanoi/` — ratatui/crossterm TUI (`make tui`)
   - `hanoi-gui/` — wxDragon GUI; loads the shared `ui/hanoi.xrc` (menu bar + panel +
@@ -20,6 +20,11 @@ sync, never a replacement (the Python stays the behaviour oracle). Self-containe
   - `tauri/` — Tauri v2 desktop app (static webview UI over the same crate; `make tauri`).
     Just another UI, like the wx one. NOT a workspace member (Tauri needs its own build);
     it depends on `../hanoigame` by path.
+  - `hanoi-egui/` — egui/eframe GUI, **native and web (WebAssembly)** from one crate
+    (`make egui` native; `make egui-web` → gitignored `dist/`; `make egui-serve` at
+    `:8080`). Its own workspace (like Tauri); egui/eframe pinned (glow renderer). The web
+    build uses the baked wasm toolchain (`USE_WASM`: wasm32 std + trunk — `make egui-web`
+    needs a `USE_WASM` image). The board is painted with egui's `Painter`.
 
 ## Build / container workflow
 
@@ -29,11 +34,16 @@ crates are built at **runtime** (not image-build), cached in `.container-target`
 `.container-cargo` on the mount — because wxDragon downloads + builds wxWidgets 3.3.4 from
 source at cargo-build time (needs network; the first `make wx` is minutes-long, then cached).
 
-- `make image` — build; `MINIMAL_IMAGE=1` drops emacs. `USE_EMACS` (default 1) installs emacs
-  + the Rust dev set.
+- `make image` — build; `MINIMAL_IMAGE=1` drops emacs + the wasm toolchain. `USE_EMACS`
+  (default 1) installs emacs + the Rust dev set; `USE_WASM` (default 1) bakes the wasm32
+  Rust std + trunk (Fedora rpms) for the egui web build — `make egui-web`/`egui-serve`
+  need a `USE_WASM` image.
 - `make shell` / `make shell-exec` — dev shell (cargo caches preset).
-- `make cli` / `make tui` / `make wx` / `make tauri` — run a front-end (X11 + Wayland
-  passthrough; Tauri also sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`).
+- `make cli` / `make tui` / `make wx` / `make tauri` / `make egui` — run a front-end (X11 +
+  Wayland passthrough; Tauri also sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`).
+- `make egui-web` — build the egui WebAssembly app with trunk (→ gitignored `dist/`);
+  `make egui-serve` — serve it at `http://localhost:8080`. (trunk fetches its matching
+  wasm-bindgen on first use, then caches; the egui crate deps cache on `.container-cargo`.)
 - `make format` — rustfmt (workspace + the Tauri crate), plus `deno fmt` over the Tauri frontend's
   three static web files (`tauri/frontend/{index.html,main.js,style.css}`, scoped by
   `tauri/frontend/deno.json`'s `fmt.include`).
