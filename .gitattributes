@@ -1,0 +1,5 @@
+# Vendored Emacs packages (downloaded from MELPA via `make update-emacs-packages`),
+# not project source: exclude from GitHub language statistics, collapse in diffs.
+# hanoi is per-language subprojects (python/ rust/ cpp/), each with its own vendored
+# elpa, so one `**/` glob covers them all (and any future language folder).
+**/entrypoint/dotfiles/.emacs.d/elpa/** linguist-vendored
