@@ -52,8 +52,8 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
   webview UI over the same crate — NOT a workspace member; its own `[workspace]` root).
   Build facts + wxDragon gotchas: runClaudeInContainer `tasks/reference/rust-gui-tui-and-ecosystem.md`; the port
   record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
-  runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (follow-ups: `tasks/tauri-frontend-lint.md`,
-  `tasks/tauri-frontend-js-options.md`).
+  runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (follow-ups: the frontend lint is done —
+  `tasks/archive/2026/10/26/tauri-frontend-lint.md`; `tasks/tauri-frontend-js-options.md` remains).
 - **C++** (`cpp/`, header-only engine in `src/`) — **two GUIs** from one `CMakeLists.txt`: a Dear ImGui
   `main.cpp` (native SDL2+OpenGL3 and WebAssembly OpenGL3→WebGL-ES3; ImGui vendored at `cpp/imgui/`), and
   a **wxWidgets `hanoiwx.cpp`** (`make wx`) built from the shared `ui/hanoi.xrc`. Both at feature parity
