@@ -10,6 +10,10 @@
 # small export/airgap image. To refresh the vendored elpa: make update-emacs-packages.
 USE_EMACS ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
 
+# USE_WASM bakes the WebAssembly toolchain (wasm32 Rust std + trunk) for the egui web
+# build (make egui-web/egui-serve). On by default; a lean MINIMAL_IMAGE build drops it.
+USE_WASM ?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)
+
 CONTAINER_CMD ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 CONTAINER_NAME = hanoi-rust
 
@@ -52,7 +56,7 @@ all: shell ## Build the image and get a shell in it
 
 .PHONY: image
 image: ## Build the podman image (Rust toolchain + native build stack)
-	$(CONTAINER_CMD) build --build-arg USE_EMACS=$(USE_EMACS) -t $(CONTAINER_NAME) .
+	$(CONTAINER_CMD) build --build-arg USE_EMACS=$(USE_EMACS) --build-arg USE_WASM=$(USE_WASM) -t $(CONTAINER_NAME) .
 
 # --- shell / shell-exec share ONE invocation so they can never drift (scoped to this
 # pair only). shell.sh sets the cargo caches on the mount.

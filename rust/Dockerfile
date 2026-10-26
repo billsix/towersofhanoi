@@ -11,6 +11,11 @@ FROM registry.fedoraproject.org/fedora:44
 # MINIMAL_IMAGE build drops it.
 ARG USE_EMACS=0
 
+# USE_WASM bakes the WebAssembly toolchain (wasm32 Rust std + trunk, both Fedora rpms) for
+# the egui web build (make egui-web/egui-serve). Makefile defaults it to 1; a bare build
+# stays lean (0); a lean MINIMAL_IMAGE build drops it. See entrypoint/03-install-wasm.sh.
+ARG USE_WASM=0
+
 # Deno version for the JS type-check gate (entrypoint/02-install-deno.sh). A pinned,
 # checksum-verified binary baked at build so `make type-check` runs offline.
 ARG DENO_VERSION=v2.9.8
@@ -20,6 +25,7 @@ ARG DENO_VERSION=v2.9.8
 # Dockerfile. 01-install-rust-base.sh installs the toolchain + native build stack.
 COPY entrypoint/01-install-rust-base.sh /usr/local/bin/
 COPY entrypoint/02-install-deno.sh /usr/local/bin/
+COPY entrypoint/03-install-wasm.sh /usr/local/bin/
 COPY entrypoint/dotfiles/.emacs.d/install-melpa-packages.el /root/.emacs.d/install-melpa-packages.el
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
@@ -27,6 +33,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      dnf upgrade -y && \
      /usr/local/bin/01-install-rust-base.sh && \
+     if [ "$USE_WASM" = "1" ]; then /usr/local/bin/03-install-wasm.sh ; fi && \
      if [ "$USE_EMACS" = "1" ]; then \
        dnf install -y emacs && \
        emacs --batch --load /root/.emacs.d/install-melpa-packages.el ; \
