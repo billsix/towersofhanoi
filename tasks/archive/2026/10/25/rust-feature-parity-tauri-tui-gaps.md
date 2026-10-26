@@ -45,7 +45,7 @@ Tab-completion — against `tasks/reference/feature-spec.md`. The crate's behavi
   `read_line_on` line editor gained a completer parameter + a `complete_line` helper (single candidate
   fills in; several fill to the longest common prefix), wired at all four prompt call sites. Spec §6.1 was
   sharpened to require completion of TUIs, not just the readline CLI; the Python ncurses TUI's matching
-  gap was filed as `tasks/python-tui-autocomplete.md`.
+  gap was filed as `tasks/archive/2026/10/26/python-tui-autocomplete.md`.
 
 **Verification:** `cargo check --workspace` (hanoigame / CLI / TUI / wx) clean, `cargo check` on the
 separate Tauri crate clean, `rustfmt` clean + post-format re-check clean — all nested. The maintainer ran
@@ -60,7 +60,7 @@ faithfully mirrors, so it is an oracle/spec decision for every UI → `tasks/app
 
 - Authority + audit: `tasks/reference/feature-spec.md`, `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
 - Sibling parity task: `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md` (C++).
-- Follow-ons surfaced here: `tasks/python-tui-autocomplete.md`, `tasks/apply-output-trim-redundant-move-log.md`.
+- Follow-ons surfaced here: `tasks/archive/2026/10/26/python-tui-autocomplete.md`, `tasks/apply-output-trim-redundant-move-log.md`.
 - Rust ecosystem/build facts: the shared `rust-gui-tui-and-ecosystem.md` (runClaudeInContainer
   `tasks/reference/`) and `tauri-desktop-apps.md`; the Rust port record
   `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`.
