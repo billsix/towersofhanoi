@@ -24,6 +24,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use wxdragon::dc::{GradientDirection, Rect as DcRect};
 use wxdragon::prelude::*;
 
 use hanoigame::commands::Command;
@@ -110,9 +111,16 @@ fn disc_width(size: u32, n: u32, max_w: f64) -> f64 {
 
 /// Draw the board onto a device context (solid fills; no gradients/shadows).
 fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, labelling: Labelling) {
-    dc.set_background(Colour::rgb(30, 36, 50));
-    dc.set_background_mode(BackgroundMode::Solid);
-    dc.clear();
+    // Vertical background gradient (top lighter), matching the wxPython renderer's
+    // GraphicsContext gradient; the DC can't gradient-fill the rounded pegs/discs, so
+    // those stay flat. Transparent text background so the label digits have no box.
+    dc.gradient_fill_linear(
+        DcRect::new(0, 0, w, h),
+        Colour::rgb(45, 52, 68),
+        Colour::rgb(20, 26, 38),
+        GradientDirection::South,
+    );
+    dc.set_background_mode(BackgroundMode::Transparent);
 
     let n: u32 = game.num_disks;
     if n == 0 {
@@ -172,7 +180,7 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
         }
     }
 
-    // Active label badges (coloured circles with the label digit).
+    // Active label badges (coloured circles with the label digit, bold + centred).
     let active_label_y: f64 = base_y
         + f64::from(base_h)
         + if relabelled {
@@ -180,26 +188,36 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
         } else {
             f64::from(label_band_h) / 2.0
         };
+    if let Some(badge_font) = Font::builder()
+        .with_point_size(13)
+        .with_weight(FontWeight::Bold)
+        .build()
+    {
+        dc.set_font(&badge_font);
+    }
+    dc.set_text_foreground(Colour::rgb(255, 255, 255));
     for (p, &cx) in peg_centres.iter().enumerate() {
         let label: usize = change_labels_on_pegs(labelling, p);
         let rgb: (u8, u8, u8) = label_rgb(label);
         dc.set_pen(darken(rgb, 0.40), 1, PenStyle::Solid);
         dc.set_brush(colour(rgb), BrushStyle::Solid);
         dc.draw_circle(cx as i32, active_label_y as i32, 14);
-        dc.set_text_foreground(Colour::rgb(255, 255, 255));
-        dc.draw_text(
-            &(label + 1).to_string(),
-            cx as i32 - 4,
-            active_label_y as i32 - 8,
-        );
+        let text: String = (label + 1).to_string();
+        let (tw, th): (i32, i32) = dc.get_text_extent(&text);
+        dc.draw_text(&text, cx as i32 - tw / 2, active_label_y as i32 - th / 2);
     }
 
-    // Default 1-2-3 reference row when relabelled.
+    // Default 1-2-3 reference row when relabelled (smaller, neutral, centred).
     if relabelled {
         let ref_y: f64 = active_label_y + 26.0;
+        if let Some(ref_font) = Font::builder().with_point_size(10).build() {
+            dc.set_font(&ref_font);
+        }
         dc.set_text_foreground(Colour::rgb(170, 178, 195));
         for (p, &cx) in peg_centres.iter().enumerate() {
-            dc.draw_text(&(p + 1).to_string(), cx as i32 - 4, ref_y as i32 - 8);
+            let text: String = (p + 1).to_string();
+            let (tw, th): (i32, i32) = dc.get_text_extent(&text);
+            dc.draw_text(&text, cx as i32 - tw / 2, ref_y as i32 - th / 2);
         }
     }
 }
@@ -279,10 +297,33 @@ impl GuiState {
     }
 
     /// Redraw the board and re-sync every control to the session.
+    /// The text board, horizontally centred and pushed to the bottom of the text
+    /// control — matching the wxPython TextBoardRenderer (which the maintainer prefers),
+    /// rather than sitting top-left. Recomputed on every refresh from the control's
+    /// current size (wxDragon exposes no resize hook, so a bare window-resize reflows
+    /// only on the next state change — close enough for a teaching board).
+    fn centred_board_text(&self) -> String {
+        let lines: Vec<String> = presenter::render(&self.game, self.labelling);
+        let Some(first) = lines.first() else {
+            return String::new();
+        };
+        let size: Size = self.board_text.get_size();
+        let char_w: i32 = self.board_text.get_char_width().max(1);
+        let line_h: i32 = self.board_text.get_char_height().max(1);
+        let visible_cols: i32 = (size.width / char_w).max(1);
+        let visible_rows: i32 = (size.height / line_h).max(1);
+        let line_width: i32 = first.chars().count() as i32;
+        let h_pad: usize = ((visible_cols - line_width) / 2).max(0) as usize;
+        let pad: String = " ".repeat(h_pad);
+        let centred: Vec<String> = lines.iter().map(|l| format!("{pad}{l}")).collect();
+        // -1 of slack so the bottom line isn't under a horizontal scrollbar.
+        let v_pad: usize = (visible_rows - centred.len() as i32 - 1).max(0) as usize;
+        format!("{}{}", "\n".repeat(v_pad), centred.join("\n"))
+    }
+
     fn refresh(&self) {
         // Board.
-        self.board_text
-            .set_value(&presenter::render(&self.game, self.labelling).join("\n"));
+        self.board_text.set_value(&self.centred_board_text());
         if self.graphics_mode {
             self.board_graphics.refresh(true, None);
         }
