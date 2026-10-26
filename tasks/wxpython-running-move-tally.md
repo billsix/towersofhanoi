@@ -1,67 +1,60 @@
 # Inspectable running move tally (default 1-2-3 labels) — build in wxPython first, then spec it, then fan out
 
-**Status:** proposed — needs go-ahead.
-**Priority:** 4 **Difficulty:** 4 (the wx phase; the fan-out is larger but follows the spec)
-**Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). Requested: "there should be a running
-tally that shows all moves done, relative to the original labelling 1 2 3. that should be inspectable. add
-a task for the wxpython one, to do it, and then from that, extract out what the markdown file that
-describes the product should say, and when we do that, then fan out to implement that across all UIs."
+**Status:** implemented 2026-10-26 (William Emerison Six <billsix@gmail.com>) — Phase 1 (wx) + Phase 2
+(spec) DONE; **awaiting the maintainer's on-display confirmation** of the wx dialog before archiving
+(the code + logic are tested + gate-green; only the on-screen rendering needs a human look). Phase 3
+(fan-out) split to its own task.
+**Priority:** 4 **Difficulty:** 4
+**Created:** 2026-10-25. Requested: "there should be a running tally that shows all moves done, relative
+to the original labelling 1 2 3 … inspectable. add a task for the wxpython one … then extract out what
+the markdown file that describes the product should say … then fan out to implement that across all UIs."
 
 ## BLUF
 
-Add an **inspectable running move tally** to hanoi: a view of **every move made this game, in order, in
-the default 1-2-3 (physical) labelling** — the ground truth beneath any relabelling — that the user can
-inspect at any time. Per the maintainer's sequence, build it **first in the wxPython GUI** (the behaviour
-oracle), **then finalize the product spec** (`tasks/reference/feature-spec.md` §4.11) *from* that
-implementation, **then fan out** to every other UI/implementation. "Done" (this task) = the wx tally
-works, §4.11 is finalized into a real spec + §7 checklist row, and the fan-out is scoped (its own
-task(s)).
+An inspectable running move tally — every move this game, in the default 1-2-3 (physical) labelling —
+is implemented in the wxPython GUI (the oracle) and finalized into the product spec. Phase 1 (wx) and
+Phase 2 (spec) are done; Phase 3 (fan-out to the other UIs) is now `tasks/fan-out-move-tally.md`.
 
-## Context (read first)
+## What was done (2026-10-26)
 
-- **Feature-spec entry:** `tasks/reference/feature-spec.md` §4.11 is the PLANNED placeholder for this; it
-  says the exact presentation will be finalized from the wx implementation. Finalizing it is Phase 2.
-- **The data already exists.** Moves are already recorded in **default-label space** by
-  `recipe.Recorder` (`python/src/hanoigame/recipe.py` — `recorder.default_moves`, a list of
-  `(from_default, to_default)` physical pairs); every legal move, typed or applied, is recorded there
-  (`engine.GameSession._handle_move` / `_handle_apply` call `recorder.record(fp+1, tp+1)`). So the tally
-  is a **view of existing state**, not new bookkeeping — this is why it's low-difficulty in wx.
-- **wx GUI:** `python/src/hanoigame/hanoigui.py` (+ `board_renderers.py`) is where the view goes. It is
-  the Part-A oracle for the C++/Rust wx GUIs and the behaviour authority for all.
-- **Default-label invariant:** the tally is in default 1-2-3 (physical) labels regardless of the active
-  labelling — same invariant recipes use. "Relative to the original labelling 1 2 3" = default space.
+**Phase 1 — wxPython (the oracle).**
+- `presenter.format_move_tally(moves)` — shared pure helper turning the recorded default-space move
+  pairs into numbered ``"<n>. <from> -> <to>"`` lines (so the fan-out UIs render identically).
+- `hanoigui.py` — a **View → Move history…** menu item (`Ctrl+H`) opens a **non-modal** dialog listing
+  every move this game in default 1-2-3 labels with a **live count** header. Sourced from
+  `recipe.Recorder.default_moves`; `_refresh` live-updates it; it **resets on New Game**.
+- Tests: `test_presenter.py::test_format_move_tally_*`. Gate green (137 passed / 2 skipped; ruff + ty
+  clean). The dialog's on-screen rendering is the maintainer's review item.
 
-## Plan (phases)
+**Phase 2 — spec finalized from the impl.** `feature-spec.md` §4.11 rewritten PLANNED → the real
+contract (numbered default-space list, live count, moves-only, on-demand-or-panel, reset-per-game, via
+`format_move_tally`); §7 row 15 promoted to a real pass/fail.
 
-**Phase 1 — wxPython (the oracle), this task's deliverable.** Add an inspectable running tally to
-`hanoigui.py`: a view listing each move of the current game in order, in default 1-2-3 labels (e.g.
-`1 -> 3`, `1 -> 2`, …), with a live count, sourced from `recorder.default_moves`. Decide the presentation
-(open question 1). Resets with a new game; updates on every move (typed or applied). Verify in-container
-(wx GUI builds + the tally updates; `make format`/`type-check` green).
+**Phase 3 — fan-out** scoped as `tasks/fan-out-move-tally.md` (Python CLI/TUI, C++ ImGui/wx, Rust
+CLI/TUI/wx/Tauri), proposed.
 
-**Phase 2 — finalize the spec from the wx impl.** Rewrite `feature-spec.md` §4.11 from PLANNED to the
-real contract (what's shown, how it's inspected, where it lives, reset behaviour), and promote the §7
-checklist row 15 to a real pass/fail. This is the "extract what the markdown should say" step.
+## Decisions / judgment calls (logged)
 
-**Phase 3 — fan out.** Implement the finalized tally across every UI/implementation — Python CLI/TUI,
-C++ ImGui + wx, Rust CLI/TUI/wx/Tauri, and any future one — each checked against §4.11/§7. Scope this as
-its own task/umbrella when Phase 2 lands (a good fan-out candidate; mind the token cost — brief tightly,
-don't over-fork).
+1. **Presentation (was open Q1) → on-demand non-modal dialog**, the maintainer's recommended option
+   (consistent with the Show/Rebinding dialogs; no permanent layout cost). Made it live-updating while
+   open, satisfying "inspectable at any time" + "live count".
+2. **Built programmatically, NOT in the shared `ui/hanoi.xrc`** — the menu bar and the other dialogs
+   come from that one XRC, which C++ and Rust also load; adding a tally menu item/dialog there would
+   surface a dead control in those UIs during this oracle phase. Keeping it Python-only isolates the
+   oracle change; the fan-out task finalizes the XRC form. (My call — the task didn't prescribe this.)
+3. **Scope (was open Q2) → moves only, default space** (the maintainer's recommendation); relabels are
+   not moves and are excluded (spec §4.11 says so).
+4. **Reset (was open Q3) → per-game, resets on New Game** (recommended), which falls out for free: a new
+   game builds a fresh `GameSession` with a fresh `Recorder`.
 
-## Open questions
+## Remaining to close this task
 
-1. **wx presentation** — an always-visible side panel/list, an on-demand dialog (like the recipe Show /
-   Rebinding dialogs), or a View-menu toggle? Recommend an **on-demand dialog** (consistent with the
-   existing Show/Rebinding dialogs, no permanent layout cost), unless you want it always visible.
-2. **Scope of "all moves"** — strictly the default-space move list, or also annotate wins/relabels? The
-   request is "all moves … relative to 1 2 3", so **moves only, default space** (recommend); relabels
-   aren't moves.
-3. **Reset** — the tally is per-game and resets on New Game (recommend; it mirrors the recorder's
-   lifetime).
+- **The maintainer's on-display check** that the wx dialog renders/updates correctly (`cd python &&
+  make wx`, then View → Move history / Ctrl+H, make moves + New Game). Then archive.
 
 ## Related
 
-- `tasks/reference/feature-spec.md` §4.11 (the placeholder this finalizes) + §7 row 15.
-- Oracle + data source: `python/src/hanoigame/{recipe.py (Recorder/default_moves),engine.py,hanoigui.py}`.
-- Fan-out precedent (how a spec drove multi-implementation work):
-  `tasks/archive/2026/10/25/program-feature-spec-and-compliance.md`.
+- `tasks/fan-out-move-tally.md` — Phase 3 (the fan-out).
+- `tasks/reference/feature-spec.md` §4.11 + §7 row 15 (the finalized contract).
+- Oracle + data source: `python/src/hanoigame/{recipe.py (Recorder/default_moves),engine.py,hanoigui.py,
+  presenter.py}`.
