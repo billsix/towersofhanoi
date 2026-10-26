@@ -42,8 +42,10 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
 - `make cli` / `make tui` / `make wx` / `make tauri` / `make egui` — run a front-end (X11 +
   Wayland passthrough; Tauri also sets `WEBKIT_DISABLE_DMABUF_RENDERER=1`).
 - `make egui-web` — build the egui WebAssembly app with trunk (→ gitignored `dist/`);
-  `make egui-serve` — serve it at `http://localhost:8080`. (trunk fetches its matching
-  wasm-bindgen on first use, then caches; the egui crate deps cache on `.container-cargo`.)
+  `make egui-serve` — serve it at `http://localhost:8080`. The wasm-bindgen CLI trunk needs
+  is **baked** into the image under `USE_WASM` (pinned to `hanoi-egui/Cargo.lock`, pre-placed
+  in trunk's cache so fresh `--rm` containers don't re-download it); the egui crate deps
+  cache on `.container-cargo` like the other Rust crates.
 - `make format` — rustfmt (workspace + the Tauri crate), plus `deno fmt` over the Tauri frontend's
   three static web files (`tauri/frontend/{index.html,main.js,style.css}`, scoped by
   `tauri/frontend/deno.json`'s `fmt.include`).
