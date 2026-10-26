@@ -137,20 +137,28 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
 - **Help:** show the command/feature reference. **Quit:** exit. **Empty input:** redraw / re-prompt, no
   state change. (Source: `commands.HELP_TEXT`, `engine.dispatch`.)
 
-### 4.11 Move history / running tally (PLANNED — not yet implemented in any front-end)
+### 4.11 Move history / running tally (CONTRACT finalized 2026-10-26 from the wxPython oracle)
 
 - **Does:** keep a **running tally of every move made** this game — typed, applied-from-a-recipe, or
   from any other path — expressed in the **default 1-2-3 (physical) labelling**, independent of whatever
   labelling was active when each move was made. The tally is **inspectable**: the user can view the full
   move list at any time.
-- **See:** the ordered list of moves so far in default-label space (e.g. `1 -> 3`, `1 -> 2`, …), on
-  demand, ideally with a live count.
+- **See:** an ordered, **numbered** list of the moves so far in default-label space — each line
+  ``"<n>. <from> -> <to>"`` (e.g. `1. 1 -> 3`, `2. 1 -> 2`, …) — with a **live count** (e.g. `N moves
+  (default 1-2-3 labels)`). Moves only: relabels are not moves and are not listed (§4.3 is a separate
+  concern). The line format is the single shared helper **`presenter.format_move_tally(moves)`**, so
+  every UI renders identical lines.
+- **How it's inspected (the finalized presentation):** an **on-demand, non-modal view** the user opens
+  (the wxPython oracle: the **View → Move history…** menu item, `Ctrl+H`). It is sourced from
+  `recipe.Recorder.default_moves` (existing state — not new bookkeeping) and **updates live** as moves
+  are made while it is open; it **resets with a new game** (the recorder's own lifetime). A UI may
+  present the same content as an always-visible panel instead of a dialog, as long as it is the numbered
+  default-space list + live count, moves-only, reset-per-game.
 - **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
   ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
-- **Status:** being built **first in the wxPython GUI** (the behaviour oracle) per
-  `tasks/wxpython-running-move-tally.md`; the exact presentation (how it's shown and inspected) will be
-  **finalized into this section from that implementation**, then fanned out to every UI. Until then this
-  entry is the intent, not a settled contract.
+- **Status:** implemented in the **wxPython GUI** (the oracle) 2026-10-26
+  (`tasks/wxpython-running-move-tally.md`). Fan-out to every other UI is tracked by
+  `tasks/fan-out-move-tally.md`.
 
 ## 5. What a UI must SHOW (summary)
 
@@ -209,8 +217,10 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
 13. **The three-panel rebinding view on apply** — recipe moves | rebinding (label→peg) | rebound physical
     moves; rebinding shown only under a non-default labelling.
 14. Help/quit/empty-input behavior (interactive UIs).
-15. Inspectable running move tally in default-label space (PLANNED — see §4.11; not yet a pass/fail row
-    until finalized from the wxPython implementation).
+15. **Inspectable running move tally** in default-label space (§4.11): an on-demand (or always-visible)
+    view listing every move this game, numbered, in default 1-2-3 labels, with a live count, moves-only,
+    resetting on new game, via `presenter.format_move_tally`. Implemented in wxPython; other UIs tracked
+    by `tasks/fan-out-move-tally.md`.
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 

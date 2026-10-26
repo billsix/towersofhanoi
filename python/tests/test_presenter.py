@@ -22,6 +22,7 @@ from hanoigame.presenter import (
     Labelling,
     change_labels_on_pegs,
     disk_char_width,
+    format_move_tally,
     label_to_tower,
     labelling_for,
     labels_to_towers,
@@ -232,3 +233,17 @@ def test_render_with_legend_appends_move_count() -> None:
     list(game.move_options())[0].action()
     lines = render_with_legend(game, Labelling.ONE_TWO_THREE)
     assert lines[-1] == "Moves: 1"
+
+
+# --- Running move tally (default-label space) ----------------------------
+
+
+def test_format_move_tally_numbers_moves_in_default_space() -> None:
+    """Each recorded (from, to) pair becomes a numbered default-label line."""
+    moves: list[tuple[int, int]] = [(1, 3), (1, 2), (3, 2)]
+    assert format_move_tally(moves) == ["1. 1 -> 3", "2. 1 -> 2", "3. 3 -> 2"]
+
+
+def test_format_move_tally_empty() -> None:
+    """No moves yet -> an empty list."""
+    assert format_move_tally([]) == []

@@ -40,7 +40,7 @@ from .board_renderers import (
 from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
 from .engine import DispatchResult, GameSession
 from .hanoimodel import ValidMove
-from .presenter import Labelling, change_labels_on_pegs
+from .presenter import Labelling, change_labels_on_pegs, format_move_tally
 from .recipe import Recipe, RecipeRegistry, rebinding, rebound_moves
 
 MAX_DISKS: int = 10
@@ -82,6 +82,11 @@ class HanoiFrame(wx.Frame):
         self.session: GameSession
         self.disc_count_value = DEFAULT_DISKS
         self.move_buttons: dict[tuple[int, int], wx.Window] = {}
+        # The non-modal move-history dialog, when open (None otherwise); kept so
+        # `_refresh` can live-update it as moves are made.
+        self._tally_dlg: wx.Dialog | None = None
+        self._tally_list: wx.ListBox | None = None
+        self._tally_header: wx.StaticText | None = None
         self._build_menu_bar()
         self.CreateStatusBar(2)
         # Field 0 stretches (action feedback); field 1 is fixed-width for
@@ -151,6 +156,20 @@ class HanoiFrame(wx.Frame):
                 lambda _evt, lab=labels: self._on_relabel_menu(lab),
                 id=item_id,
             )
+
+        # Move-history tally. Built programmatically (not in the shared
+        # ui/hanoi.xrc) so the C++/Rust menus — which load the same XRC — are
+        # untouched during this oracle phase; the fan-out task finalizes the
+        # presentation (and its XRC form) across every UI. See
+        # tasks/wxpython-running-move-tally.md.
+        view_menu: wx.Menu = wx.Menu()
+        tally_item: wx.MenuItem = view_menu.Append(
+            wx.ID_ANY,
+            "Move &history…\tCtrl+H",
+            "Show every move this game in the default 1-2-3 (physical) labels",
+        )
+        menubar.Append(view_menu, "&View")
+        self.Bind(wx.EVT_MENU, self._on_move_tally, id=tally_item.GetId())
 
     def _build_ui(self) -> None:
         """Load the board/recipe panel from XRC and wire up its controls."""
@@ -507,6 +526,77 @@ class HanoiFrame(wx.Frame):
         dlg.Fit()
         dlg.Show()
 
+    def _on_move_tally(self, _evt: wx.CommandEvent) -> None:
+        """Open the inspectable move-history dialog (or raise it if open).
+
+        Non-modal so the user can keep playing while it is on screen; `_refresh`
+        then live-updates it after every move. The list is every move made this
+        game in the default 1-2-3 (physical) labels — the ground truth beneath
+        any relabelling — sourced from `recorder.default_moves`.
+        """
+        if self._tally_dlg is not None:
+            self._tally_dlg.Raise()
+            return
+
+        dlg: wx.Dialog = wx.Dialog(
+            self,
+            title="Move history",
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+        )
+        header: wx.StaticText = wx.StaticText(dlg, label="")
+        listbox: wx.ListBox = wx.ListBox(dlg)
+        listbox.SetFont(
+            wx.Font(
+                12,
+                wx.FONTFAMILY_TELETYPE,
+                wx.FONTSTYLE_NORMAL,
+                wx.FONTWEIGHT_NORMAL,
+            )
+        )
+        row_h: int = max(1, listbox.GetCharHeight())
+        listbox.SetMinSize((260, row_h * 12 + 8))
+        close_btn: wx.Button = wx.Button(dlg, wx.ID_CLOSE)
+
+        sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(header, 0, wx.ALL, 8)
+        sizer.Add(listbox, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        sizer.Add(close_btn, 0, wx.ALL | wx.ALIGN_RIGHT, 8)
+        dlg.SetSizerAndFit(sizer)
+
+        self._tally_dlg = dlg
+        self._tally_list = listbox
+        self._tally_header = header
+
+        def _close(_e: wx.Event) -> None:
+            self._tally_dlg = None
+            self._tally_list = None
+            self._tally_header = None
+            dlg.Destroy()
+
+        dlg.Bind(wx.EVT_BUTTON, _close, id=wx.ID_CLOSE)
+        dlg.Bind(wx.EVT_CLOSE, _close)
+        self._update_tally()
+        dlg.Show()
+
+    def _update_tally(self) -> None:
+        """Repopulate the move-history dialog from the recorder, if it is open.
+
+        A no-op when the dialog is closed. Called from `_refresh`, so the list
+        and its live count track every move (typed or applied) and reset with a
+        new game.
+        """
+        if (
+            self._tally_dlg is None
+            or self._tally_list is None
+            or self._tally_header is None
+        ):
+            return
+        moves: list[tuple[int, int]] = list(self.session.recorder.default_moves)
+        self._tally_list.Set(format_move_tally(moves))
+        count: int = len(moves)
+        noun: str = "move" if count == 1 else "moves"
+        self._tally_header.SetLabel(f"{count} {noun} (default 1-2-3 labels)")
+
     # --- State helpers ---------------------------------------------------
 
     def _new_game(self, n: int) -> None:
@@ -617,6 +707,7 @@ class HanoiFrame(wx.Frame):
         self.show_btn.Enable(True)
         self.save_btn.Enable(won)
         self._refresh_recipes()
+        self._update_tally()
         self.panel.Layout()
 
     def _refresh_recipes(self, select: str | None = None) -> None:
