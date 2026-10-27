@@ -21,17 +21,13 @@ import pytest
 
 from hanoigame.commands import (
     COMMAND_VERBS,
-    ApplyCmd,
     Command,
     EmptyCmd,
     HelpCmd,
-    ListCmd,
     MoveCmd,
     ParseError,
     QuitCmd,
     RelabelCmd,
-    SaveCmd,
-    ShowCmd,
     completions,
     parse,
 )
@@ -123,50 +119,6 @@ def test_parse_relabel(line: str, labels: tuple[int, int, int]) -> None:
 def test_parse_relabel_invalid(line: str) -> None:
     """Relabels that aren't a permutation of 1,2,3 return a ParseError."""
     assert isinstance(parse(line), ParseError)
-
-
-# --- Recipes --------------------------------------------------------------
-
-
-def test_parse_save_with_name() -> None:
-    """`save foo` parses to a SaveCmd carrying the name."""
-    assert parse("save foo") == SaveCmd("foo")
-
-
-def test_parse_save_multiword_name() -> None:
-    """A multi-word save name is preserved verbatim."""
-    assert parse("save my 3-disc solve") == SaveCmd("my 3-disc solve")
-
-
-def test_parse_save_no_name_is_error() -> None:
-    """`save` with no name returns a ParseError."""
-    assert isinstance(parse("save"), ParseError)
-
-
-def test_parse_apply_with_name() -> None:
-    """`apply foo` parses to an ApplyCmd carrying the name."""
-    assert parse("apply foo") == ApplyCmd("foo")
-
-
-def test_parse_apply_no_name_is_error() -> None:
-    """`apply` with no name returns a ParseError."""
-    assert isinstance(parse("apply"), ParseError)
-
-
-def test_parse_show_with_name() -> None:
-    """`show foo` parses to a ShowCmd carrying the name."""
-    assert parse("show foo") == ShowCmd("foo")
-
-
-def test_parse_show_no_name_is_error() -> None:
-    """`show` with no name returns a ParseError."""
-    assert isinstance(parse("show"), ParseError)
-
-
-def test_parse_list() -> None:
-    """`list` parses to a ListCmd, case-insensitively."""
-    assert parse("list") == ListCmd()
-    assert parse("LIST") == ListCmd()
 
 
 # --- Help / quit / empty / garbage ---------------------------------------

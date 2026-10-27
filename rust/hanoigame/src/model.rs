@@ -82,6 +82,15 @@ pub struct HanoiGame {
 impl HanoiGame {
     /// Start a game with `num_disks` discs stacked on peg 0, largest at the
     /// bottom and smallest on top.
+    ///
+    /// # Examples
+    /// ```
+    /// use hanoigame::HanoiGame;
+    /// let game: HanoiGame = HanoiGame::new(3);
+    /// assert_eq!(game.towers, [vec![3, 2, 1], vec![], vec![]]);
+    /// assert_eq!((game.num_disks, game.current_moves), (3, 0));
+    /// assert!(!game.check_win_condition()); // nothing on peg 2 yet
+    /// ```
     pub fn new(num_disks: u32) -> Self {
         let mut towers: [Vec<u32>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         // Largest (num_disks) pushed first so it lands at the bottom, down to 1.
@@ -96,6 +105,15 @@ impl HanoiGame {
     }
 
     /// Whether every disc has been moved onto peg 2 (a win).
+    ///
+    /// # Examples
+    /// ```
+    /// use hanoigame::{HanoiGame, Move};
+    /// let mut game: HanoiGame = HanoiGame::new(1);
+    /// assert!(!game.check_win_condition());
+    /// game.apply_move(Move::new(0, 2)).unwrap();
+    /// assert!(game.check_win_condition()); // the only disc reached peg 2
+    /// ```
     pub fn check_win_condition(&self) -> bool {
         self.towers[2].len() as u32 == self.num_disks
     }
@@ -124,6 +142,20 @@ impl HanoiGame {
     /// Apply `mv`: pop the source peg's top disc onto the destination peg and
     /// count the move. Returns a [`MoveError`] (leaving the game unchanged) if
     /// the move is not legal.
+    ///
+    /// # Examples
+    /// ```
+    /// use hanoigame::{HanoiGame, Move, MoveError};
+    /// let mut game: HanoiGame = HanoiGame::new(3);
+    /// assert_eq!(game.apply_move(Move::new(1, 0)), Err(MoveError::SourceEmpty));
+    /// game.apply_move(Move::new(0, 1)).unwrap(); // smallest disc to peg 1
+    /// assert_eq!(game.towers, [vec![3, 2], vec![1], vec![]]);
+    /// assert_eq!(
+    ///     game.apply_move(Move::new(0, 1)), // disc 2 onto disc 1
+    ///     Err(MoveError::LargerOntoSmaller),
+    /// );
+    /// assert_eq!(game.apply_move(Move::new(0, 9)), Err(MoveError::PegOutOfRange(9)));
+    /// ```
     pub fn apply_move(&mut self, mv: Move) -> Result<(), MoveError> {
         if mv.from_peg > 2 {
             return Err(MoveError::PegOutOfRange(mv.from_peg));
@@ -150,15 +182,8 @@ impl HanoiGame {
 mod tests {
     use super::*;
 
-    // Ported from python/tests/test_hanoimodel.py.
-
-    #[test]
-    fn postinit() {
-        let game: HanoiGame = HanoiGame::new(3);
-        assert_eq!(game.num_disks, 3);
-        assert_eq!(game.current_moves, 0);
-        assert_eq!(game.towers, [vec![3, 2, 1], vec![], vec![]]);
-    }
+    // new / check_win_condition / apply_move's single moves and error cases are
+    // doctests on those methods now; makemove keeps the full multi-step walk.
 
     #[test]
     fn makemove() {
@@ -200,32 +225,6 @@ mod tests {
         assert_eq!(
             game.move_options(),
             vec![Move::new(0, 2), Move::new(1, 0), Move::new(1, 2)]
-        );
-    }
-
-    #[test]
-    fn win_condition() {
-        let mut game: HanoiGame = HanoiGame::new(1);
-        assert!(!game.check_win_condition());
-        game.apply_move(Move::new(0, 2)).unwrap();
-        assert!(game.check_win_condition());
-    }
-
-    #[test]
-    fn illegal_moves_are_rejected() {
-        let mut game: HanoiGame = HanoiGame::new(3);
-        assert_eq!(
-            game.apply_move(Move::new(1, 0)),
-            Err(MoveError::SourceEmpty)
-        );
-        game.apply_move(Move::new(0, 1)).unwrap(); // peg1 now holds disc 1
-        assert_eq!(
-            game.apply_move(Move::new(0, 1)),
-            Err(MoveError::LargerOntoSmaller)
-        );
-        assert_eq!(
-            game.apply_move(Move::new(0, 9)),
-            Err(MoveError::PegOutOfRange(9))
         );
     }
 }

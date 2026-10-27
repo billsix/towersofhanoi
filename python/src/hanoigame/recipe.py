@@ -80,6 +80,16 @@ class Recorder:
     Attributes:
         default_moves: Accumulated moves as ``(from, to)`` pairs of 1-indexed
             physical peg numbers.
+
+    Examples:
+        >>> rec: Recorder = Recorder()
+        >>> rec.record(1, 3)
+        >>> rec.record(1, 2)
+        >>> rec.to_recipe("two-moves", disk_count=2)
+        Recipe(name='two-moves', disk_count=2, default_moves=((1, 3), (1, 2)))
+        >>> rec.reset()
+        >>> rec.default_moves
+        []
     """
 
     default_moves: list[tuple[int, int]] = field(default_factory=list)
@@ -123,6 +133,18 @@ class RecipeRegistry:
 
     Attributes:
         _by_name: Saved recipes keyed by their name.
+
+    Examples:
+        >>> reg: RecipeRegistry = RecipeRegistry()
+        >>> reg.save(Recipe(name="foo", disk_count=2, default_moves=((1, 3),)))
+        >>> reg.get("bar") is None
+        True
+        >>> reg.names()
+        ['foo']
+        >>> "foo" in reg
+        True
+        >>> len(reg)
+        1
     """
 
     _by_name: dict[str, Recipe] = field(default_factory=dict)
@@ -302,6 +324,12 @@ def rebinding(labelling: Labelling) -> tuple[tuple[int, int], ...]:
 
     Returns:
         One ``(label, peg)`` pair per label 1..3, with `peg` 1-indexed.
+
+    Examples:
+        >>> rebinding(Labelling.ONE_TWO_THREE)  # identity
+        ((1, 1), (2, 2), (3, 3))
+        >>> rebinding(Labelling.ONE_THREE_TWO)  # labels 2 and 3 swap pegs
+        ((1, 1), (2, 3), (3, 2))
     """
     pairs: list[tuple[int, int]] = []
     label: int
@@ -352,6 +380,14 @@ def rebound_moves(
     Returns:
         The moves rewritten as ``(from_peg, to_peg)`` pairs of 1-indexed
         physical pegs.
+
+    Examples:
+        >>> rebound_moves(((1, 2), (1, 3), (2, 3)), Labelling.ONE_TWO_THREE)
+        ((1, 2), (1, 3), (2, 3))
+        >>> rebound_moves(((1, 2), (1, 3), (2, 3)), Labelling.ONE_THREE_TWO)
+        ((1, 3), (1, 2), (3, 2))
+        >>> rebound_moves([(2, 3)], Labelling.ONE_THREE_TWO)  # a single move
+        ((3, 2),)
     """
     out: list[tuple[int, int]] = []
     from_label: int

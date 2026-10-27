@@ -13,12 +13,26 @@
 
 /// Solve a one-disc tower: the single move from the initial to the goal peg.
 /// The recursion's base case; `_t` (the spare peg) is unused for one disc.
+///
+/// # Examples
+/// ```
+/// use hanoigame::solvers::recursive::hanoi_1;
+/// let moves: String = hanoi_1(1, 2, 3);
+/// assert_eq!(moves, "1 -> 3");
+/// ```
 pub fn hanoi_1(i: u32, _t: u32, g: u32) -> String {
     format!("{i} -> {g}")
 }
 
 /// Solve a two-disc tower by unrolling the recursion one level: top disc to the
 /// spare, big disc to the goal, top disc onto the goal — each via [`hanoi_1`].
+///
+/// # Examples
+/// ```
+/// use hanoigame::solvers::recursive::hanoi_2;
+/// let moves: String = hanoi_2(1, 2, 3);
+/// assert_eq!(moves, "1 -> 2\n1 -> 3\n2 -> 3");
+/// ```
 pub fn hanoi_2(i: u32, t: u32, g: u32) -> String {
     let two_minus_1_i_to_t: String = hanoi_1(i, g, t);
     let big_peg_to_goal: String = hanoi_1(i, t, g);
@@ -28,6 +42,16 @@ pub fn hanoi_2(i: u32, t: u32, g: u32) -> String {
 
 /// Solve a three-disc tower by unrolling one more level: the top two discs to
 /// the spare (via [`hanoi_2`]), the big disc to the goal, then the two onto it.
+///
+/// # Examples
+/// ```
+/// use hanoigame::solvers::recursive::hanoi_3;
+/// let moves: String = hanoi_3(1, 2, 3);
+/// assert_eq!(
+///     moves,
+///     "1 -> 3\n1 -> 2\n3 -> 2\n1 -> 3\n2 -> 1\n2 -> 3\n1 -> 3"
+/// );
+/// ```
 pub fn hanoi_3(i: u32, t: u32, g: u32) -> String {
     let three_minus_1_i_to_t: String = hanoi_2(i, g, t);
     let big_peg_to_goal: String = hanoi_1(i, t, g);
@@ -62,25 +86,9 @@ pub fn hanoi_n(n: u32, i: u32, t: u32, g: u32) -> String {
 mod tests {
     use super::*;
 
-    // Ported from the doctests in hanoirecursive.py.
-
-    #[test]
-    fn base_case() {
-        assert_eq!(hanoi_1(1, 2, 3), "1 -> 3");
-    }
-
-    #[test]
-    fn two_discs() {
-        assert_eq!(hanoi_2(1, 2, 3), "1 -> 2\n1 -> 3\n2 -> 3");
-    }
-
-    #[test]
-    fn three_discs() {
-        assert_eq!(
-            hanoi_3(1, 2, 3),
-            "1 -> 3\n1 -> 2\n3 -> 2\n1 -> 3\n2 -> 1\n2 -> 3\n1 -> 3"
-        );
-    }
+    // The per-level examples (hanoi_1/2/3) are doctests on those functions now;
+    // what stays here cross-checks the general form against them and against
+    // the iterative solver.
 
     #[test]
     fn general_form_matches_the_unrolled_levels() {

@@ -149,6 +149,17 @@ def completions(buffer: str, text: str, names: Iterable[str]) -> list[str]:
     Returns:
         The matching candidates, in the order `names`/`COMMAND_VERBS` yield
         them.
+
+    Examples:
+        Command verbs while on the first token; saved names after apply/show;
+        nothing after save:
+
+        >>> completions("ap", "ap", ["other", "solve-2"])
+        ['apply']
+        >>> completions("apply so", "so", ["other", "solve-2"])
+        ['solve-2']
+        >>> completions("save so", "so", ["other", "solve-2"])
+        []
     """
     stripped: str = buffer.lstrip()
     if stripped.startswith(("apply ", "show ")):
@@ -177,7 +188,30 @@ def _move_or_error(a: int, b: int) -> Command:
 
 
 def parse(line: str) -> Command:
-    """Parse one line of user input into a Command. Never raises."""
+    """Parse one line of user input into a Command. Never raises.
+
+    Examples:
+        The keyword commands carry their recipe name; ``list`` is bare and
+        case-insensitive:
+
+        >>> parse("save my 3-disc solve")
+        SaveCmd(name='my 3-disc solve')
+        >>> parse("apply foo")
+        ApplyCmd(name='foo')
+        >>> parse("show foo")
+        ShowCmd(name='foo')
+        >>> parse("LIST")
+        ListCmd()
+
+        A keyword missing its required name is a ParseError (never raised):
+
+        >>> isinstance(parse("save"), ParseError)
+        True
+        >>> isinstance(parse("apply"), ParseError)
+        True
+        >>> isinstance(parse("show"), ParseError)
+        True
+    """
     s: str = line.strip()
     if not s:
         return EmptyCmd()

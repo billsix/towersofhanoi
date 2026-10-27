@@ -69,6 +69,23 @@ class HanoiGame:
             list's last element).
         num_disks: The number of disks the game started with.
         current_moves: How many moves have been made so far.
+
+    Examples:
+        A fresh game stacks every disk on peg 0 (largest at the bottom), with no
+        moves made yet and peg 2 still empty:
+
+        >>> game: HanoiGame = HanoiGame(num_disks=3)
+        >>> game.towers
+        [[3, 2, 1], [], []]
+        >>> game.num_disks, game.current_moves
+        (3, 0)
+        >>> game.check_win_condition()   # nothing on peg 2 yet
+        False
+
+        The two legal opening moves carry the smallest disk off peg 0:
+
+        >>> [valid.move for valid in game.move_options()]
+        [Move(from_peg=0, to_peg=1), Move(from_peg=0, to_peg=2)]
     """
 
     towers: list[list[int]] = field(

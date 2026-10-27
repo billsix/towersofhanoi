@@ -45,12 +45,31 @@ impl Labelling {
 }
 
 /// The 0-indexed label currently attached to the peg at `tower_index`.
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::presenter::change_labels_on_pegs;
+/// // default maps peg i to i; OneThreeTwo swaps pegs 1 and 2:
+/// assert_eq!(change_labels_on_pegs(Labelling::OneTwoThree, 1), 1);
+/// assert_eq!(change_labels_on_pegs(Labelling::OneThreeTwo, 1), 2);
+/// assert_eq!(change_labels_on_pegs(Labelling::OneThreeTwo, 2), 1);
+/// ```
 pub fn change_labels_on_pegs(labelling: Labelling, tower_index: usize) -> usize {
     labelling.label_order()[tower_index]
 }
 
 /// The labelling under which pegs 0, 1, 2 carry `labels` (1-indexed), or `None`
 /// if `labels` is not a permutation of (1, 2, 3).
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::presenter::labelling_for;
+/// assert_eq!(labelling_for(&[1, 3, 2]), Some(Labelling::OneThreeTwo));
+/// assert_eq!(labelling_for(&[1, 1, 1]), None); // not a permutation
+/// assert_eq!(labelling_for(&[4, 1, 2]), None);
+/// ```
 pub fn labelling_for(labels: &[u32]) -> Option<Labelling> {
     match labels {
         [1, 2, 3] => Some(Labelling::OneTwoThree),
@@ -65,6 +84,15 @@ pub fn labelling_for(labels: &[u32]) -> Option<Labelling> {
 
 /// Which physical peg carries the 1-indexed `label` under `labelling` (the
 /// inverse of [`change_labels_on_pegs`]); `None` if `label` is out of 1..=3.
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::presenter::label_to_tower;
+/// // OneThreeTwo: pegs 0, 1, 2 carry labels 1, 3, 2
+/// assert_eq!(label_to_tower(Labelling::OneThreeTwo, 3), Some(1));
+/// assert_eq!(label_to_tower(Labelling::OneThreeTwo, 4), None);
+/// ```
 pub fn label_to_tower(labelling: Labelling, label: u32) -> Option<usize> {
     if !(1..=3).contains(&label) {
         return None;
@@ -88,6 +116,17 @@ const PEG_COLOR_BY_LABEL: [i32; 3] = [COLOR_BLUE, COLOR_YELLOW, COLOR_RED];
 
 /// The TUI colour-pair number for the peg at `tower_index` under `labelling`;
 /// the colour tracks that peg's label, not its position.
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::presenter::peg_color;
+/// // label 1 keeps its colour across relabellings (peg 0, then peg 1):
+/// assert_eq!(
+///     peg_color(Labelling::OneTwoThree, 0),
+///     peg_color(Labelling::TwoOneThree, 1),
+/// );
+/// ```
 pub fn peg_color(labelling: Labelling, tower_index: usize) -> i32 {
     PEG_COLOR_BY_LABEL[change_labels_on_pegs(labelling, tower_index)]
 }
@@ -98,37 +137,81 @@ pub fn peg_color(labelling: Labelling, tower_index: usize) -> i32 {
 pub const PEG_GAP: usize = 5;
 
 /// The character width of a peg sized for `num_disks` discs.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::peg_visual_width;
+/// assert_eq!(peg_visual_width(3), 5);
+/// assert_eq!(peg_visual_width(5), 9);
+/// ```
 pub fn peg_visual_width(num_disks: usize) -> usize {
     num_disks * 2 - 1
 }
 
 /// The fixed gap, in characters, between adjacent pegs.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::peg_gap;
+/// assert_eq!(peg_gap(), 5);
+/// ```
 pub fn peg_gap() -> usize {
     PEG_GAP
 }
 
 /// The full board width in characters for `num_disks` discs (all three pegs and
 /// the gaps between them).
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::total_width;
+/// assert_eq!(total_width(3), 25); // (5 + 5) * 3 - 5
+/// assert_eq!(total_width(5), 37);
+/// ```
 pub fn total_width(num_disks: usize) -> usize {
     (peg_visual_width(num_disks) + peg_gap()) * 3 - peg_gap()
 }
 
 /// The character width of a disc of the given `size`.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::disk_char_width;
+/// assert_eq!([disk_char_width(1), disk_char_width(2), disk_char_width(3)], [1, 3, 5]);
+/// ```
 pub fn disk_char_width(size: usize) -> usize {
     size * 2 - 1
 }
 
 /// The left padding that centres a disc of `size` within a peg column.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::padding_left;
+/// assert_eq!([padding_left(3, 1), padding_left(3, 2), padding_left(3, 3)], [2, 1, 0]);
+/// ```
 pub fn padding_left(num_disks: usize, size: usize) -> usize {
     (peg_visual_width(num_disks) - disk_char_width(size)) / 2
 }
 
 /// The 0-indexed column of the centre of `tower_index`.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::peg_center_x;
+/// assert_eq!([peg_center_x(3, 0), peg_center_x(3, 1), peg_center_x(3, 2)], [2, 12, 22]);
+/// ```
 pub fn peg_center_x(num_disks: usize, tower_index: usize) -> usize {
     tower_index * (peg_visual_width(num_disks) + peg_gap()) + peg_visual_width(num_disks) / 2
 }
 
 /// The minimum terminal width the TUI needs to draw the board with padding.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::min_cols;
+/// assert_eq!(min_cols(3), 29); // total_width(3) + 4
+/// ```
 pub fn min_cols(num_disks: usize) -> usize {
     total_width(num_disks) + 4
 }
@@ -157,6 +240,27 @@ pub fn default_label_row(num_disks: usize) -> String {
 /// line, then the active-labelling peg-label row, then — only when `labelling`
 /// is not the default — a default "1 2 3" reference row. Each line is
 /// [`total_width`] characters wide; a 0-disc game renders to no lines.
+///
+/// # Examples
+/// ```
+/// use hanoigame::{HanoiGame, Labelling};
+/// use hanoigame::presenter::render;
+/// let game: HanoiGame = HanoiGame::new(3);
+/// let lines: Vec<String> = render(&game, Labelling::OneTwoThree);
+/// assert_eq!(
+///     lines,
+///     vec![
+///         "  |         |         |  ",
+///         "  *         |         |  ",
+///         " ***        |         |  ",
+///         "*****       |         |  ",
+///         "=========================",
+///         "  1         2         3  ",
+///     ]
+/// );
+/// // a 0-disc game renders to nothing:
+/// assert!(render(&HanoiGame::new(0), Labelling::OneTwoThree).is_empty());
+/// ```
 pub fn render(game: &HanoiGame, labelling: Labelling) -> Vec<String> {
     let n: usize = game.num_disks as usize;
     if n == 0 {
@@ -218,6 +322,15 @@ pub fn render_with_legend(game: &HanoiGame, labelling: Labelling) -> Vec<String>
 /// Translate a typed `(from_label, to_label)` pair (1-indexed under
 /// `labelling`) into physical `(from_peg, to_peg)` indices, or `None` if either
 /// label is out of range.
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::presenter::labels_to_towers;
+/// let l: Labelling = Labelling::OneThreeTwo; // pegs carry labels 1, 3, 2
+/// assert_eq!(labels_to_towers(l, 1, 3), Some((0, 1)));
+/// assert_eq!(labels_to_towers(l, 1, 9), None);
+/// ```
 pub fn labels_to_towers(
     labelling: Labelling,
     from_label: u32,
@@ -233,45 +346,10 @@ mod tests {
     use super::*;
     use crate::model::{HanoiGame, Move};
 
-    // Ported from python/tests/test_presenter.py.
-
-    #[test]
-    fn layout_maths_3_discs() {
-        assert_eq!(peg_visual_width(3), 5);
-        assert_eq!(peg_gap(), 5);
-        assert_eq!(total_width(3), 25);
-        assert_eq!(peg_center_x(3, 0), 2);
-        assert_eq!(peg_center_x(3, 1), 12);
-        assert_eq!(peg_center_x(3, 2), 22);
-        assert_eq!(disk_char_width(1), 1);
-        assert_eq!(disk_char_width(2), 3);
-        assert_eq!(disk_char_width(3), 5);
-        assert_eq!(padding_left(3, 1), 2);
-        assert_eq!(padding_left(3, 2), 1);
-        assert_eq!(padding_left(3, 3), 0);
-        assert_eq!(min_cols(3), 29);
-    }
-
-    #[test]
-    fn layout_maths_5_discs() {
-        assert_eq!(peg_visual_width(5), 9);
-        assert_eq!(total_width(5), 37);
-        assert_eq!(peg_center_x(5, 0), 4);
-        assert_eq!(peg_center_x(5, 1), 18);
-        assert_eq!(peg_center_x(5, 2), 32);
-    }
-
-    #[test]
-    fn change_labels_default_and_swapped() {
-        let d = Labelling::OneTwoThree;
-        assert_eq!(change_labels_on_pegs(d, 0), 0);
-        assert_eq!(change_labels_on_pegs(d, 1), 1);
-        assert_eq!(change_labels_on_pegs(d, 2), 2);
-        let s = Labelling::OneThreeTwo;
-        assert_eq!(change_labels_on_pegs(s, 0), 0);
-        assert_eq!(change_labels_on_pegs(s, 1), 2);
-        assert_eq!(change_labels_on_pegs(s, 2), 1);
-    }
+    // Ported from python/tests/test_presenter.py. The single-case layout,
+    // labelling, colour and fresh-board checks are doctests on their functions
+    // now; what stays here is the exhaustive/loop/multi-step coverage a doctest
+    // would make unreadable.
 
     #[test]
     fn labelling_for_round_trip() {
@@ -286,55 +364,6 @@ mod tests {
         for (labels, expected) in cases {
             assert_eq!(labelling_for(labels), Some(expected));
         }
-    }
-
-    #[test]
-    fn labelling_for_invalid() {
-        assert_eq!(labelling_for(&[1, 1, 1]), None);
-        assert_eq!(labelling_for(&[1, 2]), None);
-        assert_eq!(labelling_for(&[4, 1, 2]), None);
-    }
-
-    #[test]
-    fn label_to_tower_inverse() {
-        let l = Labelling::OneThreeTwo; // towers carry labels 1, 3, 2
-        assert_eq!(label_to_tower(l, 1), Some(0));
-        assert_eq!(label_to_tower(l, 3), Some(1));
-        assert_eq!(label_to_tower(l, 2), Some(2));
-        assert_eq!(label_to_tower(l, 4), None);
-        assert_eq!(label_to_tower(l, 0), None);
-    }
-
-    #[test]
-    fn labels_to_towers_maps_pairs() {
-        let l = Labelling::OneThreeTwo; // towers carry labels 1, 3, 2
-        assert_eq!(labels_to_towers(l, 1, 3), Some((0, 1)));
-        assert_eq!(labels_to_towers(l, 2, 1), Some((2, 0)));
-        assert_eq!(labels_to_towers(l, 1, 9), None);
-    }
-
-    #[test]
-    fn peg_color_follows_label_not_tower() {
-        let blue = peg_color(Labelling::OneTwoThree, 0); // tower 0 carries label 1
-        assert_eq!(peg_color(Labelling::TwoOneThree, 1), blue);
-        assert_eq!(peg_color(Labelling::ThreeTwoOne, 2), blue);
-    }
-
-    #[test]
-    fn render_3_disc_fresh_game() {
-        let game = HanoiGame::new(3);
-        let lines = render(&game, Labelling::OneTwoThree);
-        assert_eq!(
-            lines,
-            vec![
-                "  |         |         |  ",
-                "  *         |         |  ",
-                " ***        |         |  ",
-                "*****       |         |  ",
-                "=========================",
-                "  1         2         3  ",
-            ]
-        );
     }
 
     #[test]
@@ -390,12 +419,6 @@ mod tests {
                 assert_eq!(line.chars().count(), total_width(n as usize));
             }
         }
-    }
-
-    #[test]
-    fn render_zero_discs_is_empty() {
-        let game = HanoiGame::new(0);
-        assert_eq!(render(&game, Labelling::OneTwoThree), Vec::<String>::new());
     }
 
     #[test]

@@ -94,6 +94,12 @@ format: image ## Format the Python source with ruff (entrypoint/format.sh)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) /format.sh
 
+.PHONY: test
+test: image ## Run the test suite (pytest, incl. doctests via --doctest-modules) in the container
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c 'cd $(REPO_MOUNT) && python -m pytest'
+
 .PHONY: type-check
 type-check: image ## Type-check the Python (src + tests) with ty (entrypoint/type-check.sh)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
