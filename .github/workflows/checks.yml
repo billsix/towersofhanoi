@@ -1,0 +1,125 @@
+# Check-only CI for the per-language subprojects, on every push + PR.
+#
+# Governing principle (the maintainer's container-template convention): CI is a
+# THIN WRAPPER over each subproject's make/Dockerfile system. Every job is just
+# `checkout` -> `cd <subproject> && make <target>`; all logic lives in the
+# Makefiles, so the identical command runs locally. Each subproject's
+# CONTAINER_CMD auto-detects podman->docker, so the same target runs on the
+# ubuntu-latest runner (Docker) and on the maintainer's podman host.
+#
+# These jobs NEVER modify the repo: `make check-format` runs the formatter inside
+# the disposable runner image and then FAILS on any `git diff` (no commit/push);
+# `test` / `test-lib` / `check` / `build` are read-only. checkout is pinned @v5
+# (Node 24; @v4 is Node 20, which GitHub is deprecating).
+#
+# Not a matrix: the three subprojects have different gate sets and lean flags.
+# The flags drop heavy OPTIONAL image layers CI doesn't need (emacs, the wasm
+# toolchain, wxGTK where the gate doesn't compile the wx GUI) -- but NOT layers a
+# gate needs (python keeps USE_X_WINDOWS for the gates that import wxPython;
+# cpp's build keeps USE_WX so hanoi-wx compiles).
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # --- Python (python/): the canonical implementation + behaviour oracle. ------
+  python-check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: make check-format
+        working-directory: python
+        run: make check-format USE_EMACS=0 USE_X_WINDOWS=0
+
+  python-type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Keep USE_X_WINDOWS on: ty resolves the wxPython-importing GUI modules.
+      - name: make type-check
+        working-directory: python
+        run: make type-check USE_EMACS=0
+
+  python-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Keep USE_X_WINDOWS on: pytest --doctest-modules imports every src module,
+      # and the wx GUI front-ends `import wx` at module top (needs the GTK/X11 libs).
+      - name: make test
+        working-directory: python
+        run: make test USE_EMACS=0
+
+  # --- Rust (rust/): a Cargo workspace mirroring the Python, feature-for-feature.
+  rust-check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: make check-format
+        working-directory: rust
+        run: make check-format USE_EMACS=0 USE_WASM=0
+
+  rust-type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The Tauri frontend's JavaScript, via Deno (deno check/lint/fmt) -- the
+      # "type-check incl. the Tauri JS" requirement. The C++ side has no such job
+      # (its compiler is the type check); this is where the project's JS is gated.
+      - name: make type-check
+        working-directory: rust
+        run: make type-check USE_EMACS=0 USE_WASM=0
+
+  rust-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # cargo check --workspace --all-targets: compiles every workspace crate
+      # INCLUDING the wxDragon GUI (hanoi-gui) and every test target. This is the
+      # slow job -- the wxDragon build.rs builds wxWidgets 3.3.4 from source -- but
+      # it's what gates GUI-crate compilation. (hanoi-egui and tauri/ are separate
+      # workspaces, so --workspace does not pull them in.)
+      - name: make check
+        working-directory: rust
+        run: make check USE_EMACS=0 USE_WASM=0
+
+  rust-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Library-only (cargo test -p hanoigame): unit tests + the crate's doctests,
+      # without building wxWidgets. GUI compilation is covered by rust-check above.
+      - name: make test-lib
+        working-directory: rust
+        run: make test-lib USE_EMACS=0 USE_WASM=0
+
+  # --- C++ (cpp/): two GUIs over the header-only engine. No type-check job --
+  #     the C++ compiler is the type check (that is the `build` job).
+  cpp-check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: make check-format
+        working-directory: cpp
+        run: make check-format USE_EMACS=0 USE_WASM=0 USE_WX=0
+
+  cpp-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Compile every native target (ImGui GUI + wxWidgets GUI + the test runner).
+      # Keep USE_WX so hanoi-wx compiles; drop the emsdk/emacs layers.
+      - name: make build
+        working-directory: cpp
+        run: make build USE_EMACS=0 USE_WASM=0
+
+  cpp-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The inline doctest TEST_CASEs, built into hanoi-tests and run under ctest.
+      - name: make test
+        working-directory: cpp
+        run: make test USE_EMACS=0 USE_WASM=0 USE_WX=0

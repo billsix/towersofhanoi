@@ -1,6 +1,6 @@
 # C++ unit tests for the `cpp/` engine (doctest framework) + a `make test` gate
 
-**Status:** done (staged; awaiting the maintainer's commit, then archive).
+**Status:** done (work committed on `cicd`; ready to archive after the maintainer's squash).
 **Priority:** 4
 **Difficulty:** 4
 **Created:** 2026-10-27 (William Emerison Six <billsix@gmail.com>)

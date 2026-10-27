@@ -13,12 +13,15 @@ repo root is the book + umbrella:
 
 - **`python/`** — the **canonical** implementation (the behaviour oracle). Mounts at `/hanoi-python`.
 - **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including `rust/tauri/`** (the
-  Tauri desktop app — just another UI, not a workspace member). Mounts at `/hanoi-rust`.
+  Tauri desktop app — just another UI, not a workspace member) and `rust/hanoi-egui/`. Mounts at `/hanoi-rust`.
+- **`cpp/`** — a C++ subproject over the header-only engine: a Dear ImGui GUI (native + WebAssembly)
+  plus a wxWidgets GUI, from one `CMakeLists.txt`. Mounts at `/hanoi-cpp`.
 - **the root** — the Sphinx book (`docs/`), worksheets (`workbook/`), bash demos (`bash/`), the
   by-hand generator (`tools/`), and a thin **umbrella** Makefile (`make docs`; `format`/`type-check`
   delegate to `python/`). Mounts the whole repo at `/hanoi`.
 
-A new language (e.g. a future `cpp/`) is added as a sibling subproject in exactly this shape.
+A new language is added as a sibling subproject in exactly this shape (the `cpp/` subproject was
+added this way).
 
 ## Per-subproject contract (Fedora-44 + podman family template)
 
@@ -30,11 +33,25 @@ A new language (e.g. a future `cpp/`) is added as a sibling subproject in exactl
   runtime**, so host edits propagate.
 - **`Makefile`** — `CONTAINER_NAME = hanoi-<lang>`, `REPO_MOUNT = /$(CONTAINER_NAME)`, feature flags
   default **1** (mirror of the Dockerfile's 0), optional-feature flags a lean image drops use the
-  `MINIMAL_IMAGE` idiom (`?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)`), and `PODMAN_RUN_FLAGS`
+  `MINIMAL_IMAGE` idiom (`?= $(if $(filter 1,$(MINIMAL_IMAGE)),0,1)`), `PODMAN_RUN_FLAGS`
   (`?= $(if $(filter 1,$(NESTED_PODMAN)),--cgroups=disabled)`) is threaded into every `run` line, never
-  `build`. Targets: `help` (default), `image`, `shell` + `shell-exec` (sharing **one** `SHELL_RUN_FLAGS`
-  so they can't drift), `format`, the run targets (`cli`/`tui`/`wx`/…), `image-export`/`image-import`,
-  and `update-emacs-packages`. Python subprojects also get `type-check` (`ty`).
+  `build`, and **`CONTAINER_CMD` auto-detects podman→docker** (`?= $(shell command -v podman … || echo
+  docker)`) so the gates run unchanged on a Docker CI runner. Targets: `help` (default), `image`,
+  `shell` + `shell-exec` (sharing **one** `SHELL_RUN_FLAGS` so they can't drift), the run targets
+  (`cli`/`tui`/`wx`/…), `image-export`/`image-import`, `update-emacs-packages`, and the **gates**:
+  - **`format`** + **`check-format`** — `check-format: format` then `git diff --exit-code` (run the
+    formatter, then fail if it changed a tracked file). `check-format` is the CI enforcement — never a
+    reformat-and-push — so `format` carries **no `-it`** (a TTY-less runner would die on it).
+  - **`test`** — the test gate, **doctests by default** (`~/.claude/reference/doctests-by-default.md`):
+    Python `pytest` with `--doctest-modules`; Rust `cargo test --workspace` (`--doc` doctests) plus a
+    CI-scoped **`test-lib`** (`cargo test -p hanoigame`, library-only, so CI skips the wxDragon
+    wxWidgets-from-source build); C++ `ctest` over the inline doctest `TEST_CASE`s (`make test` builds
+    the `hanoi-tests` runner).
+  - the **type/compile gate** (per language): Python **`type-check`** (`ty` over src + tests); Rust
+    **`check`** (`cargo check --workspace --all-targets` — compiles every crate incl. the GUI + all test
+    targets) and **`type-check`** (Deno over the Tauri JS frontend); C++ **`build`** (`cmake --build` all
+    native targets — the compiler is the C++ type check). These are standalone, like `format` — no
+    run/shell target depends on them.
 - **`entrypoint/`** — `shell.sh` (`set -e` setup, then `exec bash "$@"` — the `"$@"` is what powers
   `shell-exec`), `entrypoint.sh` (the default gate: tests), `format.sh`, the `0N-install-*.sh` group
   scripts, `.bashrc`, and `dotfiles/.emacs.d/` (see Emacs below). **`.bashrc` is bind-mounted** by
@@ -73,7 +90,19 @@ edits stay live. Refresh the vendored packages with `make update-emacs-packages`
    `install-melpa-packages.el`.
 
 The language server itself: Python → `lsp-pyright` (pyright via npm, installed under `USE_EMACS`);
-Rust → `rust-mode` + `lsp-mode` with `rust-analyzer` (dnf, on PATH).
+Rust → `rust-mode` + `lsp-mode` with `rust-analyzer` (dnf, on PATH); C++ → `lsp-mode` + `clangd`
+(reads `compile_commands.json` from the cmake `build/`).
+
+## CI — a thin wrapper over the gates
+
+`.github/workflows/checks.yml` (push + PR) runs **one job per (subproject × gate)**, each just
+`checkout` → `working-directory: <sub>` → `make <target> <lean flags>`. All logic stays in the
+Makefiles, so the identical command runs locally, and `CONTAINER_CMD`'s podman→docker auto-detect means
+the same target runs on the GitHub Docker runner and the maintainer's podman host. CI is **check-only**
+— `check-format` is the enforcement (formatter + `git diff`, never reformat-and-push). The lean flags
+drop heavy OPTIONAL image layers CI doesn't need (emacs, wasm toolchains) but keep layers a gate needs
+(python keeps `USE_X_WINDOWS` for the jobs that import wxPython under `--doctest-modules`; cpp's `build`
+keeps `USE_WX` so `hanoi-wx` compiles). A new language adds its jobs here.
 
 ## Adding a new language — the recipe
 
@@ -84,6 +113,8 @@ Rust → `rust-mode` + `lsp-mode` with `rust-analyzer` (dnf, on PATH).
 3. Add `entrypoint/dotfiles/.emacs.d/` with the language's LSP set and the three must-dos above.
 4. Verify nested: `make image` builds, the test gate passes, the GUI/build targets compile; then run
    `make update-emacs-packages` once to vendor `elpa/`.
+5. Add the subproject's **CI jobs** to `.github/workflows/checks.yml` (one per gate) and confirm the
+   lean flags keep each gate's needed layers.
 
 ## Cross-links
 

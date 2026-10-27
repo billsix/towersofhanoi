@@ -1,6 +1,6 @@
 # GitHub Actions CI: format-check + test + type-check on push (Python, Rust, C++)
 
-**Status:** done (staged; awaiting the maintainer's commit, then archive).
+**Status:** done (work committed on `cicd`; ready to archive after the maintainer's squash).
 **Priority:** 5
 **Difficulty:** 5
 **Created:** 2026-10-27 (William Emerison Six <billsix@gmail.com>)
@@ -38,25 +38,6 @@ The C++ `make test` prerequisite is done: [[cpp-unit-tests-with-doctest]] (now a
   - `cpp/`: has `format` (clang-format) and now `test` (doctest/ctest, from the prerequisite task).
     Has `CONTAINER_CMD` auto-detect (Makefile line 16). **Missing: `check-format`.**
   (Earlier draft wrongly said `cpp/` lacked `CONTAINER_CMD`; it has it. Re-confirm `python/`.)
-
-## Plan
-
-1. **Add `check-format` to each subproject Makefile** — `check-format: format` then
-   `git diff --exit-code` (gacalc's shape). Three small `.PHONY`, `## `-documented targets.
-2. **Add `CONTAINER_CMD ?= $(shell command -v podman … || echo docker)` where missing** (`python/`;
-   confirm). Required — a hardcoded `podman` fails on `ubuntu-latest`.
-3. **Write `.github/workflows/checks.yml`** — `on: [push, pull_request]`, one job per (subproject ×
-   gate), each `checkout@v5` → `cd <sub> && make <target> <lean CI flags>`:
-   - **python:** `check-format`, `type-check`, `test` (flags `USE_EMACS=0 USE_X_WINDOWS=0`).
-   - **rust:** `check-format`, `type-check` (Deno/Tauri JS), **`check`** (`cargo check --workspace
-     --all-targets`), and **`test` scoped to `cargo test -p hanoigame`** — fast/offline (engine + 25
-     doctests); `check` still compiles every crate incl. the GUI, so the wxDragon crate is gated
-     without CI building wxWidgets from source to run GUI tests. Needs a CI-scoped test entry (a
-     `make test-lib` target or a CI step overriding the package; prefer a named target).
-   - **cpp:** `check-format` + `test` (doctest/ctest) + the plain app build. **No `type-check`** —
-     the C++ compiler is the type check.
-4. **Verify** by pushing the branch and reading the Actions run; fix any runner-only breakage
-   (Docker vs podman, missing lean flag). Document the workflow in the root `CLAUDE.md`.
 
 ## Decisions (resolved with the maintainer, 2026-10-27)
 

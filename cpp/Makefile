@@ -81,14 +81,24 @@ shell-exec: image ## Run a script/command in the container env (no TTY): make sh
 
 .PHONY: format
 format: image ## Format the C++ with clang-format (entrypoint/format.sh; never the vendored imgui/)
-	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm \
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) /format.sh
+
+.PHONY: check-format
+check-format: format ## (CI) run format, then fail if it changed any tracked file (never commits)
+	git diff --exit-code
 
 .PHONY: test
 test: image ## Build + run the C++ unit tests (doctest, inline in src/*.hpp) under ctest
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
 		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build --target hanoi-tests && ctest --test-dir build --output-on-failure'
+
+.PHONY: build
+build: image ## (CI) configure + compile all native targets (both GUIs + tests), no display needed -- the compiler IS the C++ type check
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build'
 
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
 	$(X_FLAGS_FOR_CONTAINER) $(WAYLAND_FLAGS_FOR_CONTAINER)

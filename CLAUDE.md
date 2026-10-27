@@ -119,6 +119,13 @@ root builds the book.
 Without a container (Python): `cd python && python -m venv venv && . venv/bin/activate &&
 pip install -e . && hanoi`.
 
+**CI** (`.github/workflows/checks.yml`, on push + PR): a thin wrapper — one job per
+(subproject × gate), each `checkout` → `cd <sub> && make <target>`. Python: `check-format` /
+`type-check` / `test`. Rust: `check-format` / `type-check` (Deno, Tauri JS) / `check` / `test-lib`
+(`cargo test -p hanoigame`, lib-only so CI skips the wxWidgets-from-source build; `check` still gates
+GUI compilation). C++: `check-format` / `build` (the compiler is the type check) / `test`. CI is
+check-only — `check-format` runs the formatter then fails on `git diff`, never reformat-and-push.
+
 ## Conventions
 
 - **Python** (in `python/`): ruff (line-length 80, from `[tool.ruff] line-length` in
