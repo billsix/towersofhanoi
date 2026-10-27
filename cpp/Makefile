@@ -81,8 +81,24 @@ shell-exec: image ## Run a script/command in the container env (no TTY): make sh
 
 .PHONY: format
 format: image ## Format the C++ with clang-format (entrypoint/format.sh; never the vendored imgui/)
-	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm \
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) /format.sh
+
+.PHONY: check-format
+check-format: format ## (CI) run format, then fail if it changed any tracked file (never commits)
+	git diff --exit-code
+
+.PHONY: test
+test: image ## Build + run the C++ unit tests (doctest, inline in src/*.hpp) under ctest
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build --target hanoi-tests && ctest --test-dir build --output-on-failure'
+
+.PHONY: build
+build: image ## (CI) configure + compile all native targets (both GUIs + tests), no display needed -- the compiler IS the C++ type check
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build'
 
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
 	$(X_FLAGS_FOR_CONTAINER) $(WAYLAND_FLAGS_FOR_CONTAINER)
@@ -114,6 +130,11 @@ serve: webassembly ## Build the wasm (if needed) + serve ./web/ over http at htt
 update-imgui: ## Re-vendor Dear ImGui at a ref (overwrites imgui/): make update-imgui IMGUI_REF=v1.92.0
 	@[ -n "$(IMGUI_REF)" ] || { echo 'usage: make update-imgui IMGUI_REF=<branch|tag|SHA>'; exit 2; }
 	bash tools/update-imgui.sh "$(IMGUI_REF)"
+
+.PHONY: update-doctest
+update-doctest: ## Re-vendor the doctest header at a ref (overwrites doctest/): make update-doctest DOCTEST_REF=v2.5.3
+	@[ -n "$(DOCTEST_REF)" ] || { echo 'usage: make update-doctest DOCTEST_REF=<branch|tag|SHA>'; exit 2; }
+	bash tools/update-doctest.sh "$(DOCTEST_REF)"
 
 .PHONY: image-export
 image-export: ## export the OCI image to a timestamped tar in this dir

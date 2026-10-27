@@ -85,8 +85,12 @@ shell-exec: image ## Run a script/command in the container env (no TTY): make sh
 
 .PHONY: format
 format: image ## Format the Rust code with rustfmt (entrypoint/format.sh)
-	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm \
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) /format.sh
+
+.PHONY: check-format
+check-format: format ## (CI) run format, then fail if it changed any tracked file (never commits)
+	git diff --exit-code
 
 .PHONY: check
 check: image ## Compile-check the workspace INCLUDING tests/examples (cargo check --all-targets) -- catches a test module that stopped compiling, which bare `cargo check` and `make format` both skip
@@ -99,6 +103,16 @@ test: image ## Run the test suite (cargo test --workspace; runs the doc-comment 
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
 		-c '$(RUST_SETUP) && cargo test --workspace'
+
+.PHONY: test-lib
+# The CI test gate: only the hanoigame library crate (unit tests + its doctests via
+# --doc), so CI never triggers the wxDragon GUI crate's from-source wxWidgets build.
+# `make check` still compiles every crate (incl. the GUI) with --all-targets, so GUI
+# compilation is gated; this just keeps the per-push *test* run fast and offline-ish.
+test-lib: image ## (CI) run only the hanoigame library tests + doctests (cargo test -p hanoigame) -- no GUI crates, so no wxWidgets build
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c '$(RUST_SETUP) && cargo test -p hanoigame'
 
 .PHONY: type-check
 type-check: image ## Type-check + lint + fmt-check the Tauri frontend web files via Deno (deno check/lint/fmt; JSDoc + checkJs, no node_modules)

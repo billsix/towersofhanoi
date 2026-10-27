@@ -91,8 +91,12 @@ shell-exec: image ## Run a script/command in the container env (no TTY): make sh
 
 .PHONY: format
 format: image ## Format the Python source with ruff (entrypoint/format.sh)
-	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm \
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) /format.sh
+
+.PHONY: check-format
+check-format: format ## (CI) run format, then fail if it changed any tracked file (never commits)
+	git diff --exit-code
 
 .PHONY: test
 test: image ## Run the test suite (pytest, incl. doctests via --doctest-modules) in the container

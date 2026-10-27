@@ -19,7 +19,12 @@ add_executable(hanoi-cpp
   ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 target_include_directories(hanoi-cpp PRIVATE
-  ${IMGUI_DIR} ${IMGUI_DIR}/backends ${CMAKE_SOURCE_DIR}/src)
+  ${IMGUI_DIR} ${IMGUI_DIR}/backends ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src)
+# The engine headers include <doctest/doctest.h> and carry TEST_CASEs beside the
+# code; the GUI binary compiles them out with DOCTEST_CONFIG_DISABLE (which still
+# needs the header found, hence CMAKE_SOURCE_DIR on the include path). Only the
+# `hanoi-tests` executable (below) builds the tests in.
+target_compile_definitions(hanoi-cpp PRIVATE DOCTEST_CONFIG_DISABLE)
 
 if(EMSCRIPTEN)
   # Web build: SDL2 + WebGL come from Emscripten; emit web/index.{html,js,wasm}. See
@@ -55,9 +60,24 @@ else()
   if(wxWidgets_FOUND)
     include(${wxWidgets_USE_FILE})
     add_executable(hanoi-wx hanoiwx.cpp)
-    target_include_directories(hanoi-wx PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(hanoi-wx PRIVATE
+      ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(hanoi-wx PRIVATE DOCTEST_CONFIG_DISABLE)
     target_link_libraries(hanoi-wx PRIVATE ${wxWidgets_LIBRARIES})
   else()
     message(STATUS "wxWidgets not found -- skipping hanoi-wx (build a USE_WX=1 image for `make wx`).")
   endif()
+endif()
+
+# Unit tests: the doctest cases live inline in the engine headers (src/*.hpp); this
+# runner TU provides doctest's main and includes the engine so they register. Built
+# WITHOUT DOCTEST_CONFIG_DISABLE (the cases compile in) and native-only -- the engine
+# is pure C++ (no SDL/GL/wx), so the test build is fast and needs none of the GUI
+# stack. `make test` builds this and runs it under ctest.
+if(NOT EMSCRIPTEN)
+  enable_testing()
+  add_executable(hanoi-tests tests/run_tests.cpp)
+  target_include_directories(hanoi-tests PRIVATE
+    ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/src)
+  add_test(NAME hanoi-tests COMMAND hanoi-tests)
 endif()
