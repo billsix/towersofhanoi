@@ -15,6 +15,13 @@
 #include <array>
 #include <vector>
 
+// Tests live BESIDE the code (doctest), each TEST_CASE right after the thing it
+// tests. The GUI/wasm binaries compile them out with -DDOCTEST_CONFIG_DISABLE
+// (set in CMakeLists.txt), which turns every TEST_CASE into an uninstantiated
+// no-op; only the `make test` executable builds and runs them. Mirrors
+// python/tests/test_hanoimodel.py (the behaviour oracle).
+#include <doctest/doctest.h>
+
 namespace hanoi {
 
 // A single disk move between two physical (0-indexed) pegs.
@@ -85,5 +92,55 @@ private:
   int num_disks_ = 0;
   int current_moves_ = 0;
 };
+
+// Game's tests sit right after the class (a TEST_CASE can't live inside a class
+// body). They are inside namespace hanoi, so the types are unqualified.
+TEST_CASE("a fresh game stacks every disk on peg 0, largest at the bottom") {
+  const Game game{3};
+  CHECK(game.towers()[0] == std::vector<int>{3, 2, 1});
+  CHECK(game.towers()[1].empty());
+  CHECK(game.towers()[2].empty());
+  CHECK(game.num_disks() == 3);
+  CHECK(game.current_moves() == 0);
+  CHECK_FALSE(game.check_win_condition()); // nothing on peg 2 yet
+}
+
+TEST_CASE("check_win_condition is true once every disk reaches peg 2") {
+  Game game{1};
+  CHECK_FALSE(game.check_win_condition());
+  game.apply(Move{0, 2}); // the only disk to the goal peg
+  CHECK(game.check_win_condition());
+}
+
+TEST_CASE("move_options yields the legal moves in canonical peg-pair order") {
+  const Game game{3};
+  const std::vector<Move> options = game.move_options();
+  REQUIRE(options.size() == 2); // off peg 0 only: to peg 1 or peg 2
+  CHECK(options[0].from_peg == 0);
+  CHECK(options[0].to_peg == 1);
+  CHECK(options[1].from_peg == 0);
+  CHECK(options[1].to_peg == 2);
+}
+
+TEST_CASE("applying moves walks the state and the legal-move set in step") {
+  Game game{3};
+
+  game.apply(game.move_options()[0]); // (0,1): smallest disk to peg 1
+  CHECK(game.towers()[0] == std::vector<int>{3, 2});
+  CHECK(game.towers()[1] == std::vector<int>{1});
+  CHECK(game.move_options().size() == 3); // (0,2),(1,0),(1,2)
+
+  game.apply(game.move_options()[2]); // (1,2): disk 1 to peg 2
+  CHECK(game.towers()[2] == std::vector<int>{1});
+  CHECK(game.move_options().size() == 3); // (0,1),(2,0),(2,1)
+
+  game.apply(game.move_options()[0]); // (0,1): disk 2 to peg 1
+  CHECK(game.towers()[0] == std::vector<int>{3});
+  CHECK(game.towers()[1] == std::vector<int>{2});
+
+  game.apply(game.move_options()[2]); // (2,1): disk 1 onto disk 2
+  CHECK(game.towers()[1] == std::vector<int>{2, 1});
+  CHECK(game.current_moves() == 4);
+}
 
 } // namespace hanoi

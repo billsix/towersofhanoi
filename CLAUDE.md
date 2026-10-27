@@ -20,7 +20,7 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 - **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
   **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
   app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
-  `make gui | wx | webassembly | serve | format | shell`. See `cpp/CLAUDE.md`.
+  `make gui | wx | webassembly | serve | format | test | shell`. See `cpp/CLAUDE.md`.
 - **the root** (this dir) — the **book + workbook + bash + umbrella**: the Sphinx book
   (`docs/`), the printable worksheets (`workbook/`), the bash demos (`bash/`), and a thin
   umbrella Makefile. `make docs` builds the book; `make format`/`make type-check` delegate
@@ -109,8 +109,10 @@ root builds the book.
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
 - **`cd cpp && make`** — `gui` (native ImGui) / `wx` (wxWidgets, from the shared `ui/hanoi.xrc`) /
   `webassembly` (→ gitignored `web/`) / `serve` (http at :8000); `format` (clang-format, never the
-  vendored `imgui/`). `USE_EMACS` installs emacs+clangd, `USE_WASM` the Emscripten SDK, `USE_WX` the wxGTK
-  stack (all default 1; `MINIMAL_IMAGE=1` drops them). `update-imgui` re-vendors Dear ImGui.
+  vendored `imgui/`/`doctest/`) / `test` (doctest unit tests inline in `src/*.hpp`, run under ctest).
+  `USE_EMACS` installs emacs+clangd, `USE_WASM` the Emscripten SDK, `USE_WX` the wxGTK
+  stack (all default 1; `MINIMAL_IMAGE=1` drops them). `update-imgui`/`update-doctest` re-vendor the
+  pinned Dear ImGui / doctest.
 - Every subproject has `shell` / `shell-exec` (sharing one invocation), `image-export` /
   `image-import`, `PODMAN_RUN_FLAGS` (nested-podman), and `update-emacs-packages`.
 

@@ -1,6 +1,6 @@
 # C++ unit tests for the `cpp/` engine (doctest framework) + a `make test` gate
 
-**Status:** proposed — needs go-ahead.
+**Status:** done (staged; awaiting the maintainer's commit, then archive).
 **Priority:** 4
 **Difficulty:** 4
 **Created:** 2026-10-27 (William Emerison Six <billsix@gmail.com>)
@@ -8,78 +8,74 @@
 
 ## BLUF
 
-The C++ subproject (`cpp/`) has **no unit tests and no `make test` target** — the engine
-(`cpp/src/{model,presenter,recipe}.hpp`, header-only) is exercised only by playing the GUIs. This
-task adds a C++ unit-test suite using the **`doctest`** framework (github.com/doctest/doctest) and a
-`make test` gate (`test: image`, runs `ctest` in-container). Done: the engine has tests at parity
-with the Python oracle's engine tests, `make test` builds and runs them green in the container, and
-`cpp/CLAUDE.md` + the root `CLAUDE.md` document the target.
+The C++ subproject (`cpp/`) had **no unit tests and no `make test`** — the header-only engine
+(`cpp/src/{model,presenter,recipe}.hpp`) was exercised only by playing the GUIs. This task added a
+C++ unit-test suite with the **`doctest`** framework (github.com/doctest/doctest), the `TEST_CASE`s
+**collocated inline** beside the engine code, and a `make test` gate (`ctest`). Done: `make test`
+is green (16 cases / 73 assertions), the GUI binaries compile the tests out
+(`-DDOCTEST_CONFIG_DISABLE`), and the docs record the convention.
 
-**This is a prerequisite for [[github-actions-format-test-typecheck-ci]]** — that task's C++ CI job
-runs this `make test`.
+**This unblocks [[github-actions-format-test-typecheck-ci]]** — that task's C++ CI job runs this
+`make test`.
 
 ## Context (cold start)
 
-- Repo: github.com/billsix/towersofhanoi (mounted as `hanoi`), on branch `cicd`. C++ subproject
-  under `cpp/`: a header-only engine in `cpp/src/` + two GUIs (`main.cpp` Dear ImGui native/wasm,
-  `hanoiwx.cpp` wxWidgets) built from one `CMakeLists.txt` (`project(hanoi_cpp CXX)`,
-  `add_executable(hanoi-cpp …)`, `add_executable(hanoi-wx …)`). No `enable_testing()`/`add_test()`
-  today, and `cpp/Makefile` has `format`/`gui`/`wx`/`webassembly`/`serve` but **no `test`**.
-- The **Python package is the behaviour oracle** (`python/src/hanoigame/`); its `tests/` and the new
-  doctests define what the engine must do. The C++ engine mirrors it, so the C++ tests mirror the
-  Python engine tests (model moves/win-condition, presenter layout/labelling/render, recipe
-  rebinding/replay).
-- Convention for vendored source deps: hanoi already vendors Dear ImGui under `cpp/imgui/` with a
-  `make update-imgui` target. A single-header test framework follows the same "vendor by source"
-  pattern (see `~/.claude/reference/vendoring-third-party-source-deps.md`).
+- Repo: github.com/billsix/towersofhanoi (mounted as `hanoi`), branch `cicd`. C++ subproject under
+  `cpp/`: a header-only engine in `cpp/src/` + two GUIs (`main.cpp` Dear ImGui native/wasm,
+  `hanoiwx.cpp` wxWidgets) from one `CMakeLists.txt`. The **Python package is the behaviour oracle**;
+  the C++ engine mirrors it, so the C++ tests mirror the Python engine tests. The C++ presenter does
+  **not** port the ASCII-render maths (the GUI draws primitives), so there are no render tests.
 
 ## Why doctest (the framework investigation)
 
 Investigated 2026-10-27 (the maintainer asked for a doctest-like C++ framework specifically):
 
 - **`doctest`** (github.com/doctest/doctest) — single-header, **modeled on Catch2** but the
-  fastest-compiling option, and uniquely designed so **tests can live right next to the production
-  code** and be compiled out of release binaries (`DOCTEST_CONFIG_DISABLE`). That "tests beside the
-  code" property is the C++ analogue of the Python/Rust **doctests-by-default** direction already
-  adopted repo-wide, and the name is literally "doctest" — **the recommended choice.**
-- **Catch2** (github.com/catchorg/Catch2) — also header-only, more feature-rich (matchers, data
-  generators, microbenchmarks), heavier compile. doctest's syntax is a near-subset, so a later move
-  to Catch2 is cheap. The extra features aren't needed for a small deterministic engine.
-- GoogleTest / Boost.Test — heavier, need linking/build integration; not single-header; rejected for
-  a small header-only engine.
+  fastest-compiling option, and uniquely designed so **tests live right next to the production code**
+  and compile out of release binaries (`DOCTEST_CONFIG_DISABLE`). That "tests beside the code"
+  property is the C++ analogue of the Python/Rust **doctests-by-default** direction, and the name is
+  literally "doctest" — the chosen framework.
+- **Catch2** — also header-only, more features, heavier compile; doctest's syntax is a near-subset,
+  so a later switch is cheap. GoogleTest / Boost.Test — heavier, need linking; rejected for a small
+  header-only engine.
 
 Sources: [hackingcpp testing frameworks](https://hackingcpp.com/cpp/tools/testing_frameworks.html),
-[doctest FAQ](https://k1.spdns.de/Develop/Projects/pico/kilipili/extern/doctest/doc/markdown/faq.md),
-[Catch2 vs doctest comparison](https://kindatechnical.com/c-plus-plus/catch2-doctest-header-only-testing.html).
-
-## Plan
-
-1. **Vendor the single header** `doctest.h` under `cpp/` (e.g. `cpp/doctest/doctest.h`, mirroring the
-   `cpp/imgui/` layout) and add a `make update-doctest DOCTEST_REF=<tag>` target + `tools/` script,
-   per the source-dep vendoring convention (print the vendored `DOCTEST_VERSION`).
-2. **Write the tests inline in the engine headers** (decision below), mirroring the Python engine
-   suite — model (legal/illegal moves, win condition), presenter (layout maths, the six labellings,
-   `render` board strings including the 0-disc empty case), recipe (rebinding, rebound moves, replay
-   under relabelling). Each `TEST_CASE` sits beside the code it tests, wrapped in
-   `#ifndef DOCTEST_CONFIG_DISABLE` so the GUI binaries (`hanoi-cpp`, `hanoi-wx`) compile the tests
-   out: build those targets with `-DDOCTEST_CONFIG_DISABLE`, and the test executable without it.
-3. **Wire into CMake + ctest:** a test executable (`add_executable(hanoi-tests …)` whose one `.cpp`
-   defines `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` and includes the engine headers *without*
-   `DOCTEST_CONFIG_DISABLE`, so the inline `TEST_CASE`s are collected), `enable_testing()` +
-   `add_test(NAME … )`, so `ctest` runs it. The GUI targets add `DOCTEST_CONFIG_DISABLE` to their
-   compile definitions.
-4. **Add `make test`** to `cpp/Makefile` (`test: image`, `$(CONTAINER_CMD) run … ctest --output-on-failure`
-   in the build dir), mirroring `shell`'s env / `PODMAN_RUN_FLAGS`, standalone like `format` (nothing
-   interactive depends on it).
-5. **Verify green nested**, update `cpp/CLAUDE.md` + root `CLAUDE.md` (target lists + the
-   doctest-by-default convention already noted there), and consider feeding the C++ angle back to
-   `~/.claude/reference/doctests-by-default.md` (a new `## C++` section — the doctest framework makes
-   "tests beside the code" literally true in C++ too).
+[doctest FAQ](https://k1.spdns.de/Develop/Projects/pico/kilipili/extern/doctest/doc/markdown/faq.md).
 
 ## Decisions (resolved with the maintainer, 2026-10-27)
 
-1. **Framework = `doctest`** (github.com/doctest/doctest) — the doctest-like, fastest-compiling,
-   tests-beside-code option. Not Catch2.
-2. **Placement = inline in the engine headers** (doctest's beside-the-code mode), gated out of the
-   GUI binaries with `DOCTEST_CONFIG_DISABLE` — matching the Python/Rust doctest-by-default direction
-   the repo just adopted. Not a separate `cpp/tests/` TU.
+1. **Framework = `doctest`** (not Catch2).
+2. **Placement = collocated inline, each `TEST_CASE` beside the thing it tests** (not a separate
+   `cpp/tests/` TU). For free functions the case sits immediately after the function; for the `Game`
+   class it sits right after the class (a `TEST_CASE` can't be inside a class body). This was the
+   maintainer's refinement mid-task over an initial "all tests grouped at the end of each header".
+
+## What was done
+
+1. **Vendored** `doctest/doctest.h` (pinned **v2.5.3**) + its `LICENSE.txt` via `tools/update-doctest.sh`
+   (curl of the single header; version from the `DOCTEST_VERSION_MAJOR/MINOR/PATCH` macros) and a
+   `make update-doctest DOCTEST_REF=<tag>` target — proven idempotent. `format.sh` prunes `./doctest`
+   like `./imgui`.
+2. **Collocated the cases** inline in `src/*.hpp`: each header `#include <doctest/doctest.h>`
+   unconditionally, with `TEST_CASE`s beside the code (inside `namespace hanoi`, unqualified types).
+   model (constructor / win / move_options / the move walk), presenter (label_order+change_labels,
+   labelling_name, label_to_tower, labels_to_towers), recipe (Recorder, RecipeRegistry, apply same-
+   labelling / through-relabel / illegal-stop, rebinding, rebound_moves, format_rebinding_table).
+3. **CMake:** GUI targets get `DOCTEST_CONFIG_DISABLE` + `${CMAKE_SOURCE_DIR}` on the include path
+   (the disabled header still must resolve); a native-only `hanoi-tests` executable builds
+   `tests/run_tests.cpp` (the `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` runner) without `DISABLE`, wired
+   with `enable_testing()` + `add_test()`.
+4. **`make test`** (`test: image`) configures, builds only `hanoi-tests`, runs `ctest --output-on-failure`.
+
+## Verification
+
+`make test` nested → 1/1 ctest passed; `./hanoi-tests` reports **16 test cases / 73 assertions, 0
+failed** (doctest 2.5.3). The `hanoi-cpp` GUI target rebuilds + links clean with the cases compiled
+out, proving the `DISABLE` gating. clang-format run; suite re-verified after.
+
+## Docs
+
+`cpp/CLAUDE.md` + root `CLAUDE.md` (targets, vendored doctest pin, doctest-by-default convention);
+the shared `~/.claude/reference/doctests-by-default.md` gained a `## C++` section and
+`cpp-coding-standard.md` a "Tests — doctests by default" section (both sandboxes, byte-identical
+mirror); the personal overlay's test-gate bullet now covers C++.

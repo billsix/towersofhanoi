@@ -11,6 +11,13 @@
 
 #include <array>
 #include <optional>
+#include <string> // for the labelling_name doctest
+
+// Tests live beside the code (doctest), each right after the function it tests;
+// -DDOCTEST_CONFIG_DISABLE compiles them out of the GUI/wasm binaries. Mirrors
+// the labelling half of python/tests/test_presenter.py (the ASCII render maths
+// are not ported to C++, so neither are their tests).
+#include <doctest/doctest.h>
 
 namespace hanoi {
 
@@ -68,9 +75,22 @@ inline const char *labelling_name(Labelling l) {
   return "1 2 3";
 }
 
+TEST_CASE("labelling_name is the short menu label") {
+  CHECK(std::string{labelling_name(Labelling::OneTwoThree)} == "1 2 3");
+  CHECK(std::string{labelling_name(Labelling::ThreeTwoOne)} == "3 2 1");
+}
+
 // The 0-indexed label currently attached to a physical peg.
 inline int change_labels_on_pegs(Labelling l, int tower_index) {
   return label_order(l)[tower_index];
+}
+
+TEST_CASE(
+    "label_order / change_labels_on_pegs give each peg's 0-indexed label") {
+  CHECK(label_order(Labelling::OneTwoThree) == std::array<int, 3>{0, 1, 2});
+  CHECK(label_order(Labelling::OneThreeTwo) == std::array<int, 3>{0, 2, 1});
+  CHECK(change_labels_on_pegs(Labelling::OneThreeTwo, 1) == 2);
+  CHECK(change_labels_on_pegs(Labelling::OneThreeTwo, 2) == 1);
 }
 
 // Which physical peg currently carries a 1-indexed label (inverse of the
@@ -89,6 +109,15 @@ inline std::optional<int> label_to_tower(Labelling l, int label) {
   return std::nullopt;
 }
 
+TEST_CASE("label_to_tower inverts the labelling; out-of-range is nullopt") {
+  // OneThreeTwo: pegs 0,1,2 carry labels 1,3,2.
+  CHECK(label_to_tower(Labelling::OneThreeTwo, 1) == 0);
+  CHECK(label_to_tower(Labelling::OneThreeTwo, 3) == 1);
+  CHECK(label_to_tower(Labelling::OneThreeTwo, 2) == 2);
+  CHECK_FALSE(label_to_tower(Labelling::OneThreeTwo, 4).has_value());
+  CHECK_FALSE(label_to_tower(Labelling::OneThreeTwo, 0).has_value());
+}
+
 // Translate a typed (from_label, to_label) 1-indexed label pair into physical
 // peg indices under `l`, or nullopt if either label is out of range.
 inline std::optional<std::array<int, 2>>
@@ -99,6 +128,14 @@ labels_to_towers(Labelling l, int from_label, int to_label) {
     return std::nullopt;
   }
   return std::array<int, 2>{*fp, *tp};
+}
+
+TEST_CASE("labels_to_towers maps a label pair to physical pegs, else nullopt") {
+  const std::optional<std::array<int, 2>> ok =
+      labels_to_towers(Labelling::OneThreeTwo, 1, 3);
+  REQUIRE(ok.has_value());
+  CHECK(*ok == std::array<int, 2>{0, 1});
+  CHECK_FALSE(labels_to_towers(Labelling::OneThreeTwo, 1, 9).has_value());
 }
 
 } // namespace hanoi

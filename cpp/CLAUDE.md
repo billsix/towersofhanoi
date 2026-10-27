@@ -20,6 +20,9 @@ the behaviour oracle; if it changes, this port must be updated to match, not lef
   window to the browser canvas size.
 - **Dear ImGui is vendored** at `imgui/` (pinned **v1.91.5**: core + `backends/imgui_impl_sdl2` +
   `imgui_impl_opengl3`). Re-vendor by copying those files from a pinned imgui tag.
+- **doctest is vendored** at `doctest/doctest.h` (single header, pinned **v2.5.3**; `make
+  update-doctest`). The engine's unit tests are `TEST_CASE`s inline in `src/*.hpp`, run by `make
+  test` — see Conventions.
 
 ## Build / container workflow
 
@@ -32,8 +35,14 @@ the `EMSCRIPTEN` variable).
 - `make gui` — build + run the NATIVE app (cmake + system SDL2/OpenGL, on your X11/Wayland display).
 - `make webassembly` — `emcmake cmake` → `web/index.{html,js,wasm}` (needs a `USE_WASM=1` image).
 - `make serve` — serve `web/` over http at :8000 (wasm must be served over http, never `file://`).
-- `make format` (clang-format, never the vendored `imgui/`), `make shell`/`shell-exec`,
+- `make test` — build + run the engine unit tests (doctest) under `ctest`. The `TEST_CASE`s live
+  **inline in the engine headers** (`src/*.hpp`), beside the code they test; the GUI/wasm binaries
+  compile them out with `-DDOCTEST_CONFIG_DISABLE` (set per-target in `CMakeLists.txt`), and a
+  separate native-only `hanoi-tests` executable (runner at `tests/run_tests.cpp`) builds them in.
+- `make format` (clang-format, never the vendored `imgui/` or `doctest/`), `make shell`/`shell-exec`,
   `make image-export`/`image-import`, `make update-emacs-packages`.
+- `make update-doctest DOCTEST_REF=<tag>` — re-vendor the doctest single header (`doctest/doctest.h`,
+  pinned **v2.5.3**), like `make update-imgui`.
 
 > **Fedora gotcha:** `SDL2-devel` on F44 is the `sdl2-compat` shim over SDL3 (`sdl2-config`/`sdl2.pc`
 > still work). The wasm build's `-sUSE_SDL=2` is the genuine SDL2 port. Full build detail + flags:
@@ -50,6 +59,11 @@ Installed into the image, bind-mounted at runtime, and baked. `init.el` pins the
 ## Conventions
 
 C++17. Keep the GUI (`main.cpp`) thin — game logic lives in `src/` (the ported engine), mirroring the
-Python layering. Never edit the vendored `imgui/` tree (re-vendor from a pinned tag instead). Reference:
+Python layering. Never edit the vendored `imgui/` or `doctest/` trees (re-vendor from a pinned tag
+instead). **Tests are doctests by default** — a test documenting an engine function/class is a
+`TEST_CASE` placed **right after** that function (or after the class, for `Game`), inside
+`namespace hanoi`; the GUI targets set `DOCTEST_CONFIG_DISABLE` so the cases vanish from the binaries.
+This is the C++ analogue of the Python/Rust doctests-by-default rule
+(`~/.claude/reference/doctests-by-default.md`). Reference:
 `../tasks/reference/imgui-cpp-native-and-wasm.md` (the dual native/wasm build) and
 `../tasks/reference/per-language-subproject-layout.md` (the subproject template).

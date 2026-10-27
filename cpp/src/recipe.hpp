@@ -48,6 +48,25 @@ private:
   std::vector<std::array<int, 2>> moves_;
 };
 
+// Tests live beside the code (doctest), each right after the class/function it
+// tests; -DDOCTEST_CONFIG_DISABLE compiles them out of the GUI binaries.
+// doctest is already included via model.hpp above. Mirrors
+// python/tests/test_recipe.py.
+TEST_CASE("Recorder logs default-space moves and freezes them into a recipe") {
+  Recorder rec;
+  rec.record(1, 3);
+  rec.record(1, 2);
+  const Recipe recipe = rec.to_recipe("two-moves", 2);
+  CHECK(recipe.name == "two-moves");
+  CHECK(recipe.disk_count == 2);
+  CHECK(recipe.default_moves ==
+        std::vector<std::array<int, 2>>{{1, 3}, {1, 2}});
+  rec.reset(); // the recorder empties; the frozen recipe keeps its moves
+  CHECK(rec.moves().empty());
+  CHECK(recipe.default_moves ==
+        std::vector<std::array<int, 2>>{{1, 3}, {1, 2}});
+}
+
 // In-memory recipe store keyed by name (std::map keeps names() sorted, like the
 // Python).
 class RecipeRegistry {
@@ -69,6 +88,22 @@ public:
 private:
   std::map<std::string, Recipe> by_name_;
 };
+
+TEST_CASE("RecipeRegistry stores by name, sorted, replacing on re-save") {
+  RecipeRegistry reg;
+  reg.save(Recipe{"foo", 2, {{1, 3}}});
+  CHECK(reg.get("foo") != nullptr);
+  CHECK(reg.get("bar") == nullptr);
+  CHECK(reg.size() == 1);
+  reg.save(Recipe{"foo", 3, {{1, 2}}}); // same name overwrites
+  CHECK(reg.get("foo")->default_moves ==
+        std::vector<std::array<int, 2>>{{1, 2}});
+  CHECK(reg.size() == 1);
+  reg.save(Recipe{"zebra", 2, {}});
+  reg.save(Recipe{"alpha", 2, {}});
+  CHECK(reg.names() ==
+        std::vector<std::string>{"alpha", "foo", "zebra"}); // std::map sorts
+}
 
 // One replayed move's outcome.
 struct StepResult {
@@ -138,6 +173,48 @@ inline std::vector<StepResult> apply(const Recipe &recipe, Game &game,
   return results;
 }
 
+TEST_CASE("apply replays a default-space recipe and wins under the default "
+          "labelling") {
+  const Recipe recipe{"solve2", 2, {{1, 2}, {1, 3}, {2, 3}}};
+  Game game{2};
+  const std::vector<StepResult> results =
+      apply(recipe, game, Labelling::OneTwoThree);
+  CHECK(results.size() == 3);
+  for (const StepResult &r : results) {
+    CHECK(r.ok());
+  }
+  CHECK(game.check_win_condition());
+  CHECK(game.towers()[2] == std::vector<int>{2, 1});
+}
+
+TEST_CASE("apply through a relabelling solves the sub-problem (the teaching "
+          "moment)") {
+  // A 2-disk solution captured in default space, replayed onto a 3-disk game
+  // under OneThreeTwo: it moves the top two disks off peg 0 onto peg 1.
+  const Recipe recipe{"solve2", 2, {{1, 2}, {1, 3}, {2, 3}}};
+  Game game{3};
+  const std::vector<StepResult> results =
+      apply(recipe, game, Labelling::OneThreeTwo);
+  for (const StepResult &r : results) {
+    CHECK(r.ok());
+  }
+  CHECK(game.towers()[0] == std::vector<int>{3});
+  CHECK(game.towers()[1] == std::vector<int>{2, 1});
+  CHECK(game.current_moves() == 3);
+}
+
+TEST_CASE("apply stops at the first illegal move with an explanation") {
+  const Recipe recipe{"too-big", 2, {{1, 2}, {1, 3}, {2, 3}}};
+  Game game{1}; // only one disk: the second move has an empty source
+  const std::vector<StepResult> results =
+      apply(recipe, game, Labelling::OneTwoThree);
+  REQUIRE(results.size() == 2);
+  CHECK(results[0].ok());
+  CHECK_FALSE(results[1].ok());
+  REQUIRE(results[1].error.has_value());
+  CHECK(results[1].error->find("is empty") != std::string::npos);
+}
+
 // Map each recipe label 1..3 to the 1-indexed physical peg it resolves to under
 // `labelling` (identity under OneTwoThree). Used to SHOW the label->peg
 // rebinding.
@@ -149,6 +226,14 @@ inline std::array<std::array<int, 2>, 3> rebinding(Labelling labelling) {
     pairs[i] = {label, *peg + 1}; // a label in 1..3 always resolves
   }
   return pairs;
+}
+
+TEST_CASE(
+    "rebinding maps each label to the peg it sits on (identity by default)") {
+  CHECK(rebinding(Labelling::OneTwoThree) ==
+        std::array<std::array<int, 2>, 3>{{{1, 1}, {2, 2}, {3, 3}}});
+  CHECK(rebinding(Labelling::OneThreeTwo) ==
+        std::array<std::array<int, 2>, 3>{{{1, 1}, {2, 3}, {3, 2}}});
 }
 
 // Rewrite each (from_label, to_label) move onto the 1-indexed physical pegs it
@@ -167,6 +252,14 @@ rebound_moves(const std::vector<std::array<int, 2>> &moves,
     out.push_back({*fp + 1, *tp + 1}); // labels are 1..3, always resolve
   }
   return out;
+}
+
+TEST_CASE("rebound_moves rewrites label moves onto current pegs (identity by "
+          "default)") {
+  const std::vector<std::array<int, 2>> moves{{1, 2}, {1, 3}, {2, 3}};
+  CHECK(rebound_moves(moves, Labelling::OneTwoThree) == moves);
+  CHECK(rebound_moves(moves, Labelling::OneThreeTwo) ==
+        std::vector<std::array<int, 2>>{{1, 3}, {1, 2}, {3, 2}});
 }
 
 // Render the three aligned text columns -- the C++ port of the Python
@@ -227,6 +320,22 @@ format_rebinding_table(const std::vector<std::array<int, 2>> &moves,
                     "   " + cell(right, i, 0));
   }
   return lines;
+}
+
+TEST_CASE("format_rebinding_table is empty by default, three panels when "
+          "relabelled") {
+  const std::vector<std::array<int, 2>> moves{{1, 2}, {1, 3}, {2, 3}};
+  CHECK(format_rebinding_table(moves, Labelling::OneTwoThree).empty());
+
+  std::string joined;
+  for (const std::string &line :
+       format_rebinding_table(moves, Labelling::OneThreeTwo)) {
+    joined += line + "\n";
+  }
+  CHECK(joined.find("Rebinding") != std::string::npos);
+  CHECK(joined.find("Rebound (pegs)") != std::string::npos);
+  CHECK(joined.find("label 2 -> peg 3") != std::string::npos);
+  CHECK(joined.find("1: 1 -> 2") != std::string::npos);
 }
 
 } // namespace hanoi
