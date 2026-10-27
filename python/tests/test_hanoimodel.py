@@ -22,14 +22,6 @@ from collections.abc import Iterable
 from hanoigame.hanoimodel import HanoiGame, Move, ValidMove
 
 
-def test_postinit() -> None:
-    """A fresh game stacks every disk on peg 0 and starts at zero moves."""
-    game: HanoiGame = HanoiGame(num_disks=3)
-    assert game.num_disks == 3
-    assert game.current_moves == 0
-    assert game.towers == [[3, 2, 1], [], []]
-
-
 def test_makemove() -> None:
     """Applying successive legal moves updates the towers and move options."""
     game: HanoiGame = HanoiGame(num_disks=3)

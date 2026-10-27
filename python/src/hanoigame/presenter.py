@@ -75,6 +75,16 @@ def change_labels_on_pegs(labelling: Labelling, tower_index: int) -> int:
 
     Returns:
         The 0-indexed label on that peg under `labelling`.
+
+    Examples:
+        The default maps peg i to label i; ONE_THREE_TWO swaps pegs 1 and 2:
+
+        >>> change_labels_on_pegs(Labelling.ONE_TWO_THREE, 1)
+        1
+        >>> change_labels_on_pegs(Labelling.ONE_THREE_TWO, 1)
+        2
+        >>> change_labels_on_pegs(Labelling.ONE_THREE_TWO, 2)
+        1
     """
     return _LABEL_ORDER[labelling][tower_index]
 
@@ -88,6 +98,14 @@ def labelling_for(labels: Sequence[int]) -> Labelling | None:
     Returns:
         The matching `Labelling`, or None if `labels` isn't a permutation of
         (1, 2, 3).
+
+    Examples:
+        >>> labelling_for((1, 3, 2)) is Labelling.ONE_THREE_TWO
+        True
+        >>> labelling_for((1, 1, 1)) is None  # not a permutation
+        True
+        >>> labelling_for((4, 1, 2)) is None
+        True
     """
     return _LABELLING_BY_TUPLE.get(tuple(labels))
 
@@ -104,6 +122,12 @@ def label_to_tower(labelling: Labelling, label: int) -> int | None:
     Returns:
         The 0-indexed physical peg wearing `label`, or None if `label` is out
         of the 1..3 range.
+
+    Examples:
+        >>> label_to_tower(Labelling.ONE_THREE_TWO, 3)  # peg wearing label 3
+        1
+        >>> label_to_tower(Labelling.ONE_THREE_TWO, 4) is None
+        True
     """
     if not 1 <= label <= 3:
         return None
@@ -141,6 +165,15 @@ def peg_color(labelling: Labelling, tower_index: int) -> int:
 
     Returns:
         The curses `init_pair` number whose colour tracks that peg's label.
+
+    Examples:
+        Colour tracks the label, not the peg, so label 1 keeps its colour
+        after relabelling (peg 0 under default, peg 1 under TWO_ONE_THREE):
+
+        >>> peg_color(Labelling.ONE_TWO_THREE, 0) == peg_color(
+        ...     Labelling.TWO_ONE_THREE, 1
+        ... )
+        True
     """
     return _PEG_COLOR_BY_LABEL[change_labels_on_pegs(labelling, tower_index)]
 
@@ -158,6 +191,12 @@ def peg_visual_width(num_disks: int) -> int:
 
     Returns:
         The peg's visual width in characters.
+
+    Examples:
+        >>> peg_visual_width(3)
+        5
+        >>> peg_visual_width(5)
+        9
     """
     return num_disks * 2 - 1
 
@@ -167,6 +206,10 @@ def peg_gap() -> int:
 
     Returns:
         The peg gap width.
+
+    Examples:
+        >>> peg_gap()
+        5
     """
     return PEG_GAP
 
@@ -179,6 +222,12 @@ def total_width(num_disks: int) -> int:
 
     Returns:
         The board width spanning all three pegs and the gaps between them.
+
+    Examples:
+        >>> total_width(3)   # (5 + 5) * 3 - 5
+        25
+        >>> total_width(5)
+        37
     """
     return (peg_visual_width(num_disks) + peg_gap()) * 3 - peg_gap()
 
@@ -191,6 +240,10 @@ def disk_char_width(size: int) -> int:
 
     Returns:
         The disc's width in characters.
+
+    Examples:
+        >>> [disk_char_width(size) for size in (1, 2, 3)]
+        [1, 3, 5]
     """
     return size * 2 - 1
 
@@ -204,6 +257,10 @@ def padding_left(num_disks: int, size: int) -> int:
 
     Returns:
         The number of blank characters to the left of the disc.
+
+    Examples:
+        >>> [padding_left(3, size) for size in (1, 2, 3)]
+        [2, 1, 0]
     """
     return (peg_visual_width(num_disks) - disk_char_width(size)) // 2
 
@@ -217,6 +274,12 @@ def peg_center_x(num_disks: int, tower_index: int) -> int:
 
     Returns:
         The centre column within a board of `total_width(num_disks)` columns.
+
+    Examples:
+        >>> [peg_center_x(3, tower) for tower in (0, 1, 2)]
+        [2, 12, 22]
+        >>> [peg_center_x(5, tower) for tower in (0, 1, 2)]
+        [4, 18, 32]
     """
     return (
         tower_index * (peg_visual_width(num_disks) + peg_gap())
@@ -232,6 +295,10 @@ def min_cols(num_disks: int) -> int:
 
     Returns:
         The minimum column count.
+
+    Examples:
+        >>> min_cols(3)   # total_width(3) + 4
+        29
     """
     return total_width(num_disks) + 4
 
@@ -282,6 +349,25 @@ def render(game: HanoiGame, labelling: Labelling) -> list[str]:
     Returns:
         The board as a list of equal-width ASCII lines (empty for a 0-disc
         game).
+
+    Examples:
+        A fresh 3-disc board -- discs stacked on peg 1, the base line, and the
+        label row (shown with ``repr`` so the trailing spaces stay stable):
+
+        >>> game: HanoiGame = HanoiGame(num_disks=3)
+        >>> for line in render(game, Labelling.ONE_TWO_THREE):
+        ...     print(repr(line))
+        '  |         |         |  '
+        '  *         |         |  '
+        ' ***        |         |  '
+        '*****       |         |  '
+        '========================='
+        '  1         2         3  '
+
+        A zero-disc game renders to nothing:
+
+        >>> render(HanoiGame(num_disks=0), Labelling.ONE_TWO_THREE)
+        []
     """
     n: int = game.num_disks
     if n == 0:
@@ -356,6 +442,12 @@ def format_move_tally(moves: Sequence[tuple[int, int]]) -> list[str]:
     Returns:
         One ``"<n>. <from> -> <to>"`` line per move, in order; empty when there
         are no moves.
+
+    Examples:
+        >>> format_move_tally([(1, 3), (1, 2), (3, 2)])
+        ['1. 1 -> 3', '2. 1 -> 2', '3. 3 -> 2']
+        >>> format_move_tally([])
+        []
     """
     return [
         f"{index}. {from_peg} -> {to_peg}"
@@ -381,6 +473,12 @@ def labels_to_towers(
     Returns:
         The ``(from_peg, to_peg)`` physical tower indices, or None if either
         label is out of range.
+
+    Examples:
+        >>> labels_to_towers(Labelling.ONE_THREE_TWO, 1, 3)
+        (0, 1)
+        >>> labels_to_towers(Labelling.ONE_THREE_TWO, 1, 9) is None
+        True
     """
     fp: int | None = label_to_tower(labelling, from_label)
     tp: int | None = label_to_tower(labelling, to_label)

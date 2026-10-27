@@ -94,6 +94,12 @@ check: image ## Compile-check the workspace INCLUDING tests/examples (cargo chec
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
 		-c '$(RUST_SETUP) && cargo check --workspace --all-targets'
 
+.PHONY: test
+test: image ## Run the test suite (cargo test --workspace; runs the doc-comment doctests via --doc) in the container
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c '$(RUST_SETUP) && cargo test --workspace'
+
 .PHONY: type-check
 type-check: image ## Type-check + lint + fmt-check the Tauri frontend web files via Deno (deno check/lint/fmt; JSDoc + checkJs, no node_modules)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \

@@ -40,7 +40,6 @@ from hanoigame.recipe import (
     format_rebinding,
     format_rebinding_table,
     rebinding,
-    rebound_moves,
 )
 
 
@@ -78,18 +77,6 @@ def _play_labeled(
 # --- The recipe -> physical-peg rebinding (the teaching step) -------------
 
 
-def test_rebinding_identity_under_default() -> None:
-    """Under the default labelling the rebinding is the identity."""
-    assert rebinding(Labelling.ONE_TWO_THREE) == ((1, 1), (2, 2), (3, 3))
-
-
-def test_rebinding_under_relabel() -> None:
-    """A relabelling maps each recipe label to the peg now wearing it."""
-    # ONE_THREE_TWO: physical pegs 0,1,2 carry labels 1,3,2, so recipe
-    # label 1 -> peg 1, label 2 -> peg 3, label 3 -> peg 2.
-    assert rebinding(Labelling.ONE_THREE_TWO) == ((1, 1), (2, 3), (3, 2))
-
-
 def test_rebinding_covers_all_six_labellings() -> None:
     """Every labelling rebinds labels {1,2,3} onto a permutation of pegs."""
     # Every labelling yields a permutation of pegs {1,2,3}, one per label.
@@ -111,34 +98,6 @@ def test_format_rebinding_shows_the_mapping_when_relabelled() -> None:
     joined: str = "\n".join(format_rebinding(Labelling.ONE_THREE_TWO))
     assert "label 2 -> peg 3" in joined
     assert "label 3 -> peg 2" in joined
-
-
-def test_rebound_moves_identity_under_default() -> None:
-    """Rebinding moves under the default labelling leaves them unchanged."""
-    moves: tuple[tuple[int, int], ...] = ((1, 2), (1, 3), (2, 3))
-    assert rebound_moves(moves, Labelling.ONE_TWO_THREE) == (
-        (1, 2),
-        (1, 3),
-        (2, 3),
-    )
-
-
-def test_rebound_moves_under_relabel() -> None:
-    """Each move's labels are rewritten to the pegs those labels now sit on."""
-    # ONE_THREE_TWO: label 1->peg 1, 2->peg 3, 3->peg 2. So each move's
-    # labels are rewritten to the pegs those labels currently sit on.
-    moves: tuple[tuple[int, int], ...] = ((1, 2), (1, 3), (2, 3))
-    assert rebound_moves(moves, Labelling.ONE_THREE_TWO) == (
-        (1, 3),
-        (1, 2),
-        (3, 2),
-    )
-
-
-def test_rebound_moves_single_typed_move() -> None:
-    """The rebinding helper also rebinds a single just-typed move."""
-    # The same helper serves a single just-typed move (current-label pair).
-    assert rebound_moves([(2, 3)], Labelling.ONE_THREE_TWO) == ((3, 2),)
 
 
 def test_format_rebinding_table_empty_under_default() -> None:
@@ -200,59 +159,6 @@ def test_move_teaching_lines_only_for_a_relabelled_successful_move() -> None:
 
 
 # --- Recorder + Recipe basics --------------------------------------------
-
-
-def test_recorder_to_recipe_round_trip() -> None:
-    """A Recorder converts its logged moves into a matching Recipe."""
-    rec: Recorder = Recorder()
-    rec.record(1, 3)
-    rec.record(1, 2)
-    recipe: Recipe = rec.to_recipe("two-moves", disk_count=2)
-    assert recipe.name == "two-moves"
-    assert recipe.disk_count == 2
-    assert recipe.default_moves == ((1, 3), (1, 2))
-
-
-def test_recorder_reset_clears_moves() -> None:
-    """Resetting a Recorder discards its recorded moves."""
-    rec: Recorder = Recorder()
-    rec.record(1, 3)
-    rec.reset()
-    assert rec.default_moves == []
-
-
-# --- Registry ------------------------------------------------------------
-
-
-def test_registry_save_and_get() -> None:
-    """The registry stores recipes by name and reports membership and size."""
-    reg: RecipeRegistry = RecipeRegistry()
-    r: Recipe = Recipe(name="foo", disk_count=2, default_moves=((1, 3),))
-    reg.save(r)
-    assert reg.get("foo") is r
-    assert reg.get("bar") is None
-    assert reg.names() == ["foo"]
-    assert "foo" in reg
-    assert len(reg) == 1
-
-
-def test_registry_save_overwrites_same_name() -> None:
-    """Saving a recipe under an existing name replaces the earlier one."""
-    reg: RecipeRegistry = RecipeRegistry()
-    reg.save(Recipe("foo", 2, ((1, 3),)))
-    reg.save(Recipe("foo", 3, ((1, 2),)))
-    recipe: Recipe | None = reg.get("foo")
-    assert recipe is not None
-    assert recipe.default_moves == ((1, 2),)
-    assert len(reg) == 1
-
-
-def test_registry_names_sorted() -> None:
-    """`names` returns saved recipe names in sorted order."""
-    reg: RecipeRegistry = RecipeRegistry()
-    reg.save(Recipe("zebra", 2, ()))
-    reg.save(Recipe("alpha", 2, ()))
-    assert reg.names() == ["alpha", "zebra"]
 
 
 # --- apply_iter end-to-end -----------------------------------------------

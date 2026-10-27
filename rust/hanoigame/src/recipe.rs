@@ -46,6 +46,19 @@ impl Recipe {
 /// converts user-typed labels to default space (via
 /// [`labels_to_towers`](crate::presenter::labels_to_towers) plus 1) before
 /// calling [`Recorder::record`].
+///
+/// # Examples
+/// ```
+/// use hanoigame::recipe::{Recipe, Recorder};
+/// let mut rec: Recorder = Recorder::new();
+/// rec.record(1, 3);
+/// rec.record(1, 2);
+/// let recipe: Recipe = rec.to_recipe("two-moves", 2);
+/// assert_eq!(recipe.default_moves, vec![(1, 3), (1, 2)]);
+/// rec.reset(); // the recorder is emptied, the frozen recipe keeps its moves
+/// assert_eq!(rec.default_moves, Vec::<(u32, u32)>::new());
+/// assert_eq!(recipe.default_moves, vec![(1, 3), (1, 2)]);
+/// ```
 #[derive(Debug, Default, Clone)]
 pub struct Recorder {
     /// Accumulated moves as `(from, to)` pairs of 1-indexed physical pegs.
@@ -255,6 +268,16 @@ fn explain_illegal(
 
 /// Map each recipe label 1..=3 to the 1-indexed physical peg it resolves to
 /// under `labelling` (the identity `[(1,1),(2,2),(3,3)]` under the default).
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::recipe::rebinding;
+/// let identity: [(u32, u32); 3] = rebinding(Labelling::OneTwoThree);
+/// assert_eq!(identity, [(1, 1), (2, 2), (3, 3)]);
+/// // relabelled: label 2 now sits on peg 3, label 3 on peg 2:
+/// assert_eq!(rebinding(Labelling::OneThreeTwo), [(1, 1), (2, 3), (3, 2)]);
+/// ```
 pub fn rebinding(labelling: Labelling) -> [(u32, u32); 3] {
     let mut pairs: [(u32, u32); 3] = [(0, 0); 3];
     for (i, label) in [1u32, 2, 3].into_iter().enumerate() {
@@ -285,6 +308,17 @@ pub fn format_rebinding(labelling: Labelling) -> Vec<String> {
 
 /// Rewrite each `(from_label, to_label)` move onto the 1-indexed physical pegs
 /// those labels currently sit on (identity under the default labelling).
+///
+/// # Examples
+/// ```
+/// use hanoigame::Labelling;
+/// use hanoigame::recipe::rebound_moves;
+/// let moves: [(u32, u32); 3] = [(1, 2), (1, 3), (2, 3)];
+/// // under the default labelling the moves are unchanged:
+/// assert_eq!(rebound_moves(&moves, Labelling::OneTwoThree), vec![(1, 2), (1, 3), (2, 3)]);
+/// // relabelled, each label is rebound to the peg it currently sits on:
+/// assert_eq!(rebound_moves(&moves, Labelling::OneThreeTwo), vec![(1, 3), (1, 2), (3, 2)]);
+/// ```
 pub fn rebound_moves(moves: &[(u32, u32)], labelling: Labelling) -> Vec<(u32, u32)> {
     moves
         .iter()
@@ -386,11 +420,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rebinding_identity_and_relabel() {
-        assert_eq!(rebinding(Labelling::OneTwoThree), [(1, 1), (2, 2), (3, 3)]);
-        assert_eq!(rebinding(Labelling::OneThreeTwo), [(1, 1), (2, 3), (3, 2)]);
-    }
+    // rebinding / rebound_moves single-case identity-vs-relabel and the Recorder
+    // round-trip are doctests on those items now; the format/table/apply/replay
+    // tests below keep the multi-column and multi-step coverage.
 
     #[test]
     fn format_rebinding_default_vs_relabelled() {
@@ -398,23 +430,6 @@ mod tests {
         let joined = format_rebinding(Labelling::OneThreeTwo).join("\n");
         assert!(joined.contains("label 2 -> peg 3"));
         assert!(joined.contains("label 3 -> peg 2"));
-    }
-
-    #[test]
-    fn rebound_moves_identity_and_relabel() {
-        let moves = [(1, 2), (1, 3), (2, 3)];
-        assert_eq!(
-            rebound_moves(&moves, Labelling::OneTwoThree),
-            vec![(1, 2), (1, 3), (2, 3)]
-        );
-        assert_eq!(
-            rebound_moves(&moves, Labelling::OneThreeTwo),
-            vec![(1, 3), (1, 2), (3, 2)]
-        );
-        assert_eq!(
-            rebound_moves(&[(2, 3)], Labelling::OneThreeTwo),
-            vec![(3, 2)]
-        );
     }
 
     #[test]
@@ -439,19 +454,6 @@ mod tests {
         assert!(joined2.contains("Move (your labels)"));
         assert!(joined2.contains("1: 2 -> 3"));
         assert!(joined2.contains("1: 3 -> 2"));
-    }
-
-    #[test]
-    fn recorder_round_trip_and_reset() {
-        let mut rec = Recorder::new();
-        rec.record(1, 3);
-        rec.record(1, 2);
-        let recipe = rec.to_recipe("two-moves", 2);
-        assert_eq!(recipe.name, "two-moves");
-        assert_eq!(recipe.disk_count, 2);
-        assert_eq!(recipe.default_moves, vec![(1, 3), (1, 2)]);
-        rec.reset();
-        assert_eq!(rec.default_moves, Vec::<(u32, u32)>::new());
     }
 
     #[test]
