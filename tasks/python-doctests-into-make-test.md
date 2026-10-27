@@ -41,5 +41,12 @@ This repo has a **Rust** subproject too (`rust/`); its doctest work is the sibli
 
 ## Notes
 
-Part of a cross-repo "doctests by default" initiative; the convention write-up is tracked in
-**runClaudeInContainer** (`tasks/document-doctests-by-default.md`), to be done after the migrations.
+Part of a cross-repo "doctests by default" initiative. The shared convention + lessons now live in
+**`~/.claude/reference/doctests-by-default.md`** (canonical: github.com/billsix/runClaudeInContainer;
+read its `## Python` section first — it covers the `--doctest-modules` wiring, the
+import-time-execution trap, the consolidation hazards, and the keep-as-pytest exceptions).
+
+**Required on completion:** append anything new this (Python) migration taught to
+`doctests-by-default.md` (its `## Python` section, or the language-agnostic core if general) and
+re-sync the byte-identical runCrush mirror (`runCrushInContainer tasks/reference/doctests-by-default.md`).
+The sibling [[rust-doctests-into-make-test]] does the same for the `## Rust` section.

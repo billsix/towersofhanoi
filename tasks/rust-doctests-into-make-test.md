@@ -47,5 +47,11 @@ The sibling Python subproject task is [[python-doctests-into-make-test]].
 ## Notes
 
 - `use std::X;` lines a doc example needs are either shown (teaching) or hidden with a leading `#`.
-- Part of a cross-repo "doctests by default" initiative; the convention write-up is tracked in
-  **runClaudeInContainer** (`tasks/document-doctests-by-default.md`), to be done after the migrations.
+- Part of a cross-repo "doctests by default" initiative. The shared convention + lessons now live in
+  **`~/.claude/reference/doctests-by-default.md`** (canonical: github.com/billsix/runClaudeInContainer;
+  read its `## Rust` section first — `cargo test` runs `--doc` doctests for free, so wiring is just a
+  `make test` that runs `cargo test`; plus the consolidation hazards and keep-as-`#[test]` exceptions).
+- **Required on completion:** append anything new this (Rust) migration taught to
+  `doctests-by-default.md` (its `## Rust` section, or the language-agnostic core if general) and
+  re-sync the byte-identical runCrush mirror (`runCrushInContainer tasks/reference/doctests-by-default.md`).
+  The sibling [[python-doctests-into-make-test]] does the same for the `## Python` section.
