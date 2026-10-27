@@ -52,6 +52,9 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
 - `make check` — `cargo check --workspace --all-targets`: the compile gate. `--all-targets`
   is load-bearing — bare `cargo check` and `make format` both skip the test modules, so a
   test that stopped compiling slips through without it (caught one here 2026-10-25).
+- `make test` — `cargo test --workspace`: the run gate. Runs the unit tests and the
+  `hanoigame` crate's **doctests** (`cargo test --doc`, which `check` compiles but never runs).
+  Standalone, like `check`/`type-check` — nothing interactive depends on it.
 - `make type-check` — the **Tauri frontend web** gate, via **Deno**: `deno check --check-js`
   (JSDoc + `checkJs`/strict from `tauri/frontend/deno.json`) + `deno lint` (JS only) + `deno fmt
   --check` (all three files). Deno is a pinned binary baked by `entrypoint/02-install-deno.sh` —
@@ -76,6 +79,9 @@ carries an explicit `let x: T =`, preferring the annotation to a turbofish; patt
 inferred. This is a deliberate deviation from idiomatic Rust, mirroring the Python
 annotate-every-binding rule; there is no checker, it is review discipline. The full rule and its
 rationale: `runClaudeInContainer tasks/reference/rust-coding-standard.md` ("Type annotations").
+**Tests are doctests by default** — a test documenting an item's API is a ` ```rust ` example in
+its doc comment (run by `make test`), with typed bindings like the code; loop / property /
+multi-step tests stay `#[test]`. See `~/.claude/reference/doctests-by-default.md`.
 The wxDragon GUI build gotchas (libclang/bindgen, from-source wxWidgets, system image libs, X11
 session libs) are documented in `entrypoint/01-install-rust-base.sh` and
 `~/.claude/reference/rust-gui-tui-and-ecosystem.md`; Tauri specifics in

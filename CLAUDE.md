@@ -12,11 +12,11 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 `entrypoint/`, and emacs set — build and run it from its own directory:
 
 - **`python/`** — the **canonical** implementation (the behaviour oracle). `cd python`,
-  then `make cli | tui | wx | format | type-check | shell`. See `python/CLAUDE.md`.
+  then `make cli | tui | wx | format | type-check | test | shell`. See `python/CLAUDE.md`.
 - **`rust/`** — a Cargo workspace mirroring Python feature-for-feature, **including the
   Tauri app** at `rust/tauri/` and the **egui app** at `rust/hanoi-egui/` (native + web; each its
   own workspace, like the wx one is just another UI). `cd rust`, then
-  `make cli | tui | wx | tauri | egui | egui-web | format | check | type-check | shell`. See `rust/CLAUDE.md`.
+  `make cli | tui | wx | tauri | egui | egui-web | format | check | type-check | test | shell`. See `rust/CLAUDE.md`.
 - **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
   **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
   app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
@@ -95,15 +95,17 @@ root builds the book.
   default; `MINIMAL_IMAGE=1` for a lean image). `make docs` builds html/pdf/epub into
   `./output/towersofhanoi/`. `make format` / `make type-check` delegate to `python/`.
 - **`cd python && make`** — `cli` / `tui` / `wx` run the front-ends (X11 + Wayland
-  passthrough for the wx GUI); `format` (ruff) / `type-check` (ty) are the gates; `shell`.
+  passthrough for the wx GUI); `format` (ruff) / `type-check` (ty) / `test` (pytest, which
+  collects the library doctests via `--doctest-modules`) are the gates; `shell`.
   `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs — no OpenGL/mesa (the board is 2D
   wx/Cairo). `USE_EMACS` (default 1) installs emacs + the Python dev set.
 - **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` / `egui` run the front-ends (`egui-web` /
   `egui-serve` for the egui WebAssembly build, behind the `USE_WASM` toolchain); `format`
   (rustfmt + `deno fmt` of the Tauri frontend web files), `check` (`cargo check --workspace
-  --all-targets`, which compiles the test modules bare `cargo check` skips), and `type-check`
+  --all-targets`, which compiles the test modules bare `cargo check` skips), `type-check`
   (the Tauri frontend web files via Deno — `deno check` + `deno lint` + `deno fmt --check`, no
-  `node_modules`) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
+  `node_modules`), and `test` (`cargo test --workspace`, which runs the unit tests and the
+  `hanoigame` crate's doctests) are the gates. The crates build at runtime (cached in `rust/.container-*`) because wxDragon
   builds wxWidgets from source over the network; Tauri needs webkit2gtk + the DMABUF flag.
 - **`cd cpp && make`** — `gui` (native ImGui) / `wx` (wxWidgets, from the shared `ui/hanoi.xrc`) /
   `webassembly` (→ gitignored `web/`) / `serve` (http at :8000); `format` (clang-format, never the
@@ -122,6 +124,11 @@ pip install -e . && hanoi`.
   Fully typed + Google-docstringed; `make type-check` runs `ty` and must stay green.
 - All front-ends (both languages) go through the shared `engine.dispatch` + `commands.parse`
   + `presenter.render` layer — keep them thin; logic belongs in the shared core.
+- **Tests are doctests by default** (both languages): a unit test documenting an API lives in
+  that item's docstring / doc comment and runs under `make test` (Python `--doctest-modules`,
+  Rust `cargo test --doc`); typed bindings in the example, per house style. Parametrized /
+  stateful / integration / loop tests stay plain `#[test]`/pytest. See
+  `~/.claude/reference/doctests-by-default.md`.
 - Recipes are stored in the user's *labels* and replayed through the *current* labelling —
   that label-space transparency is the teaching point. Preserve it.
 - The Python package is the **behaviour oracle** for the Rust/C++ ports — never remove it to

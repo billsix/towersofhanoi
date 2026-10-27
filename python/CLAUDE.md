@@ -12,8 +12,10 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
   - `hanoi` / `hanoigame` — ncurses TUI (`make tui`)
   - `hanoi-cli` — plain stdin/stdout, readline completion (`make cli`)
   - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board) (`make wx`)
-- `tests/` — pytest suite. All front-ends route through `engine.dispatch` +
-  `commands.parse` + `presenter.render`; keep them thin.
+- `tests/` — pytest suite, run by `make test`; `pytest.ini` also collects the library
+  **doctests** (`--doctest-modules --import-mode=importlib`, `testpaths = tests src`). All
+  front-ends route through `engine.dispatch` + `commands.parse` + `presenter.render`; keep
+  them thin.
 
 ## Build / container workflow
 
@@ -27,7 +29,8 @@ offline-rebuildable). Mounts at `/hanoi-python`.
   emacs + the vendored Python dev set.
 - `make shell` / `make shell-exec SCRIPT=… | CMD='…'` — dev shell (share one invocation).
 - `make cli` / `make tui` / `make wx` — run a front-end (X11 + Wayland passthrough).
-- `make format` (ruff) / `make type-check` (ty over src + tests) — the gates.
+- `make format` (ruff) / `make type-check` (ty over src + tests) / `make test` (pytest,
+  collecting the library doctests via `--doctest-modules`) — the gates.
 - `make image-export` / `make image-import FILE=…` — OCI tar save/load.
 - `make update-emacs-packages` — refresh the vendored `entrypoint/dotfiles/.emacs.d/elpa`
   (needs network).
@@ -47,4 +50,8 @@ per-language root-pin convention in the repo-root `CLAUDE.md`.
 Python, ruff (line-length 80, from `[tool.ruff] line-length` in `pyproject.toml` — the
 single source of truth, so `format.sh` passes no flag). Fully typed + Google docstrings;
 `make type-check` runs `ty` and must stay green. This package is the behaviour oracle for
-the Rust/C++ ports — never remove it to satisfy a port.
+the Rust/C++ ports — never remove it to satisfy a port. **Tests are doctests by default** — a
+test documenting an API lives in that item's docstring (collected by `--doctest-modules`),
+typed bindings in the example; parametrized / stateful / integration tests stay pytest.
+Keep modules import-safe (`if __name__ == "__main__":` for any runnable entry) so
+`--doctest-modules` collects the whole package. See `~/.claude/reference/doctests-by-default.md`.
