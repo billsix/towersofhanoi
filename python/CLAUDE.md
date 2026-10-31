@@ -11,7 +11,10 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
   with three thin front-ends over it:
   - `hanoi` / `hanoigame` — ncurses TUI (`make tui`)
   - `hanoi-cli` — plain stdin/stdout, readline completion (`make cli`)
-  - `hanoi-gui` — wxPython (XRC UI; text or 2D-graphics board) (`make wx`)
+  - `hanoi-gui` — wxPython, organized in the learning-flow tiers (board + goal + always-visible move
+    history + How-to-play Tier 1; relabel/recipes gated until the first win Tier 2; recipes in a Recipe
+    menu Tier 3 — see `../tasks/reference/ui-design-principles.md`). 2D-graphics board also has a
+    drag-and-drop-discs spike (+ move buttons); text board under View. (`make wx`)
 - `tests/` — pytest suite, run by `make test`; `pytest.ini` also collects the library
   **doctests** (`--doctest-modules --import-mode=importlib`, `testpaths = tests src`). All
   front-ends route through `engine.dispatch` + `commands.parse` + `presenter.render`; keep
