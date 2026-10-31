@@ -1,8 +1,32 @@
 # Spike: drag-and-drop disks in the wxPython GUI (replace move buttons)
 
-**Status:** proposed — investigation/spike; needs go-ahead to start.
+**Status:** spike IMPLEMENTED 2026-10-31 (branch `ui-learning-flow-and-fixes`) — awaiting the
+maintainer's on-display evaluation ("do I like it?"). NOT archived until that call; the
+port-to-other-UIs follow-ups are filed only if approved.
 **Priority:** 3
 **Difficulty:** 6
+
+## Work record (spike implemented 2026-10-31)
+
+- **What was built:** in `python/src/hanoigame/board_renderers.py`, `GraphicsBoardRenderer` now
+  supports mouse pick-up/drag/drop of a peg's top disc — mouse capture + hit-testing (nearest peg,
+  the decided forgiving targeting), geometry captured each paint, the dragged disc follows the cursor
+  and is omitted from its stack, and a `set_move_callback` / `set_interactive` API. `hanoigui.py`
+  wires the drop callback (`_on_board_drop`: physical pegs → current labels → the existing `_on_move`,
+  so an illegal drop snaps back with the usual reason and a drop under a relabelling shows the
+  single-move rebinding) and disables dragging once the game is won. **Both** the move buttons and
+  dragging are active (the decided spike choice; whether to drop the buttons is the post-eval call).
+- **Verification:** `cd python && make format` / `type-check` / `test` green (130 passed / 2 skipped);
+  a headless Xvfb smoke (`tasks/adhoc/drag-drop-spike/gui_smoke.py`) drives a board drop → engine
+  dispatch and a drop-to-win. The *feel* of dragging can only be judged on a real display.
+- **How to evaluate (maintainer):** `cd python && make wx`, then drag a top disc from one peg onto
+  another (graphics board; the default). Compare against the move buttons. Decide: keep drag + buttons,
+  drag-only, or revert. The headless smoke is at `tasks/adhoc/drag-drop-spike/gui_smoke.py`.
+- **Recommendation:** keep drag **and** buttons. Dragging is the stronger direct-manipulation teaching
+  gesture (Apple-HIG), but the buttons are the accessible/keyboard path and feature-spec §6.2's
+  "disable illegal ones" affordance; dropping them is a separate accessibility decision.
+- **If approved → follow-ups to file:** port drag-drop to C++ ImGui, C++ wx, Rust wx, Rust egui, Rust
+  Tauri (one per graphical UI), cross-linked with `tasks/fan-out-ui-learning-flow.md`.
 
 ## BLUF
 
