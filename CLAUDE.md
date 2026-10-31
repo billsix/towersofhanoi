@@ -162,7 +162,11 @@ check-only — `check-format` runs the formatter then fails on `git diff`, never
 **Reference docs:** `tasks/reference/feature-spec.md` — the **UI-independent feature specification**
 (rules, concepts, every feature + what each UI must show + why, then TUI/GUI advice + a compliance
 checklist). It is the **parity authority**: read it before adding or changing any feature or building a
-new UI/language, and keep it in step with the Python oracle (the spec leads, the code follows). Then
+new UI/language, and keep it in step with the Python oracle (the spec leads, the code follows).
+`tasks/reference/ui-design-principles.md` is the **UI design philosophy** (Apple-HIG-grounded: the
+learner-journey, three-tier progressive-disclosure flow every front-end presents) — read it before
+changing a UI's information architecture or building a new UI; the feature spec gives the *what*, this
+doc gives the *flow/hierarchy* and the *why*. Then
 `tasks/reference/architecture-overview.md` (dispatch data-flow + the
 default-label-space recipe invariant + the per-file teaching intent + wx/GTK gotchas) and
 `tasks/reference/per-language-subproject-layout.md` (the per-language container/emacs template +

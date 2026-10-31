@@ -45,6 +45,9 @@ ignore = []
 # see that context, so the suppression is scoped to just these two files.
 "src/hanoigame/hanoiiterative.py" = ["T201"]
 "src/hanoigame/hanoirecursive.py" = ["T201"]
+# The GUI smoke harness prints "SMOKE OK <n>" as its pass signal -- that
+# terminal line IS the harness's result (same reason as the demos above).
+"tools/gui_smoke.py" = ["T201"]
 
 [project.scripts]
 hanoi = "hanoigame.hanoigame:main"

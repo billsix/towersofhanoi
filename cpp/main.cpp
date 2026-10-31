@@ -122,7 +122,15 @@ void draw_board(const App &app) {
   const ImVec2 origin = ImGui::GetCursorScreenPos();
   const float board_w = ImGui::GetContentRegionAvail().x;
   const float board_h = 260.0f;
-  const float peg_gap = board_w / 3.0f;
+  // Match the egui + wxPython boards: a fixed edge margin, then three equal
+  // peg zones across the remaining width, so the outer pegs (and the widest
+  // discs) don't hug the board edges and all three graphical boards share one
+  // layout. The centres were already evenly spaced; the ImGui board uniquely
+  // lacked this margin, so its outer pegs sat flush to the edges.
+  const float margin = 20.0f;
+  const float inner_w = board_w - 2.0f * margin;
+  const float avail_w = inner_w > 80.0f ? inner_w : 80.0f;
+  const float peg_gap = avail_w / 3.0f;
   const float base_y = origin.y + board_h;
   const float disk_h = 20.0f;
   const float max_disk_w = peg_gap * 0.9f;
@@ -130,7 +138,8 @@ void draw_board(const App &app) {
   const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
 
   for (int peg = 0; peg < 3; ++peg) {
-    const float cx = origin.x + peg_gap * (static_cast<float>(peg) + 0.5f);
+    const float cx =
+        origin.x + margin + peg_gap * (static_cast<float>(peg) + 0.5f);
     const int label = hanoi::change_labels_on_pegs(app.labelling, peg);
     const ImU32 peg_col = kLabelColors[static_cast<std::size_t>(label)];
     dl->AddLine(ImVec2(cx, base_y), ImVec2(cx, origin.y + 12.0f), peg_col,
@@ -534,8 +543,8 @@ void draw_frame(App &app) {
 
   ImGui::Text("Moves: %d   (optimal: %d)", app.game.current_moves(),
               optimal_moves(app.game.num_disks()));
-  ImGui::SameLine();
   if (app.won()) {
+    ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.3f, 0.9f, 0.3f, 1.0f), "  -- solved!");
   }
 
