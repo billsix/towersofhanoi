@@ -17,13 +17,29 @@
 
 """wxPython front-end for HanoiGame.
 
-Plain-text board (monospace `wx.TextCtrl`) plus a button-driven control
-panel: six move buttons (auto-enabled from `game.move_options()`), six
-relabel permutation buttons, and a recipe list with Save / Apply / Show.
-Disc count and New Game live on the frame's menu bar; per-action
-feedback lives on the frame's status bar. Same `engine.GameSession`
-dispatcher as the CLI and curses, so behaviour stays consistent across
-all three frontends.
+Organized around the learner's journey (feature-spec.md §3.5, Apple-HIG
+progressive disclosure), in three tiers:
+
+- **Tier 1 — always visible:** the board (text or 2D-graphics), the six move
+  buttons (auto-enabled from `game.move_options()`), an always-present goal
+  line, a dismissible "How to play" pane, and an always-visible move-history
+  panel (every move this game in the default 1-2-3 physical labels).
+- **Tier 2 — unlocked at the first win (for the session):** the Relabel pegs
+  menu and saving a recipe. Gated before then by disabling the menus ("dim,
+  don't remove").
+- **Tier 3 — in the Recipe menu, out of the workspace:** list / show / apply a
+  recipe, and the three-panel rebinding view.
+
+New Game / disc count and board style live on the menu bar; per-action feedback
+and the moves counter live on the two-field status bar. Same
+`engine.GameSession` dispatcher as the CLI and curses, so behaviour stays
+consistent across all front-ends.
+
+The redesign is programmatic (recipe sidebar hidden, Recipe/View menu items and
+the history/goal/how-to panels built in Python) so the shared `ui/hanoi.xrc` —
+also loaded by the C++ and Rust wx front-ends — is untouched in this oracle
+phase; fanning the flow out to the other UIs (and settling the shared XRC form)
+is a separate task.
 """
 
 import importlib.resources
@@ -45,6 +61,17 @@ from .recipe import Recipe, RecipeRegistry, rebinding, rebound_moves
 
 MAX_DISKS: int = 10
 DEFAULT_DISKS: int = 3
+
+HOWTO_TEXT: str = (
+    "Move the whole stack of discs from peg 1 to peg 3.\n"
+    "• Move one disc at a time — always the top disc of a peg.\n"
+    "• Never place a larger disc on a smaller one.\n"
+    "\n"
+    "The method this teaches: solve a SMALL stack, then RELABEL the pegs to\n"
+    'reuse that solution for a bigger stack — "solve small, relabel,'
+    ' replay."\n'
+    "Relabelling and saved recipes unlock after your first win."
+)
 
 ALL_LABEL_PAIRS: tuple[tuple[int, int], ...] = (
     (1, 2),
@@ -82,11 +109,19 @@ class HanoiFrame(wx.Frame):
         self.session: GameSession
         self.disc_count_value = DEFAULT_DISKS
         self.move_buttons: dict[tuple[int, int], wx.Window] = {}
-        # The non-modal move-history dialog, when open (None otherwise); kept so
-        # `_refresh` can live-update it as moves are made.
-        self._tally_dlg: wx.Dialog | None = None
-        self._tally_list: wx.ListBox | None = None
-        self._tally_header: wx.StaticText | None = None
+        # Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the
+        # first win and stay unlocked for the rest of the session.
+        self._won_once: bool = False
+        # The always-visible Tier-1 move-history panel, built in `_build_ui`.
+        self._history_panel: wx.Panel | None = None
+        self._history_list: wx.ListBox | None = None
+        self._history_header: wx.StaticText | None = None
+        # Tier-1 onboarding (goal line + "How to play"), built in `_build_ui`.
+        self._goal_label: wx.StaticText | None = None
+        self._howto_pane: wx.CollapsiblePane | None = None
+        # Menu-bar positions of the Tier-2 menus `_refresh` enables/disables.
+        self._relabel_menu_pos: int = -1
+        self._recipe_menu_pos: int = -1
         self._build_menu_bar()
         self.CreateStatusBar(2)
         # Field 0 stretches (action feedback); field 1 is fixed-width for
@@ -157,39 +192,80 @@ class HanoiFrame(wx.Frame):
                 id=item_id,
             )
 
-        # Move-history tally. Built programmatically (not in the shared
-        # ui/hanoi.xrc) so the C++/Rust menus — which load the same XRC — are
-        # untouched during this oracle phase; the fan-out task finalizes the
-        # presentation (and its XRC form) across every UI. See
-        # tasks/wxpython-running-move-tally.md.
-        view_menu: wx.Menu = wx.Menu()
-        tally_item: wx.MenuItem = view_menu.Append(
+        # Recipe menu (Tier 3, feature-spec §3.5) — recipes live here, not in
+        # the main workspace. Built programmatically so the shared ui/hanoi.xrc
+        # (also loaded by the C++/Rust wx front-ends) is untouched this phase;
+        # the fan-out task settles the shared XRC form across every UI.
+        recipe_menu: wx.Menu = wx.Menu()
+        self._recipe_save_item: wx.MenuItem = recipe_menu.Append(
             wx.ID_ANY,
-            "Move &history…\tCtrl+H",
-            "Show every move this game in the default 1-2-3 (physical) labels",
+            "&Save Current Solution\tCtrl+S",
+            "Save the just-won solution as a reusable recipe",
         )
-        menubar.Append(view_menu, "&View")
-        self.Bind(wx.EVT_MENU, self._on_move_tally, id=tally_item.GetId())
+        recipe_menu.AppendSeparator()
+        self._recipe_apply_item: wx.MenuItem = recipe_menu.Append(
+            wx.ID_ANY,
+            "&Apply Recipe…",
+            "Replay a saved recipe under the current labelling",
+        )
+        self._recipe_show_item: wx.MenuItem = recipe_menu.Append(
+            wx.ID_ANY, "S&how Recipe…", "Show a saved recipe's steps"
+        )
+        self._recipe_list_item: wx.MenuItem = recipe_menu.Append(
+            wx.ID_ANY, "&List Recipes…", "List every saved recipe"
+        )
+        # Insert Recipe after Relabel: Game, Relabel, Recipe, View, Help.
+        self._relabel_menu_pos = menubar.FindMenu("Relabel pegs")
+        self._recipe_menu_pos = self._relabel_menu_pos + 1
+        menubar.Insert(self._recipe_menu_pos, recipe_menu, "&Recipe")
+        self.Bind(wx.EVT_MENU, self._on_save, id=self._recipe_save_item.GetId())
+        self.Bind(
+            wx.EVT_MENU,
+            self._on_apply_recipe,
+            id=self._recipe_apply_item.GetId(),
+        )
+        self.Bind(
+            wx.EVT_MENU, self._on_show_recipe, id=self._recipe_show_item.GetId()
+        )
+        self.Bind(
+            wx.EVT_MENU,
+            self._on_list_recipes,
+            id=self._recipe_list_item.GetId(),
+        )
+
+        # View menu: add the always-visible move-history toggle and the
+        # How-to-play toggle to the existing (XRC) View menu.
+        view_pos: int = menubar.FindMenu("View")
+        view_menu: wx.Menu = menubar.GetMenu(view_pos)
+        view_menu.AppendSeparator()
+        self._history_toggle: wx.MenuItem = view_menu.AppendCheckItem(
+            wx.ID_ANY,
+            "Move &history\tCtrl+H",
+            "Show the running list of moves in default 1-2-3 labels",
+        )
+        self._history_toggle.Check(True)
+        self._howto_toggle: wx.MenuItem = view_menu.AppendCheckItem(
+            wx.ID_ANY, "How to &play", "Show the how-to-play panel"
+        )
+        self._howto_toggle.Check(True)
+        self.Bind(
+            wx.EVT_MENU,
+            self._on_toggle_history,
+            id=self._history_toggle.GetId(),
+        )
+        self.Bind(
+            wx.EVT_MENU, self._on_toggle_howto, id=self._howto_toggle.GetId()
+        )
 
     def _build_ui(self) -> None:
-        """Load the board/recipe panel from XRC and wire up its controls."""
-        # Load the panel layout from hanoi.xrc (already loaded once by
-        # _build_menu_bar). Fonts, event bindings, and dynamic enable/disable
-        # state are wired up in Python below; XRC only describes the static
-        # widget tree.
+        """Lay out the window: the XRC board panel (recipe sidebar hidden),
+        wrapped with the Tier-1 onboarding (goal + How to play) above it and the
+        always-visible move-history panel to its right."""
         res: wx.xrc.XmlResource = self._load_hanoi_xrc()
         self.panel = res.LoadPanel(self, "HanoiPanel")
-        frame_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
-        frame_sizer.Add(self.panel, proportion=1, flag=wx.EXPAND)
-        self.SetSizer(frame_sizer)
 
-        # Named controls
+        # Named controls from the XRC panel.
         self.board_slot = wx.xrc.XRCCTRL(self, "board_slot")
-        self.recipe_list = wx.xrc.XRCCTRL(self, "recipe_list")
-        self.save_btn = wx.xrc.XRCCTRL(self, "recipe_save")
-        self.apply_btn = wx.xrc.XRCCTRL(self, "recipe_apply")
-        self.show_btn = wx.xrc.XRCCTRL(self, "recipe_show")
-
         from_label: int
         to_label: int
         for from_label, to_label in ALL_LABEL_PAIRS:
@@ -197,18 +273,14 @@ class HanoiFrame(wx.Frame):
                 self, f"move_{from_label}_{to_label}"
             )
 
-        self.recipe_list.SetFont(
-            wx.Font(
-                12,
-                wx.FONTFAMILY_TELETYPE,
-                wx.FONTSTYLE_NORMAL,
-                wx.FONTWEIGHT_NORMAL,
-            )
-        )
+        # Tier 3: hide the in-panel recipe sidebar — recipes move to the Recipe
+        # menu (feature-spec §3.5). The shared XRC still defines these controls
+        # for the other wx front-ends, so we only hide them here.
+        self._hide_recipe_sidebar()
 
-        # board_slot holds whichever BoardRenderer is active. Graphics
-        # is the default — text view remains available under View →
-        # Board Style for parity with CLI / curses output.
+        # board_slot holds whichever BoardRenderer is active. Graphics is the
+        # default — text view remains under View → Board Style for parity with
+        # the CLI / curses output.
         self.board_slot.SetSizer(wx.BoxSizer(wx.VERTICAL))
         self.board_renderer: BoardRenderer = GraphicsBoardRenderer(
             self.board_slot
@@ -218,17 +290,6 @@ class HanoiFrame(wx.Frame):
         )
         self.style_graphics_item.Check(True)
 
-        # Recipe button bindings + double-click on the list as a Show
-        # shortcut so a curious user can flip through recipes quickly.
-        # Save Current Solution is the post-win save path (no auto-modal
-        # — `_refresh` enables it iff `is_won()`).
-        self.Bind(wx.EVT_BUTTON, self._on_save, id=wx.xrc.XRCID("recipe_save"))
-        self.Bind(
-            wx.EVT_BUTTON, self._on_apply, id=wx.xrc.XRCID("recipe_apply")
-        )
-        self.Bind(wx.EVT_BUTTON, self._on_show, id=wx.xrc.XRCID("recipe_show"))
-        self.recipe_list.Bind(wx.EVT_LISTBOX_DCLICK, self._on_show)
-
         # Move button bindings — lambda captures the from/to pair.
         for from_label, to_label in ALL_LABEL_PAIRS:
             self.Bind(
@@ -237,7 +298,120 @@ class HanoiFrame(wx.Frame):
                 id=wx.xrc.XRCID(f"move_{from_label}_{to_label}"),
             )
 
+        # Frame layout: onboarding on top, then [board panel | history panel].
+        onboarding: wx.Sizer = self._build_onboarding()
+        self._history_panel = self._build_history_panel()
+        row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
+        row.Add(self.panel, proportion=1, flag=wx.EXPAND)
+        row.Add(
+            self._history_panel,
+            proportion=0,
+            flag=wx.EXPAND | wx.TOP | wx.BOTTOM | wx.RIGHT,
+            border=6,
+        )
+        frame_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(
+            onboarding, proportion=0, flag=wx.EXPAND | wx.ALL, border=6
+        )
+        frame_sizer.Add(row, proportion=1, flag=wx.EXPAND)
+        self.SetSizer(frame_sizer)
         self.Center()
+
+    def _hide_recipe_sidebar(self) -> None:
+        """Collapse the XRC panel's right-hand recipe sidebar (list + buttons);
+        recipes move to the Recipe menu. The widgets stay defined in the shared
+        XRC for the other wx UIs, so here we only hide the whole Recipes box."""
+        recipe_list: wx.Window = wx.xrc.XRCCTRL(self, "recipe_list")
+        box_sizer: wx.Sizer | None = recipe_list.GetContainingSizer()
+        if box_sizer is None:
+            return
+        if isinstance(box_sizer, wx.StaticBoxSizer):
+            box_sizer.GetStaticBox().Hide()
+        top: wx.Sizer | None = self.panel.GetSizer()
+        if top is None:
+            return
+        row_item: wx.SizerItem | None = top.GetItem(0)
+        row: wx.Sizer | None = row_item.GetSizer() if row_item else None
+        if row is not None:
+            row.Hide(box_sizer, recursive=True)
+        self.panel.Layout()
+
+    def _build_onboarding(self) -> wx.Sizer:
+        """Tier-1 onboarding: an always-present goal line (set per game by
+        `_update_goal`) plus a dismissible 'How to play' pane, expanded by
+        default (the audience does not already know the puzzle)."""
+        sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        self._goal_label = wx.StaticText(self, label="")
+        goal_font: wx.Font = self._goal_label.GetFont()
+        goal_font.MakeBold()
+        self._goal_label.SetFont(goal_font)
+        sizer.Add(
+            self._goal_label,
+            proportion=0,
+            flag=wx.LEFT | wx.RIGHT | wx.TOP,
+            border=4,
+        )
+
+        self._howto_pane = wx.CollapsiblePane(
+            self,
+            label="How to play",
+            style=wx.CP_DEFAULT_STYLE | wx.CP_NO_TLW_RESIZE,
+        )
+        pane: wx.Window = self._howto_pane.GetPane()
+        howto_text: wx.StaticText = wx.StaticText(pane, label=HOWTO_TEXT)
+        pane_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        pane_sizer.Add(howto_text, proportion=0, flag=wx.ALL, border=6)
+        pane.SetSizer(pane_sizer)
+        self._howto_pane.Expand()
+        self.Bind(
+            wx.EVT_COLLAPSIBLEPANE_CHANGED,
+            self._on_howto_changed,
+            id=self._howto_pane.GetId(),
+        )
+        sizer.Add(
+            self._howto_pane,
+            proportion=0,
+            flag=wx.EXPAND | wx.ALL,
+            border=4,
+        )
+        return sizer
+
+    def _build_history_panel(self) -> wx.Panel:
+        """Tier-1 always-visible move history: every move this game in the
+        default 1-2-3 (physical) labels, with a live count vs the optimal
+        2^N-1. Populated by `_update_history` from `recorder.default_moves`."""
+        panel: wx.Panel = wx.Panel(self)
+        mono: wx.Font = wx.Font(
+            12,
+            wx.FONTFAMILY_TELETYPE,
+            wx.FONTSTYLE_NORMAL,
+            wx.FONTWEIGHT_NORMAL,
+        )
+        title: wx.StaticText = wx.StaticText(panel, label="Move history")
+        title_font: wx.Font = title.GetFont()
+        title_font.MakeBold()
+        title.SetFont(title_font)
+        self._history_header = wx.StaticText(panel, label="")
+        self._history_list = wx.ListBox(panel)
+        self._history_list.SetFont(mono)
+        row_h: int = max(1, self._history_list.GetCharHeight())
+        self._history_list.SetMinSize(wx.Size(240, row_h * 12 + 8))
+        sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(title, proportion=0, flag=wx.ALL, border=6)
+        sizer.Add(
+            self._history_header,
+            proportion=0,
+            flag=wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            border=6,
+        )
+        sizer.Add(
+            self._history_list,
+            proportion=1,
+            flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            border=6,
+        )
+        panel.SetSizer(sizer)
+        return panel
 
     # --- Event handlers --------------------------------------------------
 
@@ -327,13 +501,17 @@ class HanoiFrame(wx.Frame):
             self._set_status(result.lines[0])
         self._refresh()
 
-    def _on_apply(self, _evt: wx.CommandEvent) -> None:
-        """Replay the selected recipe; under a relabelling, show the
-        three-panel rebinding dialog for the whole recipe."""
-        name: str | None = self._selected_recipe_name()
-        if not name:
-            self._set_status("Select a recipe first.")
-            return
+    def _on_apply_recipe(self, _evt: wx.CommandEvent) -> None:
+        """Choose a saved recipe and replay it under the current labelling."""
+        name: str | None = self._choose_recipe(
+            "Apply which recipe under the current labelling?"
+        )
+        if name is not None:
+            self._apply_recipe_by_name(name)
+
+    def _apply_recipe_by_name(self, name: str) -> None:
+        """Replay `name`; under a relabelling, show the three-panel rebinding
+        dialog for the whole recipe (the teaching moment, feature-spec §4.8)."""
         relabelled: bool = self.session.labelling != Labelling.ONE_TWO_THREE
         result: DispatchResult = self.session.dispatch(ApplyCmd(name))
         # Apply streams multiple "step N: from -> to" lines; the board
@@ -490,22 +668,59 @@ class HanoiFrame(wx.Frame):
         dlg.Show()
         self._rebinding_dlg = dlg
 
-    def _on_show(self, _evt: wx.CommandEvent) -> None:
-        """Open the selected recipe's step list in a dialog."""
-        name: str | None = self._selected_recipe_name()
-        if not name:
-            self._set_status("Select a recipe first.")
+    def _on_show_recipe(self, _evt: wx.CommandEvent) -> None:
+        """Choose a saved recipe and show its steps."""
+        name: str | None = self._choose_recipe("Show which recipe?")
+        if name is None:
             return
-        result = self.session.dispatch(ShowCmd(name))
-        self._show_recipe_dialog(name, result.lines)
+        result: DispatchResult = self.session.dispatch(ShowCmd(name))
+        self._show_recipe_dialog(f"Recipe '{name}'", result.lines)
 
-    def _show_recipe_dialog(self, name: str, lines: list[str]) -> None:
-        """Scrollable list of recipe steps (layout: RecipeDialog in hanoi.xrc).
-        Non-modal so the user can keep playing (or open a second recipe to
-        compare) while it's on screen; a `wx.MessageBox` chokes on the
-        multi-hundred-step recipes a large game can produce."""
+    def _on_list_recipes(self, _evt: wx.CommandEvent) -> None:
+        """Show every saved recipe (name, discs, moves) in a dialog."""
+        lines: list[str] = self._recipe_display_lines()
+        if not lines:
+            self._set_status("No recipes saved yet.")
+            return
+        self._show_recipe_dialog("Saved recipes", lines)
+
+    def _recipe_display_lines(self) -> list[str]:
+        """One 'name (D discs, M moves)' line per recipe, in list order."""
+        lines: list[str] = []
+        name: str
+        for name in self.registry.names():
+            recipe: Recipe | None = self.registry.get(name)
+            assert recipe is not None  # name came from registry.names()
+            lines.append(
+                f"{name}  ({recipe.disk_count} discs, "
+                f"{len(recipe.default_moves)} moves)"
+            )
+        return lines
+
+    def _choose_recipe(self, prompt: str) -> str | None:
+        """Single-choice chooser over the saved recipes; returns the bare name
+        chosen, or None (nothing saved yet, or cancelled)."""
+        names: list[str] = self.registry.names()
+        if not names:
+            self._set_status(
+                "No recipes saved yet — win a game and save one first."
+            )
+            return None
+        choices: list[str] = self._recipe_display_lines()
+        dlg: wx.SingleChoiceDialog
+        with wx.SingleChoiceDialog(self, prompt, "Recipes", choices) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return None
+            return names[dlg.GetSelection()]
+
+    def _show_recipe_dialog(self, title: str, lines: list[str]) -> None:
+        """Scrollable list of lines (a recipe's steps, or the recipe list) in
+        the RecipeDialog layout from hanoi.xrc. Non-modal so the user can keep
+        playing (or open a second recipe to compare) while it's on screen; a
+        `wx.MessageBox` chokes on the multi-hundred-step recipes a large game
+        can produce."""
         dlg: wx.Dialog = self._load_hanoi_xrc().LoadDialog(self, "RecipeDialog")
-        dlg.SetTitle(f"Recipe '{name}'")
+        dlg.SetTitle(title)
         listbox: wx.ListBox = wx.xrc.XRCCTRL(dlg, "recipe_steps")
         listbox.SetFont(
             wx.Font(
@@ -526,76 +741,49 @@ class HanoiFrame(wx.Frame):
         dlg.Fit()
         dlg.Show()
 
-    def _on_move_tally(self, _evt: wx.CommandEvent) -> None:
-        """Open the inspectable move-history dialog (or raise it if open).
+    def _on_toggle_history(self, _evt: wx.CommandEvent) -> None:
+        """Show or hide the always-visible move-history panel (View menu)."""
+        if self._history_panel is not None:
+            self._history_panel.Show(self._history_toggle.IsChecked())
+            self.Layout()
 
-        Non-modal so the user can keep playing while it is on screen; `_refresh`
-        then live-updates it after every move. The list is every move made this
-        game in the default 1-2-3 (physical) labels — the ground truth beneath
-        any relabelling — sourced from `recorder.default_moves`.
+    def _on_toggle_howto(self, _evt: wx.CommandEvent) -> None:
+        """Show or hide the How-to-play pane (View menu)."""
+        if self._howto_pane is not None:
+            self._howto_pane.Show(self._howto_toggle.IsChecked())
+            self.Layout()
+
+    def _on_howto_changed(self, _evt: wx.CommandEvent) -> None:
+        """Re-lay out the frame when the How-to-play pane expands/collapses."""
+        self.Layout()
+
+    def _update_history(self) -> None:
+        """Repopulate the always-visible move-history panel from the recorder.
+
+        Every move this game (typed or applied) in the default 1-2-3 (physical)
+        labels, with a live count vs the optimal 2^N-1; resets with a new game
+        (the recorder's lifetime). Called from `_refresh`, so it tracks every
+        command.
         """
-        if self._tally_dlg is not None:
-            self._tally_dlg.Raise()
-            return
-
-        dlg: wx.Dialog = wx.Dialog(
-            self,
-            title="Move history",
-            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
-        )
-        header: wx.StaticText = wx.StaticText(dlg, label="")
-        listbox: wx.ListBox = wx.ListBox(dlg)
-        listbox.SetFont(
-            wx.Font(
-                12,
-                wx.FONTFAMILY_TELETYPE,
-                wx.FONTSTYLE_NORMAL,
-                wx.FONTWEIGHT_NORMAL,
-            )
-        )
-        row_h: int = max(1, listbox.GetCharHeight())
-        listbox.SetMinSize((260, row_h * 12 + 8))
-        close_btn: wx.Button = wx.Button(dlg, wx.ID_CLOSE)
-
-        sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(header, 0, wx.ALL, 8)
-        sizer.Add(listbox, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
-        sizer.Add(close_btn, 0, wx.ALL | wx.ALIGN_RIGHT, 8)
-        dlg.SetSizerAndFit(sizer)
-
-        self._tally_dlg = dlg
-        self._tally_list = listbox
-        self._tally_header = header
-
-        def _close(_e: wx.Event) -> None:
-            self._tally_dlg = None
-            self._tally_list = None
-            self._tally_header = None
-            dlg.Destroy()
-
-        dlg.Bind(wx.EVT_BUTTON, _close, id=wx.ID_CLOSE)
-        dlg.Bind(wx.EVT_CLOSE, _close)
-        self._update_tally()
-        dlg.Show()
-
-    def _update_tally(self) -> None:
-        """Repopulate the move-history dialog from the recorder, if it is open.
-
-        A no-op when the dialog is closed. Called from `_refresh`, so the list
-        and its live count track every move (typed or applied) and reset with a
-        new game.
-        """
-        if (
-            self._tally_dlg is None
-            or self._tally_list is None
-            or self._tally_header is None
-        ):
+        if self._history_list is None or self._history_header is None:
             return
         moves: list[tuple[int, int]] = list(self.session.recorder.default_moves)
-        self._tally_list.Set(format_move_tally(moves))
+        self._history_list.Set(format_move_tally(moves))
         count: int = len(moves)
         noun: str = "move" if count == 1 else "moves"
-        self._tally_header.SetLabel(f"{count} {noun} (default 1-2-3 labels)")
+        self._history_header.SetLabel(
+            f"{count} {noun} · optimal {self.session.min_moves()} "
+            "(default 1-2-3 labels)"
+        )
+
+    def _update_goal(self) -> None:
+        """Set the always-present goal line for the current disc count."""
+        if self._goal_label is None:
+            return
+        self._goal_label.SetLabel(
+            f"Goal: move all {self.session.num_disks} discs onto peg 3, one "
+            "disc at a time — never a larger disc onto a smaller one."
+        )
 
     # --- State helpers ---------------------------------------------------
 
@@ -605,11 +793,11 @@ class HanoiFrame(wx.Frame):
         self._refresh()
 
     def _on_win(self) -> None:
-        """Set the status-bar winning message. Button state (Move /
-        Relabel / Apply disabled, Save Current Solution enabled) is
-        already handled in `_refresh`. No modal — the board stays
-        visible and the user clicks Save Current Solution when they
-        want."""
+        """Handle a win: unlock Tier 2 for the session and show the teaching
+        handoff. No modal — the board stays visible; menu/button state is set
+        by `_refresh` (move buttons off, Relabel + Recipe on, Save enabled)."""
+        self._won_once = True
+        self._refresh()  # unlock the Tier-2 menus
         min_moves: int = self.session.min_moves()
         moves: int = self.session.current_moves
         if moves == min_moves:
@@ -619,8 +807,8 @@ class HanoiFrame(wx.Frame):
                 f"{moves - min_moves} more than the minimum ({min_moves})."
             )
         self._set_status(
-            f"Solved in {moves} moves — {verdict}  "
-            "Click 'Save Current Solution' to keep it as a recipe."
+            f"Solved in {moves} moves — {verdict}  Relabel pegs and Recipe are "
+            "now unlocked: save this solve, start a bigger stack, and reuse it."
         )
 
     def _on_save(self, _evt: wx.CommandEvent) -> None:
@@ -644,7 +832,7 @@ class HanoiFrame(wx.Frame):
                 return
             msg: str = self.session.save_recipe(name)
             self._set_status(msg)
-            self._refresh_recipes(select=name)
+            self._refresh()
 
     def _swap_renderer(self, renderer_cls: type[BoardRenderer]) -> None:
         """Tear down the current board renderer and install a new one in
@@ -702,39 +890,25 @@ class HanoiFrame(wx.Frame):
             base: str = self.relabel_base_labels[labels]
             marker: str = "●  " if labels == current_labels else "     "
             item.SetItemLabel(marker + base)
-            item.Enable(not won)
-        self.apply_btn.Enable(not won)
-        self.show_btn.Enable(True)
-        self.save_btn.Enable(won)
-        self._refresh_recipes()
-        self._update_tally()
+            item.Enable(self._won_once)
+
+        # Tier-2 gating (dim, don't remove): the Relabel and Recipe menus are
+        # disabled until the first win, then stay enabled for the session.
+        menubar: wx.MenuBar = self.GetMenuBar()
+        if self._relabel_menu_pos >= 0:
+            menubar.EnableTop(self._relabel_menu_pos, self._won_once)
+        if self._recipe_menu_pos >= 0:
+            menubar.EnableTop(self._recipe_menu_pos, self._won_once)
+        has_recipes: bool = bool(self.registry.names())
+        self._recipe_save_item.Enable(won)  # can only save a won game
+        self._recipe_apply_item.Enable(has_recipes)
+        self._recipe_show_item.Enable(has_recipes)
+        self._recipe_list_item.Enable(has_recipes)
+
+        self._update_history()
+        self._update_goal()
         self.panel.Layout()
-
-    def _refresh_recipes(self, select: str | None = None) -> None:
-        """Repopulate the recipe list box, optionally selecting `select`."""
-        names: list[str] = self.registry.names()
-        previous: str | None = self._selected_recipe_name()
-        self.recipe_list.Clear()
-        name: str
-        for name in names:
-            recipe: Recipe | None = self.registry.get(name)
-            # `name` came from registry.names(), so the lookup always hits.
-            assert recipe is not None
-            display: str = (
-                f"{name}  ({recipe.disk_count} discs, "
-                f"{len(recipe.default_moves)} moves)"
-            )
-            self.recipe_list.Append(display, clientData=name)
-        chosen: str | None = select or previous
-        if chosen and chosen in names:
-            self.recipe_list.SetSelection(names.index(chosen))
-
-    def _selected_recipe_name(self) -> str | None:
-        """Return the bare name behind whatever is selected, or None."""
-        idx: int = self.recipe_list.GetSelection()
-        if idx == wx.NOT_FOUND:
-            return None
-        return self.recipe_list.GetClientData(idx)
+        self.Layout()
 
     def _set_status(self, text: str) -> None:
         """Write `text` to the status bar's action-feedback field."""
