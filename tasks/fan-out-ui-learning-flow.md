@@ -15,13 +15,13 @@ feedback), gates Tier 2 to the first win, and puts recipes/rebinding in a menu (
 (TUI), per the compliance rows 16–19.
 
 **Includes the two onboarding refinements the wxPython oracle settled** (see
-`tasks/how-to-play-welcome-screen.md`): the **goal line lives in the status bar / a terse status
+`tasks/archive/2026/10/31/how-to-play-welcome-screen.md`): the **goal line lives in the status bar / a terse status
 area**, not a space-eating banner; and the **"How to Play" is a dismissible first-run panel**
 (with a legal/illegal-move diagram and "don't show again"), reopenable from a **Help** entry — not
 a static welcome screen with game screenshots. Each medium adapts these (a CLI prints the rules on
 first run and on a `help` command; a TUI uses a status line + a toggled panel).
 
-**And the Tier-3 Recipe-menu shape the oracle settled** (see `tasks/recipe-menu-direct-recipes.md`):
+**And the Tier-3 Recipe-menu shape the oracle settled** (see `tasks/archive/2026/10/31/recipe-menu-direct-recipes.md`):
 each **saved recipe is a submenu → View / Apply**, with **Save** as the menu's first item; no
 "Apply…/Show…/List…" chooser verbs. A TUI lists recipes as selectable rows with the same two actions.
 
@@ -53,9 +53,9 @@ each **saved recipe is a submenu → View / Apply**, with **Save** as the menu's
 
 - `tasks/reference/ui-design-principles.md`, `tasks/reference/feature-spec.md` (§3.5, §6, rows 16–19).
 - `tasks/archive/2026/10/31/ui-learning-flow-spec-and-wxpython.md` — the oracle this mirrors.
-- `tasks/how-to-play-welcome-screen.md` — the onboarding refinements (status-bar goal + first-run
+- `tasks/archive/2026/10/31/how-to-play-welcome-screen.md` — the onboarding refinements (status-bar goal + first-run
   How-to-Play panel) done wxPython-first; this fan-out carries them to the other front-ends.
-- `tasks/recipe-menu-direct-recipes.md` — the Tier-3 Recipe-menu shape (recipes as View/Apply
+- `tasks/archive/2026/10/31/recipe-menu-direct-recipes.md` — the Tier-3 Recipe-menu shape (recipes as View/Apply
   submenus) done wxPython-first; this fan-out carries it too.
 - `tasks/fan-out-move-tally.md` — the move-tally fan-out this absorbs for GUI/TUI presentation.
 - Parity gaps to fold in: `tasks/archive/2026/10/25/rust-feature-parity-tauri-tui-gaps.md`.

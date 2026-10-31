@@ -56,4 +56,4 @@ registry's recipes live; the fan-out carries the shape to the other front-ends.
   over recall), `tasks/reference/feature-spec.md` §4.8 (recipe apply + rebinding), §6.2 (GUI recipe
   presentation), §3.5 (tiers).
 - `tasks/fan-out-ui-learning-flow.md` — carries this menu shape to the other front-ends (Tier 3).
-- `tasks/how-to-play-welcome-screen.md` — the sibling onboarding refinement done the same day.
+- `tasks/archive/2026/10/31/how-to-play-welcome-screen.md` — the sibling onboarding refinement done the same day.

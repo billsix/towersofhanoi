@@ -222,7 +222,9 @@ These are recommendations for *how* a category of UI presents the features above
 
 ### 6.2 GUI (windowed)
 - Group actions on a **menubar**: a Game menu (new game / disk count, quit), a Relabel menu (the six
-  labellings), a Recipe menu (save / list / show / apply). Keep action controls **stable** — e.g. show
+  labellings), a Recipe menu (**Save** first, then each saved recipe as a **submenu → View / Apply** —
+  the realized shape, see `ui-design-principles.md` ruling #2; not separate Apply/Show/List choosers).
+  Keep action controls **stable** — e.g. show
   all move buttons and **disable** the illegal ones rather than hiding them, so controls don't jump.
 - **Apply the learning-flow tiers (§3.5):** keep the board + goal line + an **always-visible move-history
   panel** as the Tier-1 workspace; **gate the Relabel and Recipe menus** until the first win (disabled

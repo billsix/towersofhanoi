@@ -92,12 +92,17 @@ conformant hanoi UI organizes its features into three tiers:
    menu item may remain as an alternate way to focus it.) Content is unchanged: the numbered
    default-label-space list from `presenter.format_move_tally`, live count, moves-only, reset per game.
 2. **Recipes live in Tier 3** — a menu in a GUI, a tab/toggled panel in a TUI — not surfaced during
-   the first solve.
+   the first solve. *Realized in the wxPython oracle:* each saved recipe is a **submenu → View /
+   Apply** (point at the recipe, not an abstract "Apply…/Show…/List…" verb that pops a chooser), with
+   **Save** the menu's first item (Ctrl+S), dimmed until the first win.
 3. **Relabelling is gated into Tier 2** — not a permanent top-level offering. It is introduced at the
    first-win moment (the handoff to reusing a solved stack), and remains available afterward.
 4. **Onboarding for the non-knower** — an always-present one-line **goal statement**, plus a
    dismissible **"How to play"** (the rules + the one legal-move rule + the "solve small, relabel,
    replay" idea). Implicit teaching is not enough for an audience that does not know the puzzle.
+   *Realized in the wxPython oracle:* the goal line sits in the **status bar** (terse, out of the
+   board's way); "How to play" is a **first-run dismissible panel** (a ✓/✗ legal-move diagram, not a
+   screenshot) reopenable from the **Help** menu, with a "don't show again" preference.
 5. **Preserve what already matches the HIG** — dim-don't-hide for illegal actions (perceived
    stability), colour-follows-label (`feature-spec.md` §3), and the three-panel rebinding view as the
    direct-manipulation showpiece of the method.
