@@ -215,7 +215,8 @@ impl<'r> GameSession<'r> {
         )];
         let table: Vec<String> =
             format_rebinding_table(&recipe.default_moves, self.labelling, "Recipe (its labels)");
-        if !table.is_empty() {
+        let show_table: bool = !table.is_empty();
+        if show_table {
             lines.push(String::new());
             lines.extend(table);
             lines.push(String::new());
@@ -224,10 +225,17 @@ impl<'r> GameSession<'r> {
         for (i, result) in results.iter().enumerate() {
             let step: usize = i + 1;
             if result.ok() {
-                lines.push(format!(
-                    "  step {step}: {} -> {}",
-                    result.from_label, result.to_label
-                ));
+                // When the three-panel table is shown it already lists every
+                // recipe move (left) and its rebound physical move (right), so
+                // a per-step log just repeats the right column -- omit it under
+                // a relabelling, keep it otherwise (feature-spec §4.8). The move
+                // is recorded either way (the running tally depends on it).
+                if !show_table {
+                    lines.push(format!(
+                        "  step {step}: {} -> {}",
+                        result.from_label, result.to_label
+                    ));
+                }
                 let fp: usize = result.from_peg.expect("a successful step carries pegs");
                 let tp: usize = result.to_peg.expect("a successful step carries pegs");
                 self.recorder.record((fp + 1) as u32, (tp + 1) as u32);

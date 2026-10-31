@@ -453,6 +453,9 @@ mod tests {
         let out = drive(&script(&chunks));
         assert!(out.contains("Applying recipe 'solve-2-from-1-to-3'"));
         assert!(out.contains("Done."));
+        // Under a relabelling the three-panel table already lists every move,
+        // so the per-step "step N:" log is omitted (feature-spec §4.8).
+        assert!(!out.contains("step 1:"));
         for line in [
             "  |         |         |  ",
             "  |         *         |  ",
