@@ -1,7 +1,25 @@
 # Apply output: reconcile the redundant per-step `1 -> 3` move log vs. the three-panel view
 
-**Status:** proposed — needs go-ahead (a design decision, then an oracle-first fan-out).
+**Status:** DONE 2026-10-31 (autonomous batch, branch `ui-fanout-and-apply-output`, gpg off). Decision
+below taken at the maintainer's discretion. Archived same day.
 **Priority:** 5 **Difficulty:** 3
+
+## Decision + work record (2026-10-31)
+
+- **Decision = option (a), scoped to the relabelled case:** under a **relabelling** the three-panel
+  rebinding table already lists every recipe move (left) and its rebound physical move (right), so the
+  per-step `step N: <from> -> <to>` log just repeated the Rebound column — **drop it there**. Under the
+  **default labelling** (no table) **keep** the per-step log: it is then the only move output. Failures
+  (`step N: stopped — <reason>`) stay visible in both cases. Moves are still **recorded** regardless
+  (the running tally depends on it).
+- **Implemented:** Python oracle `engine._handle_apply` (`show_table` guard); feature-spec §4.8
+  finalized (new "Per-step log — only under the default labelling" bullet); wxPython `_apply_recipe_by_name`
+  now takes its "Applied 'x' — N moves" count from the recipe, not by parsing the (now-absent) step log.
+  Rust `handle_apply` (engine.rs) mirrors it; the ratatui TUI renders engine lines so inherits it.
+  **C++ needs no change** — its GUIs show the three-panel dialog, never a text step log.
+- **Tests:** a lock-in assertion (`"step 1:"` absent under a relabelling) added to both the Python
+  (`test_bill_worked_example_via_cli`) and Rust (`bill_worked_example_via_cli`) CLI tests; default-labelling
+  apply tests keep asserting the step log. Python gates green (130 passed/2 skipped); Rust test gate green.
 **Created:** 2026-10-25 (William Emerison Six <billsix@gmail.com>). On-screen feedback (Rust CLI): invoking
 a recipe shows the three-panel rebinding (good), "but then it shows the implementation from 1 to 3 again,
 which makes no sense — the stuff on the right [the rebound physical moves] is the relabelled one."
@@ -39,10 +57,10 @@ decided + consistent across all UIs, per §4.8.
 3. Finalize feature-spec.md §4.8 to state exactly what `apply` shows.
 4. Fan out to every implementation (Rust CLI/TUI, C++, …), each checked against §4.8.
 
-## Open questions
+## Open questions — resolved (2026-10-31)
 
-1. **What should `apply` print under a relabelling** — three-panel only + "Done" (recommended), or keep
-   the per-step log in some form? See Context options (a)/(b)/(c).
+1. **What should `apply` print under a relabelling** → **(a)**: the three-panel table + "Done.", with the
+   per-step log dropped under a relabelling (kept under the default labelling). See the decision above.
 
 ## Related
 
