@@ -210,7 +210,8 @@ These are recommendations for *how* a category of UI presents the features above
 
 ### 6.1 TUI / CLI (terminal)
 - A **command grammar** drives everything: moves as `<from> -> <to>` (also accept `1 3` and `13`), and
-  the verbs `relabel a b c`, `save <name>`, `apply <name>`, `show <name>`, `list`, `help`, `quit`
+  the verbs `relabel a b c`, `save <name>`, `apply <name>`, `show <name>`, `list`, `history` (alias
+  `moves`), `help`, `quit`
   (`quit`/`q`/`exit`, `help`/`h`/`?`). (Source: `commands.parse`, `HELP_TEXT`, `COMMAND_VERBS`.)
 - **Tab-completion** of the command verbs and saved-recipe names at the prompt — in **both** a readline
   CLI **and** a full-screen / curses TUI (the TUI must implement it on its own input line, not rely on

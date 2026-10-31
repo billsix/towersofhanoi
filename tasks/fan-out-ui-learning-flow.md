@@ -1,8 +1,31 @@
 # Fan out the learning-flow UI to every other front-end
 
-**Status:** proposed — needs go-ahead (do after the maintainer approves the wxPython oracle).
+**Status:** IN PROGRESS (autonomous batch, branch `ui-fanout-and-apply-output`, gpg off → restored).
+Text **CLIs done** (Python + Rust); text **TUIs** and the **5 GUIs + shared XRC** remain (GUIs need the
+maintainer's on-display sign-off).
 **Priority:** 3
 **Difficulty:** 6
+
+## Progress (2026-10-31)
+
+- **Shared grammar gained a `history` command** (alias `moves`) in BOTH cores → the numbered
+  default-space move tally + live count vs the optimal 2^N-1 (the text-UI form of the Tier-1
+  always-visible history; feature-spec §4.11/§6.1). Python `engine._handle_history`; Rust
+  `engine::handle_history` + a new `presenter::format_move_tally` mirroring Python's. **Python↔Rust
+  grammar parity maintained.** ← this is a new shared primitive; flag for review before it reaches more
+  UIs.
+- **Python CLI (`hanoicli.py`) + Rust CLI (`hanoi-cli`) — DONE:** first-run onboarding "How to play"
+  (the goal + the one rule + "solve small, relabel, replay"); an always-present **Tier-1 goal line**
+  above the board (the running count is the legend's trailing `Moves: N`); **Tier-2 relabel/save stated
+  in text, not hard-blocked** (§6.1 permits this for a plain terminal UI — keeps behaviour + tests).
+  Tests added both languages (onboarding/goal + `history`); all gates green.
+- **Remaining, per UI:**
+  - **Python ncurses TUI** (`hanoigame.py`) + **Rust ratatui TUI** (`hanoi`): always-visible history
+    region/toggled panel, goal line, onboarding, Tier-2 surfacing. (`history` already works — they
+    render engine lines.)
+  - **The 5 GUIs + the shared `ui/hanoi.xrc` decision** (C++ ImGui/wx, Rust wxDragon/egui/Tauri): the
+    tier layout + recipe submenus + status-bar goal + How-to-Play panel. **Needs on-display sign-off.**
+  - Fold in **drag-drop** per graphical UI (`tasks/port-drag-drop-to-graphical-uis.md`) — same files.
 
 ## BLUF
 
