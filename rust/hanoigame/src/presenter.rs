@@ -317,6 +317,30 @@ pub fn render_with_legend(game: &HanoiGame, labelling: Labelling) -> Vec<String>
     lines
 }
 
+/// Numbered running move list in the default 1-2-3 (physical) labelling: one
+/// `"<n>. <from> -> <to>"` line per move in order, empty when there are none.
+/// The moves are `(from, to)` pairs of 1-indexed *physical* pegs (default-label
+/// space, as `Recorder` records them), so the list is independent of whatever
+/// labelling was active for each move. Mirrors Python `presenter.format_move_tally`;
+/// shared by the text UIs' `history` and the GUIs' move-history panels.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::format_move_tally;
+/// assert_eq!(
+///     format_move_tally(&[(1, 3), (1, 2), (3, 2)]),
+///     vec!["1. 1 -> 3", "2. 1 -> 2", "3. 3 -> 2"]
+/// );
+/// assert!(format_move_tally(&[]).is_empty());
+/// ```
+pub fn format_move_tally(moves: &[(u32, u32)]) -> Vec<String> {
+    moves
+        .iter()
+        .enumerate()
+        .map(|(i, (from_peg, to_peg))| format!("{}. {from_peg} -> {to_peg}", i + 1))
+        .collect()
+}
+
 // --- Move translation through the current labelling -------------------------
 
 /// Translate a typed `(from_label, to_label)` pair (1-indexed under

@@ -26,6 +26,8 @@ pub enum Command {
     Show(String),
     /// List all saved recipes.
     List,
+    /// Show the running move history (the numbered default-space tally).
+    History,
     /// Show help text.
     Help,
     /// Quit the game.
@@ -41,7 +43,9 @@ pub enum Command {
 /// order they appear in [`HELP_TEXT`] — the single source of truth for
 /// tab-completion. Moves use the `<from> -> <to>` syntax, not a keyword, so
 /// there is no "move" verb here.
-pub const COMMAND_VERBS: [&str; 7] = ["relabel", "save", "apply", "show", "list", "help", "quit"];
+pub const COMMAND_VERBS: [&str; 8] = [
+    "relabel", "save", "apply", "show", "list", "history", "help", "quit",
+];
 
 /// Tab-completion candidates for `text` (the token under the cursor) given the whole input
 /// `buffer` and the saved-recipe `recipe_names`: command verbs while still on the first token,
@@ -78,6 +82,7 @@ Commands:
   apply <name>     replay a saved recipe under the current labelling
   show <name>      print the moves in a saved recipe
   list             list saved recipes
+  history          show the running move list this game (also: 'moves')
   help             show this help
   quit             quit the game";
 
@@ -125,6 +130,7 @@ pub fn parse(line: &str) -> Command {
         "quit" | "q" | "exit" => return Command::Quit,
         "help" | "h" | "?" => return Command::Help,
         "list" => return Command::List,
+        "history" | "moves" => return Command::History,
         _ => {}
     }
 
@@ -277,6 +283,9 @@ mod tests {
     fn parse_list_help_quit_empty() {
         assert_eq!(parse("list"), Command::List);
         assert_eq!(parse("LIST"), Command::List);
+        for l in ["history", "moves", "HISTORY"] {
+            assert_eq!(parse(l), Command::History, "{l:?}");
+        }
         for l in ["help", "h", "?", "HELP"] {
             assert_eq!(parse(l), Command::Help, "{l:?}");
         }
