@@ -44,6 +44,11 @@ frame._new_game(1)
 frame._on_board_drop(0, 2)
 assert frame._won_once, "first win should unlock Tier 2"
 
+# A saved recipe becomes a Recipe-menu submenu (View/Apply), not a chooser.
+frame.session.save_recipe("smoke")
+frame._refresh()
+assert "smoke" in frame._recipe_menu_names, frame._recipe_menu_names
+
 # Tier-2 now available: relabel (no dialog) then refresh.
 frame._on_relabel_menu((2, 1, 3))
 frame._refresh()

@@ -28,8 +28,8 @@ progressive disclosure), in three tiers:
 - **Tier 2 — unlocked at the first win (for the session):** the Relabel pegs
   menu and saving a recipe. Gated before then by disabling the menus ("dim,
   don't remove").
-- **Tier 3 — in the Recipe menu, out of the workspace:** list / show / apply a
-  recipe, and the three-panel rebinding view.
+- **Tier 3 — in the Recipe menu, out of the workspace:** each saved recipe is a
+  submenu that expands to View / Apply, plus the three-panel rebinding view.
 
 New Game / disc count and board style live on the menu bar; per-action feedback
 and the moves counter live on the two-field status bar. Same
@@ -198,6 +198,9 @@ class HanoiFrame(wx.Frame):
         # Menu-bar positions of the Tier-2 menus `_refresh` enables/disables.
         self._relabel_menu_pos: int = -1
         self._recipe_menu_pos: int = -1
+        # Saved-recipe names currently reflected in the Recipe menu, so
+        # `_refresh` rebuilds its submenus only when the set actually changed.
+        self._recipe_menu_names: list[str] = []
         self._build_menu_bar()
         self.CreateStatusBar(3)
         # Field 0 = the persistent goal line; field 1 stretches for action
@@ -269,45 +272,26 @@ class HanoiFrame(wx.Frame):
             )
 
         # Recipe menu (Tier 3, feature-spec §3.5) — recipes live here, not in
-        # the main workspace. Built programmatically so the shared ui/hanoi.xrc
-        # (also loaded by the C++/Rust wx front-ends) is untouched this phase;
-        # the fan-out task settles the shared XRC form across every UI.
-        recipe_menu: wx.Menu = wx.Menu()
-        self._recipe_save_item: wx.MenuItem = recipe_menu.Append(
+        # the main workspace. "Save Current Solution" (Ctrl+S) is the fixed
+        # head; below a separator, `_rebuild_recipe_menu` lists each SAVED
+        # recipe as a submenu expanding to View / Apply, so the user points at
+        # the recipe itself rather than an abstract "Apply…/Show…/List…" verb
+        # that then pops a chooser (tasks/recipe-menu-direct-recipes.md). Built
+        # programmatically so the shared ui/hanoi.xrc (also loaded by the
+        # C++/Rust wx front-ends) is untouched this phase.
+        self._recipe_menu: wx.Menu = wx.Menu()
+        self._recipe_save_item: wx.MenuItem = self._recipe_menu.Append(
             wx.ID_ANY,
             "&Save Current Solution\tCtrl+S",
             "Save the just-won solution as a reusable recipe",
         )
-        recipe_menu.AppendSeparator()
-        self._recipe_apply_item: wx.MenuItem = recipe_menu.Append(
-            wx.ID_ANY,
-            "&Apply Recipe…",
-            "Replay a saved recipe under the current labelling",
-        )
-        self._recipe_show_item: wx.MenuItem = recipe_menu.Append(
-            wx.ID_ANY, "S&how Recipe…", "Show a saved recipe's steps"
-        )
-        self._recipe_list_item: wx.MenuItem = recipe_menu.Append(
-            wx.ID_ANY, "&List Recipes…", "List every saved recipe"
-        )
+        self._recipe_menu.AppendSeparator()
         # Insert Recipe after Relabel: Game, Relabel, Recipe, View, Help.
         self._relabel_menu_pos = menubar.FindMenu("Relabel pegs")
         self._recipe_menu_pos = self._relabel_menu_pos + 1
-        menubar.Insert(self._recipe_menu_pos, recipe_menu, "&Recipe")
+        menubar.Insert(self._recipe_menu_pos, self._recipe_menu, "&Recipe")
         self.Bind(wx.EVT_MENU, self._on_save, id=self._recipe_save_item.GetId())
-        self.Bind(
-            wx.EVT_MENU,
-            self._on_apply_recipe,
-            id=self._recipe_apply_item.GetId(),
-        )
-        self.Bind(
-            wx.EVT_MENU, self._on_show_recipe, id=self._recipe_show_item.GetId()
-        )
-        self.Bind(
-            wx.EVT_MENU,
-            self._on_list_recipes,
-            id=self._recipe_list_item.GetId(),
-        )
+        self._rebuild_recipe_menu()
 
         # View menu: add the always-visible move-history toggle and the
         # How-to-play toggle to the existing (XRC) View menu.
@@ -641,14 +625,6 @@ class HanoiFrame(wx.Frame):
             self._set_status(result.lines[0])
         self._refresh()
 
-    def _on_apply_recipe(self, _evt: wx.CommandEvent) -> None:
-        """Choose a saved recipe and replay it under the current labelling."""
-        name: str | None = self._choose_recipe(
-            "Apply which recipe under the current labelling?"
-        )
-        if name is not None:
-            self._apply_recipe_by_name(name)
-
     def _apply_recipe_by_name(self, name: str) -> None:
         """Replay `name`; under a relabelling, show the three-panel rebinding
         dialog for the whole recipe (the teaching moment, feature-spec §4.8)."""
@@ -808,50 +784,73 @@ class HanoiFrame(wx.Frame):
         dlg.Show()
         self._rebinding_dlg = dlg
 
-    def _on_show_recipe(self, _evt: wx.CommandEvent) -> None:
-        """Choose a saved recipe and show its steps."""
-        name: str | None = self._choose_recipe("Show which recipe?")
-        if name is None:
+    def _view_recipe(self, name: str) -> None:
+        """Show a saved recipe (Recipe menu → <name> → View): the three-panel
+        rebinding view when the pegs are relabelled (the method's showpiece —
+        recipe moves, the label→peg key, the rebound moves), else the plain
+        step list."""
+        recipe: Recipe | None = self.session.registry.get(name)
+        relabelled: bool = self.session.labelling != Labelling.ONE_TWO_THREE
+        if relabelled and recipe is not None:
+            self._show_rebinding_dialog(
+                title=f"Recipe '{name}' — rebinding",
+                intro=(
+                    "This recipe is written in labels 1, 2, 3. Under your "
+                    "relabelling,\neach move rebinds to a physical peg — the "
+                    "same solution, new labels."
+                ),
+                left_header="Recipe moves",
+                moves=recipe.default_moves,
+            )
             return
         result: DispatchResult = self.session.dispatch(ShowCmd(name))
         self._show_recipe_dialog(f"Recipe '{name}'", result.lines)
 
-    def _on_list_recipes(self, _evt: wx.CommandEvent) -> None:
-        """Show every saved recipe (name, discs, moves) in a dialog."""
-        lines: list[str] = self._recipe_display_lines()
-        if not lines:
-            self._set_status("No recipes saved yet.")
-            return
-        self._show_recipe_dialog("Saved recipes", lines)
-
-    def _recipe_display_lines(self) -> list[str]:
-        """One 'name (D discs, M moves)' line per recipe, in list order."""
-        lines: list[str] = []
-        name: str
-        for name in self.registry.names():
-            recipe: Recipe | None = self.registry.get(name)
-            assert recipe is not None  # name came from registry.names()
-            lines.append(
-                f"{name}  ({recipe.disk_count} discs, "
-                f"{len(recipe.default_moves)} moves)"
-            )
-        return lines
-
-    def _choose_recipe(self, prompt: str) -> str | None:
-        """Single-choice chooser over the saved recipes; returns the bare name
-        chosen, or None (nothing saved yet, or cancelled)."""
+    def _rebuild_recipe_menu(self) -> None:
+        """Rebuild the Recipe menu's tail: one submenu per saved recipe (each
+        'View' / 'Apply'), or a disabled placeholder when none are saved. The
+        head (Save + separator, indices 0-1) is kept; everything after it is
+        deleted and re-appended. Called whenever the saved set changes, so the
+        menu mirrors the registry — point-at-the-object instead of a chooser."""
+        items: list[wx.MenuItem] = list(self._recipe_menu.GetMenuItems())
+        stale: wx.MenuItem
+        for stale in items[2:]:
+            self._recipe_menu.Delete(stale)
         names: list[str] = self.registry.names()
         if not names:
-            self._set_status(
-                "No recipes saved yet — win a game and save one first."
+            empty: wx.MenuItem = self._recipe_menu.Append(
+                wx.ID_ANY, "(no saved recipes yet)"
             )
-            return None
-        choices: list[str] = self._recipe_display_lines()
-        dlg: wx.SingleChoiceDialog
-        with wx.SingleChoiceDialog(self, prompt, "Recipes", choices) as dlg:
-            if dlg.ShowModal() != wx.ID_OK:
-                return None
-            return names[dlg.GetSelection()]
+            empty.Enable(False)
+            self._recipe_menu_names = []
+            return
+        name: str
+        for name in names:
+            recipe: Recipe | None = self.registry.get(name)
+            assert recipe is not None  # name came from registry.names()
+            submenu: wx.Menu = wx.Menu()
+            view_item: wx.MenuItem = submenu.Append(
+                wx.ID_ANY, "&View", "Show this recipe's steps"
+            )
+            apply_item: wx.MenuItem = submenu.Append(
+                wx.ID_ANY, "&Apply", "Replay under the current labelling"
+            )
+            self._recipe_menu.AppendSubMenu(
+                submenu,
+                f"{name}  ({recipe.disk_count} discs, "
+                f"{len(recipe.default_moves)} moves)",
+            )
+            self.Bind(
+                wx.EVT_MENU,
+                lambda _e, n=name: self._view_recipe(n),
+                id=view_item.GetId(),
+            )
+            self.Bind(
+                wx.EVT_MENU,
+                lambda _e, n=name: self._apply_recipe_by_name(n),
+                id=apply_item.GetId(),
+            )
+        self._recipe_menu_names = list(names)
 
     def _show_recipe_dialog(self, title: str, lines: list[str]) -> None:
         """Scrollable list of lines (a recipe's steps, or the recipe list) in
@@ -1064,11 +1063,11 @@ class HanoiFrame(wx.Frame):
             menubar.EnableTop(self._relabel_menu_pos, self._won_once)
         if self._recipe_menu_pos >= 0:
             menubar.EnableTop(self._recipe_menu_pos, self._won_once)
-        has_recipes: bool = bool(self.registry.names())
         self._recipe_save_item.Enable(won)  # can only save a won game
-        self._recipe_apply_item.Enable(has_recipes)
-        self._recipe_show_item.Enable(has_recipes)
-        self._recipe_list_item.Enable(has_recipes)
+        # Keep the Recipe menu's per-recipe submenus in sync with the registry;
+        # recipes change only on save, so rebuild only when the set differs.
+        if self.registry.names() != self._recipe_menu_names:
+            self._rebuild_recipe_menu()
 
         self._update_history()
         self._update_goal()
