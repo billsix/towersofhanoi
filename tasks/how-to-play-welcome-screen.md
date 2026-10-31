@@ -22,7 +22,7 @@ exists (owed, own commit). On-display `cd python && make wx` is the maintainer's
   "Don't show again" persists via **`wx.ConfigBase.Get()`** (key `show_howto_on_start`); `main()` sets
   the app/vendor name so the store is stable across runs.
 - **Verification:** `make format` / `type-check` / `test` green (130 passed / 2 skipped); headless
-  Xvfb smoke (`tasks/adhoc/drag-drop-spike/gui_smoke.py`) now also asserts the panel builds, Help
+  Xvfb smoke (`python/tools/gui_smoke.py`) now also asserts the panel builds, Help
   shows it, "Got it" hides it, and the goal sits in status field 0. The *look/feel* is the
   maintainer's on-display call (`make wx`).
 - **ty gotcha:** the wxPython stubs expose `wx.ConfigBase` but **not** `wx.Config` (real at runtime) —

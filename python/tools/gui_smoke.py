@@ -1,18 +1,20 @@
-"""Headless smoke for the wxPython learning-flow redesign + drag-drop spike.
+"""Headless smoke for the wxPython GUI (learning-flow tiers + drag-drop).
 
-Run it in the Python subproject's container under Xvfb (needs a display):
+A manual, display-dependent check of the window wiring that the
+format/type-check/test gates can't reach — NOT auto-wired into any gate (it
+needs an X display; run it under Xvfb). Run it from the Python subproject:
 
     cd python
     podman run --rm --entrypoint /bin/bash \
-      -v "$PWD":/hanoi-python:Z -v "$PWD/../ui":/ui:Z \
-      -v "$PWD/../tasks/adhoc/drag-drop-spike/gui_smoke.py":/smoke.py:Z \
-      hanoi-python -c 'dnf install -y xorg-x11-server-Xvfb >/dev/null 2>&1; \
-                       cd /hanoi-python && xvfb-run -a python /smoke.py'
+      -v "$PWD":/hanoi-python:Z -v "$PWD/../ui":/ui:Z hanoi-python \
+      -c 'dnf install -y xorg-x11-server-Xvfb >/dev/null 2>&1; \
+          cd /hanoi-python && pip install -e . --no-index --no-deps -q; \
+          xvfb-run -a python tools/gui_smoke.py'
 
-Prints "SMOKE OK <history-count>" on success. Exercises the wiring that the
-format/type/test gates can't: the hidden recipe sidebar, the programmatic
-Recipe/View menus, the How-to-Play panel, the Tier-2 win-unlock, the
-always-visible history panel, and the board drop -> engine-dispatch path.
+Prints "SMOKE OK <history-count>" on success. Exercises the hidden recipe
+sidebar, the programmatic Recipe/View menus, the first-run How-to-Play panel
+(+ Help reopen), the Tier-2 win-unlock, the always-visible history panel, the
+status-bar goal line, and the board drop -> engine-dispatch path.
 """
 
 import wx

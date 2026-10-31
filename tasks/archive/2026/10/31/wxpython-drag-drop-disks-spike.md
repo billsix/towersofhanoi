@@ -1,8 +1,8 @@
 # Spike: drag-and-drop disks in the wxPython GUI (replace move buttons)
 
-**Status:** spike IMPLEMENTED 2026-10-31 (branch `ui-learning-flow-and-fixes`) — awaiting the
-maintainer's on-display evaluation ("do I like it?"). NOT archived until that call; the
-port-to-other-UIs follow-ups are filed only if approved.
+**Status:** DONE — maintainer APPROVED on-display 2026-10-31 ("drag and drop looks great"). Keep drag
+**and** buttons stands. The smoke harness was promoted to `python/tools/gui_smoke.py` (reusable GUI
+smoke). Port-to-other-UIs follow-ups filed (see below). Archived 2026-10-31.
 **Priority:** 3
 **Difficulty:** 6
 
@@ -17,16 +17,17 @@ port-to-other-UIs follow-ups are filed only if approved.
   single-move rebinding) and disables dragging once the game is won. **Both** the move buttons and
   dragging are active (the decided spike choice; whether to drop the buttons is the post-eval call).
 - **Verification:** `cd python && make format` / `type-check` / `test` green (130 passed / 2 skipped);
-  a headless Xvfb smoke (`tasks/adhoc/drag-drop-spike/gui_smoke.py`) drives a board drop → engine
+  a headless Xvfb smoke (`python/tools/gui_smoke.py`) drives a board drop → engine
   dispatch and a drop-to-win. The *feel* of dragging can only be judged on a real display.
 - **How to evaluate (maintainer):** `cd python && make wx`, then drag a top disc from one peg onto
   another (graphics board; the default). Compare against the move buttons. Decide: keep drag + buttons,
-  drag-only, or revert. The headless smoke is at `tasks/adhoc/drag-drop-spike/gui_smoke.py`.
+  drag-only, or revert. The headless smoke is at `python/tools/gui_smoke.py`.
 - **Recommendation:** keep drag **and** buttons. Dragging is the stronger direct-manipulation teaching
   gesture (Apple-HIG), but the buttons are the accessible/keyboard path and feature-spec §6.2's
   "disable illegal ones" affordance; dropping them is a separate accessibility decision.
-- **If approved → follow-ups to file:** port drag-drop to C++ ImGui, C++ wx, Rust wx, Rust egui, Rust
-  Tauri (one per graphical UI), cross-linked with `tasks/fan-out-ui-learning-flow.md`.
+- **Follow-up filed (approved):** `tasks/port-drag-drop-to-graphical-uis.md` — port the interaction to
+  C++ ImGui, C++ wx, Rust wxDragon, Rust egui, and Rust Tauri (one umbrella, per-UI checklist),
+  cross-linked with `tasks/fan-out-ui-learning-flow.md`.
 
 ## BLUF
 

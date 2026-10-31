@@ -35,6 +35,8 @@ offline-rebuildable). Mounts at `/hanoi-python`.
 - `make cli` / `make tui` / `make wx` — run a front-end (X11 + Wayland passthrough).
 - `make format` (ruff) / `make type-check` (ty over src + tests) / `make test` (pytest,
   collecting the library doctests via `--doctest-modules`) — the gates.
+- `tools/gui_smoke.py` — a manual headless smoke of the wxPython GUI wiring (menus, panels,
+  drag-drop, win-unlock) run under Xvfb; **not a gate** (needs a display). Run recipe in its header.
 - `make image-export` / `make image-import FILE=…` — OCI tar save/load.
 - `make update-emacs-packages` — refresh the vendored `entrypoint/dotfiles/.emacs.d/elpa`
   (needs network).
