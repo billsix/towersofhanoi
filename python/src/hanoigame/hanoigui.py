@@ -22,7 +22,8 @@ progressive disclosure), in three tiers:
 
 - **Tier 1 — always visible:** the board (text or 2D-graphics), the six move
   buttons (auto-enabled from `game.move_options()`), an always-present goal
-  line, a dismissible "How to play" pane, and an always-visible move-history
+  line in the status bar, a dismissible "How to Play" panel (shown on first
+  run, reopenable from the Help menu), and an always-visible move-history
   panel (every move this game in the default 1-2-3 physical labels).
 - **Tier 2 — unlocked at the first win (for the session):** the Relabel pegs
   menu and saving a recipe. Gated before then by disabling the menus ("dim,
@@ -91,6 +92,78 @@ ALL_RELABEL_PERMUTATIONS: tuple[tuple[int, int, int], ...] = (
     (3, 2, 1),
 )
 
+# Config (wx.Config) key: show the How-to-Play panel on launch. Set False by
+# the panel's "Don't show this again" checkbox; re-shown any time from Help.
+CONFIG_SHOW_HOWTO: str = "show_howto_on_start"
+
+_DISC_FILL: wx.Colour = wx.Colour(210, 210, 215)
+_DISC_EDGE: wx.Colour = wx.Colour(30, 30, 40)
+_OK_ACCENT: wx.Colour = wx.Colour(40, 150, 60)
+_NO_ACCENT: wx.Colour = wx.Colour(200, 55, 55)
+
+
+class _LegalMoveDiagram(wx.Panel):
+    """A small figure teaching the one rule: a smaller disc may rest on a
+    larger one (left, allowed); a larger disc may never rest on a smaller one
+    (right, forbidden). It illustrates the *rule*, not a screenshot of the app
+    — the live board is the app's own best picture (Apple-HIG active
+    assistance: teach the thing, point at the real object)."""
+
+    def __init__(self, parent: wx.Window) -> None:
+        """Build a fixed-size drawing panel and bind its paint handler."""
+        super().__init__(parent, size=wx.Size(300, 108))
+        self.SetMinSize(wx.Size(300, 108))
+        self.Bind(wx.EVT_PAINT, self._on_paint)
+
+    def _on_paint(self, _evt: wx.PaintEvent) -> None:
+        """Draw the allowed example (left half) and forbidden one (right)."""
+        dc: wx.PaintDC = wx.PaintDC(self)
+        gc: wx.GraphicsContext | None = wx.GraphicsContext.Create(dc)
+        if gc is None:
+            return
+        width: int = self.GetClientSize().width
+        half: float = width / 2.0
+        self._draw_example(gc, 0.0, half, legal=True)
+        self._draw_example(gc, half, half, legal=False)
+
+    def _draw_example(
+        self, gc: wx.GraphicsContext, x0: float, width: float, *, legal: bool
+    ) -> None:
+        """Draw one two-disc stack centred in [x0, x0+width]: wide-under-narrow
+        when `legal`, else narrow-under-wide struck through, with a caption."""
+        cx: float = x0 + width / 2.0
+        disc_h: float = 16.0
+        top_y: float = 42.0
+        big_w: float = 78.0
+        small_w: float = 42.0
+        bottom_w: float = big_w if legal else small_w
+        upper_w: float = small_w if legal else big_w
+        accent: wx.Colour = _OK_ACCENT if legal else _NO_ACCENT
+
+        gc.SetPen(wx.Pen(_DISC_EDGE, 1))
+        gc.SetBrush(wx.Brush(_DISC_FILL))
+        w: float
+        y: float
+        for w, y in ((bottom_w, top_y + disc_h), (upper_w, top_y)):
+            gc.DrawRoundedRectangle(cx - w / 2.0, y, w, disc_h, 4.0)
+
+        if not legal:
+            gc.SetPen(wx.Pen(accent, 3))
+            gc.StrokeLine(
+                cx - big_w / 2.0,
+                top_y - 4.0,
+                cx + big_w / 2.0,
+                top_y + disc_h + 4.0,
+            )
+
+        caption: str = (
+            "✓  smaller on larger" if legal else "✗  larger on smaller"
+        )
+        gc.SetFont(gc.CreateFont(self.GetFont(), accent))
+        text_w: float
+        text_w, _th, _d, _e = gc.GetFullTextExtent(caption)
+        gc.DrawText(caption, cx - text_w / 2.0, 84.0)
+
 
 class HanoiFrame(wx.Frame):
     """The main application window: board, controls, menu, and status bar.
@@ -116,17 +189,20 @@ class HanoiFrame(wx.Frame):
         self._history_panel: wx.Panel | None = None
         self._history_list: wx.ListBox | None = None
         self._history_header: wx.StaticText | None = None
-        # Tier-1 onboarding (goal line + "How to play"), built in `_build_ui`.
-        self._goal_label: wx.StaticText | None = None
-        self._howto_pane: wx.CollapsiblePane | None = None
+        # Tier-1 onboarding: the goal line lives in the status bar (set by
+        # `_update_goal`); "How to Play" is a dismissible panel built in
+        # `_build_ui`, shown on first run and reopenable from the Help menu.
+        self._config: wx.ConfigBase = wx.ConfigBase.Get()
+        self._howto_panel: wx.Panel | None = None
+        self._howto_dont_show: wx.CheckBox | None = None
         # Menu-bar positions of the Tier-2 menus `_refresh` enables/disables.
         self._relabel_menu_pos: int = -1
         self._recipe_menu_pos: int = -1
         self._build_menu_bar()
-        self.CreateStatusBar(2)
-        # Field 0 stretches (action feedback); field 1 is fixed-width for
-        # the moves counter so it sits at the right edge of the bar.
-        self.SetStatusWidths([-1, 140])
+        self.CreateStatusBar(3)
+        # Field 0 = the persistent goal line; field 1 stretches for action
+        # feedback; field 2 is fixed-width for the moves counter at the right.
+        self.SetStatusWidths([-1, -2, 140])
         self._build_ui()
         self._new_game(DEFAULT_DISKS)
 
@@ -245,9 +321,9 @@ class HanoiFrame(wx.Frame):
         )
         self._history_toggle.Check(True)
         self._howto_toggle: wx.MenuItem = view_menu.AppendCheckItem(
-            wx.ID_ANY, "How to &play", "Show the how-to-play panel"
+            wx.ID_ANY, "How to &play", "Show the How-to-Play panel"
         )
-        self._howto_toggle.Check(True)
+        self._howto_toggle.Check(self._config.ReadBool(CONFIG_SHOW_HOWTO, True))
         self.Bind(
             wx.EVT_MENU,
             self._on_toggle_history,
@@ -256,6 +332,26 @@ class HanoiFrame(wx.Frame):
         self.Bind(
             wx.EVT_MENU, self._on_toggle_howto, id=self._howto_toggle.GetId()
         )
+
+        # Help → How to Play: reopen the Tier-1 onboarding panel at any time
+        # (recognition over recall — the learner never has to remember how to
+        # summon it). Added programmatically so the shared ui/hanoi.xrc Help
+        # menu (also used by the C++/Rust wx front-ends) is untouched here.
+        help_pos: int = menubar.FindMenu("Help")
+        if help_pos >= 0:
+            help_menu: wx.Menu = menubar.GetMenu(help_pos)
+            self._help_howto_item: wx.MenuItem = help_menu.Insert(
+                0,
+                wx.ID_ANY,
+                "How to &Play",
+                "Show the goal and the rules of the game",
+            )
+            help_menu.InsertSeparator(1)
+            self.Bind(
+                wx.EVT_MENU,
+                self._on_help_howto,
+                id=self._help_howto_item.GetId(),
+            )
 
     def _build_ui(self) -> None:
         """Lay out the window: the XRC board panel (recipe sidebar hidden),
@@ -299,8 +395,9 @@ class HanoiFrame(wx.Frame):
                 id=wx.xrc.XRCID(f"move_{from_label}_{to_label}"),
             )
 
-        # Frame layout: onboarding on top, then [board panel | history panel].
-        onboarding: wx.Sizer = self._build_onboarding()
+        # Frame layout: the How-to-Play panel on top (hidden if the user chose
+        # "don't show again"), then [board panel | history panel].
+        self._howto_panel = self._build_howto_panel()
         self._history_panel = self._build_history_panel()
         row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(self.panel, proportion=1, flag=wx.EXPAND)
@@ -312,10 +409,13 @@ class HanoiFrame(wx.Frame):
         )
         frame_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
         frame_sizer.Add(
-            onboarding, proportion=0, flag=wx.EXPAND | wx.ALL, border=6
+            self._howto_panel, proportion=0, flag=wx.EXPAND | wx.ALL, border=6
         )
         frame_sizer.Add(row, proportion=1, flag=wx.EXPAND)
         self.SetSizer(frame_sizer)
+        # First-run: show unless the user has dismissed it with "don't show
+        # again". The View → How to play check item mirrors this state.
+        self._howto_panel.Show(self._config.ReadBool(CONFIG_SHOW_HOWTO, True))
         self.Center()
 
     def _hide_recipe_sidebar(self) -> None:
@@ -337,45 +437,63 @@ class HanoiFrame(wx.Frame):
             row.Hide(box_sizer, recursive=True)
         self.panel.Layout()
 
-    def _build_onboarding(self) -> wx.Sizer:
-        """Tier-1 onboarding: an always-present goal line (set per game by
-        `_update_goal`) plus a dismissible 'How to play' pane, expanded by
-        default (the audience does not already know the puzzle)."""
-        sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
-        self._goal_label = wx.StaticText(self, label="")
-        goal_font: wx.Font = self._goal_label.GetFont()
-        goal_font.MakeBold()
-        self._goal_label.SetFont(goal_font)
-        sizer.Add(
-            self._goal_label,
-            proportion=0,
-            flag=wx.LEFT | wx.RIGHT | wx.TOP,
-            border=4,
-        )
+    def _build_howto_panel(self) -> wx.Panel:
+        """Build the dismissible 'How to Play' panel: a heading, the rules
+        text, a small legal/illegal-move diagram, a 'Don't show this again'
+        checkbox, and a 'Got it' close button. Shown on first run and
+        reopenable from Help → How to Play; the goal itself lives in the status
+        bar. One source of truth — it supersedes the old goal banner and
+        collapsible pane (feature-spec §3.5 onboarding)."""
+        panel: wx.Panel = wx.Panel(self, style=wx.BORDER_SIMPLE)
+        heading: wx.StaticText = wx.StaticText(panel, label="How to Play")
+        heading_font: wx.Font = heading.GetFont()
+        heading_font.MakeBold()
+        heading_font.SetPointSize(heading_font.GetPointSize() + 2)
+        heading.SetFont(heading_font)
 
-        self._howto_pane = wx.CollapsiblePane(
-            self,
-            label="How to play",
-            style=wx.CP_DEFAULT_STYLE | wx.CP_NO_TLW_RESIZE,
+        body: wx.StaticText = wx.StaticText(panel, label=HOWTO_TEXT)
+        diagram: _LegalMoveDiagram = _LegalMoveDiagram(panel)
+
+        self._howto_dont_show = wx.CheckBox(
+            panel, label="Don't show this again"
         )
-        pane: wx.Window = self._howto_pane.GetPane()
-        howto_text: wx.StaticText = wx.StaticText(pane, label=HOWTO_TEXT)
-        pane_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
-        pane_sizer.Add(howto_text, proportion=0, flag=wx.ALL, border=6)
-        pane.SetSizer(pane_sizer)
-        self._howto_pane.Expand()
-        self.Bind(
-            wx.EVT_COLLAPSIBLEPANE_CHANGED,
-            self._on_howto_changed,
-            id=self._howto_pane.GetId(),
+        self._howto_dont_show.SetValue(
+            not self._config.ReadBool(CONFIG_SHOW_HOWTO, True)
         )
-        sizer.Add(
-            self._howto_pane,
+        self._howto_dont_show.Bind(wx.EVT_CHECKBOX, self._on_howto_dont_show)
+        got_it: wx.Button = wx.Button(panel, label="Got it")
+        got_it.Bind(wx.EVT_BUTTON, lambda _e: self._dismiss_howto())
+
+        text_col: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        text_col.Add(heading, proportion=0, flag=wx.BOTTOM, border=6)
+        text_col.Add(body, proportion=0)
+        top_row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
+        top_row.Add(
+            text_col, proportion=1, flag=wx.EXPAND | wx.RIGHT, border=12
+        )
+        top_row.Add(diagram, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
+
+        foot_row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
+        foot_row.Add(
+            self._howto_dont_show,
             proportion=0,
-            flag=wx.EXPAND | wx.ALL,
-            border=4,
+            flag=wx.ALIGN_CENTER_VERTICAL,
         )
-        return sizer
+        foot_row.AddStretchSpacer()
+        foot_row.Add(got_it, proportion=0)
+
+        panel_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        panel_sizer.Add(
+            top_row, proportion=0, flag=wx.EXPAND | wx.ALL, border=8
+        )
+        panel_sizer.Add(
+            foot_row,
+            proportion=0,
+            flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            border=8,
+        )
+        panel.SetSizer(panel_sizer)
+        return panel
 
     def _build_history_panel(self) -> wx.Panel:
         """Tier-1 always-visible move history: every move this game in the
@@ -769,15 +887,32 @@ class HanoiFrame(wx.Frame):
             self._history_panel.Show(self._history_toggle.IsChecked())
             self.Layout()
 
-    def _on_toggle_howto(self, _evt: wx.CommandEvent) -> None:
-        """Show or hide the How-to-play pane (View menu)."""
-        if self._howto_pane is not None:
-            self._howto_pane.Show(self._howto_toggle.IsChecked())
-            self.Layout()
-
-    def _on_howto_changed(self, _evt: wx.CommandEvent) -> None:
-        """Re-lay out the frame when the How-to-play pane expands/collapses."""
+    def _show_howto(self, show: bool) -> None:
+        """Show or hide the How-to-Play panel, keeping the panel, the View
+        check item, and the frame layout in sync."""
+        if self._howto_panel is None:
+            return
+        self._howto_panel.Show(show)
+        self._howto_toggle.Check(show)
         self.Layout()
+
+    def _on_toggle_howto(self, _evt: wx.CommandEvent) -> None:
+        """View → How to play: show/hide the panel per the check item."""
+        self._show_howto(self._howto_toggle.IsChecked())
+
+    def _on_help_howto(self, _evt: wx.CommandEvent) -> None:
+        """Help → How to Play: reopen the onboarding panel at any time."""
+        self._show_howto(True)
+
+    def _dismiss_howto(self) -> None:
+        """Close the panel from its 'Got it' button."""
+        self._show_howto(False)
+
+    def _on_howto_dont_show(self, evt: wx.CommandEvent) -> None:
+        """Persist the 'Don't show this again' choice for the next launch
+        (the panel stays open now; 'Got it' closes it)."""
+        self._config.WriteBool(CONFIG_SHOW_HOWTO, not evt.IsChecked())
+        self._config.Flush()
 
     def _update_history(self) -> None:
         """Repopulate the always-visible move-history panel from the recorder.
@@ -799,12 +934,11 @@ class HanoiFrame(wx.Frame):
         )
 
     def _update_goal(self) -> None:
-        """Set the always-present goal line for the current disc count."""
-        if self._goal_label is None:
-            return
-        self._goal_label.SetLabel(
-            f"Goal: move all {self.session.num_disks} discs onto peg 3, one "
-            "disc at a time — never a larger disc onto a smaller one."
+        """Set the persistent goal line in the status bar (field 0) for the
+        current disc count. The full rules live in the How-to-Play panel, so
+        this stays terse."""
+        self.SetStatusText(
+            f"Goal: move all {self.session.num_disks} discs to peg 3", 0
         )
 
     # --- State helpers ---------------------------------------------------
@@ -878,7 +1012,7 @@ class HanoiFrame(wx.Frame):
         """
         self.board_renderer.update(self.session.game, self.session.labelling)
         won: bool = self.session.is_won()
-        self.SetStatusText(f"Moves: {self.session.current_moves}", 1)
+        self.SetStatusText(f"Moves: {self.session.current_moves}", 2)
 
         valid: set[tuple[int, int]] = set()
         vm: ValidMove
@@ -942,12 +1076,16 @@ class HanoiFrame(wx.Frame):
         self.Layout()
 
     def _set_status(self, text: str) -> None:
-        """Write `text` to the status bar's action-feedback field."""
-        self.SetStatusText(text)
+        """Write `text` to the status bar's action-feedback field (field 1)."""
+        self.SetStatusText(text, 1)
 
 
 def main() -> None:
     app: wx.App = wx.App()
+    # Names the per-user wx.Config store (the "show How-to-Play on launch"
+    # preference) so it is stable across runs rather than keyed off argv[0].
+    app.SetVendorName("hanoi")
+    app.SetAppName("hanoi-gui")
     frame: HanoiFrame = HanoiFrame()
     frame.Show()
     app.MainLoop()

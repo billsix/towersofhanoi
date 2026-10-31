@@ -1,9 +1,32 @@
 # How-to-play / welcome screen (first-run + Help menu)
 
-**Status:** proposed — needs go-ahead (design logged from the 2026-10-31 discussion with the
-maintainer, William Emerison Six <billsix@gmail.com>). Not started.
+**Status:** wxPython implementation DONE 2026-10-31 (staged, maintainer commits); the fan-out to the
+other front-ends is tracked by `tasks/fan-out-ui-learning-flow.md`. Archive after the work commit
+exists (owed, own commit). On-display `cd python && make wx` is the maintainer's last check.
 **Priority:** 4
 **Difficulty:** 3
+
+## Work record (wxPython, 2026-10-31)
+
+- **Goal line → status bar.** The status bar is now **3 fields** — `[goal | action-feedback |
+  moves]`, widths `[-1, -2, 140]`. `_update_goal` writes a terse "Goal: move all N discs to peg 3"
+  to field 0 (the full rules moved into the panel); `_set_status` → field 1; the moves counter →
+  field 2. The old bold goal `wx.StaticText` banner is gone.
+- **How-to-Play panel** (`_build_howto_panel`, replaces the old `wx.CollapsiblePane`): heading + the
+  rules text + a small **legal/illegal-move diagram** (`_LegalMoveDiagram`, custom `wx.GraphicsContext`
+  paint: ✓ smaller-on-larger, ✗ larger-on-smaller struck through) + a **"Don't show this again"**
+  checkbox + a **"Got it"** button. Shown on first run; hidden if the preference says so. Non-modal,
+  in-window (not a board-blocking dialog).
+- **Reopen + persistence.** **Help → How to Play** (added programmatically, shared XRC untouched)
+  reopens it; the **View → How to play** check item mirrors/toggles it; both go through `_show_howto`.
+  "Don't show again" persists via **`wx.ConfigBase.Get()`** (key `show_howto_on_start`); `main()` sets
+  the app/vendor name so the store is stable across runs.
+- **Verification:** `make format` / `type-check` / `test` green (130 passed / 2 skipped); headless
+  Xvfb smoke (`tasks/adhoc/drag-drop-spike/gui_smoke.py`) now also asserts the panel builds, Help
+  shows it, "Got it" hides it, and the goal sits in status field 0. The *look/feel* is the
+  maintainer's on-display call (`make wx`).
+- **ty gotcha:** the wxPython stubs expose `wx.ConfigBase` but **not** `wx.Config` (real at runtime) —
+  use `wx.ConfigBase.Get()`.
 
 ## BLUF
 
@@ -69,12 +92,11 @@ source of truth; then rolled into `fan-out-ui-learning-flow.md` for the other fr
 - Build wxPython-first (prove it on the oracle front-end), then roll into the fleet via
   `fan-out-ui-learning-flow.md` — matches how the learning-flow redesign itself was done.
 
-## Open questions (answer by number)
+## Open questions — resolved (maintainer, 2026-10-31)
 
-1. **Goal-line treatment** — shrink it to a compact muted one-liner in place, or move it into the
-   bottom **status bar**? (Rec: status bar — most space back for the board.) This is the one piece
-   that visibly changes the main layout, so it is yours to okay before I touch it.
-2. Anything in the recommended design above you want changed before I implement it wxPython-first?
+1. **Goal-line treatment** → **status bar** (implemented, field 0).
+2. **Design changes before building** → none; build wxPython-first (both answered "status bar for the
+   goal line, build it wxpython-first").
 
 ## Related
 

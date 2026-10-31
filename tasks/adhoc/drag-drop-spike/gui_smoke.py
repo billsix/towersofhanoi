@@ -11,7 +11,7 @@ Run it in the Python subproject's container under Xvfb (needs a display):
 
 Prints "SMOKE OK <history-count>" on success. Exercises the wiring that the
 format/type/test gates can't: the hidden recipe sidebar, the programmatic
-Recipe/View menus, the CollapsiblePane, the Tier-2 win-unlock, the
+Recipe/View menus, the How-to-Play panel, the Tier-2 win-unlock, the
 always-visible history panel, and the board drop -> engine-dispatch path.
 """
 
@@ -53,6 +53,16 @@ frame._howto_toggle.Check(False)
 frame._on_toggle_howto(None)
 frame.board_renderer.set_interactive(False)
 frame.board_renderer.set_interactive(True)
+
+# How-to-Play panel: built, reopenable from Help, dismissible from "Got it".
+assert frame._howto_panel is not None, "how-to panel built"
+frame._on_help_howto(None)
+assert frame._howto_panel.IsShown(), "Help -> How to Play shows the panel"
+frame._dismiss_howto()
+assert not frame._howto_panel.IsShown(), "'Got it' hides the panel"
+
+# Goal line now lives in status-bar field 0.
+assert "Goal: move all" in frame.GetStatusBar().GetStatusText(0)
 
 assert frame._history_list is not None
 print("SMOKE OK", frame._history_list.GetCount())
