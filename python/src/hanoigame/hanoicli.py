@@ -155,10 +155,9 @@ def _print_board(session: GameSession, out: TextIO) -> None:
         session: The live game session to render.
         out: The stream board lines are written to.
     """
-    out.write(
-        f"Goal: move all {session.num_disks} discs to peg 3"
-        f"   -   Moves so far: {session.current_moves}\n"
-    )
+    # Tier-1 goal line above the board; the running move count is the legend's
+    # trailing "Moves: N" line, so it is not repeated here.
+    out.write(f"Goal: move all {session.num_disks} discs to peg 3\n")
     line: str
     for line in presenter.render_with_legend(session.game, session.labelling):
         out.write(line + "\n")

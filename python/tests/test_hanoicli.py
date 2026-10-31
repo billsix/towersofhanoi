@@ -70,7 +70,7 @@ def test_howto_and_goal_shown_for_the_learner() -> None:
     assert "How to play" in output
     assert "Never place a larger disc on a smaller one." in output
     assert "Goal: move all 3 discs to peg 3" in output
-    assert "Moves so far: 0" in output
+    assert "Moves: 0" in output  # the legend's running count
 
 
 def test_history_command_lists_the_running_tally() -> None:
