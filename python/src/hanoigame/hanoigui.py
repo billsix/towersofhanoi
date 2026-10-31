@@ -289,6 +289,7 @@ class HanoiFrame(wx.Frame):
             self.board_renderer.widget(), proportion=1, flag=wx.EXPAND
         )
         self.style_graphics_item.Check(True)
+        self._wire_board_interaction()
 
         # Move button bindings — lambda captures the from/to pair.
         for from_label, to_label in ALL_LABEL_PAIRS:
@@ -452,6 +453,27 @@ class HanoiFrame(wx.Frame):
             "About Towers of Hanoi",
             wx.OK | wx.ICON_INFORMATION,
         )
+
+    def _wire_board_interaction(self) -> None:
+        """If the active board renderer supports disc dragging, point its drop
+        callback at `_on_board_drop` (the move buttons stay as a parallel,
+        keyboard/screen-reader-accessible path — kept for the spike)."""
+        set_cb: Callable[[Callable[[int, int], None]], None] | None = getattr(
+            self.board_renderer, "set_move_callback", None
+        )
+        if set_cb is not None:
+            set_cb(self._on_board_drop)
+
+    def _on_board_drop(self, from_peg: int, to_peg: int) -> None:
+        """Drop handler: physical pegs -> current labels -> the same dispatch
+        path as a move button (illegal-move popup, rebinding dialog, win)."""
+        from_label: int = (
+            change_labels_on_pegs(self.session.labelling, from_peg) + 1
+        )
+        to_label: int = (
+            change_labels_on_pegs(self.session.labelling, to_peg) + 1
+        )
+        self._on_move(from_label, to_label)
 
     def _on_move(self, from_label: int, to_label: int) -> None:
         """Dispatch a move button; on success under a relabelling, show the
@@ -846,6 +868,7 @@ class HanoiFrame(wx.Frame):
         sizer.Add(self.board_renderer.widget(), proportion=1, flag=wx.EXPAND)
         self.board_slot.Layout()
         self.board_renderer.update(self.session.game, self.session.labelling)
+        self._wire_board_interaction()
 
     def _refresh(self) -> None:
         """Redraw the board and re-sync all control state to the session.
@@ -873,6 +896,14 @@ class HanoiFrame(wx.Frame):
         btn: wx.Window
         for pair, btn in self.move_buttons.items():
             btn.Enable(not won and pair in valid)
+
+        # Disc dragging (spike) is off once the game is won, matching the
+        # move buttons.
+        set_inter: Callable[[bool], None] | None = getattr(
+            self.board_renderer, "set_interactive", None
+        )
+        if set_inter is not None:
+            set_inter(not won)
 
         current_labels: tuple[int, ...] = tuple(
             change_labels_on_pegs(self.session.labelling, i) + 1

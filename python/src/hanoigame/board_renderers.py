@@ -32,6 +32,7 @@ rest.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import wx
 
@@ -184,10 +185,98 @@ class GraphicsBoardRenderer(BoardRenderer):
         self._panel.Bind(wx.EVT_SIZE, self._on_size)
         self._game: HanoiGame | None = None
         self._labelling: Labelling | None = None
+        # Drag-and-drop (spike): pick up a peg's top disc and drop it on another
+        # peg. The move still dispatches through the shared engine via
+        # `_move_callback`; the move buttons stay as a parallel/accessible path.
+        self._move_callback: Callable[[int, int], None] | None = None
+        self._interactive: bool = True
+        self._drag_src: int | None = None
+        self._drag_size: int = 0
+        self._drag_pos: tuple[float, float] = (0.0, 0.0)
+        # Board geometry from the last paint, for mouse hit-testing.
+        self._centres: list[float] = []
+        self._base_y: float = 0.0
+        self._disc_h: float = 0.0
+        self._max_disc_w: float = 0.0
+        self._n: int = 0
+        self._panel.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
+        self._panel.Bind(wx.EVT_MOTION, self._on_motion)
+        self._panel.Bind(wx.EVT_LEFT_UP, self._on_left_up)
+        self._panel.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._on_capture_lost)
 
     def widget(self) -> wx.Window:
         """Return the panel this renderer paints onto."""
         return self._panel
+
+    # --- Drag-and-drop (spike) ----------------------------------------
+
+    def set_move_callback(self, callback: Callable[[int, int], None]) -> None:
+        """Register the drop handler: `callback(from_peg, to_peg)` with
+        **physical** peg indices (0,1,2). The GUI converts to current labels
+        and dispatches through the engine."""
+        self._move_callback = callback
+
+    def set_interactive(self, interactive: bool) -> None:
+        """Enable/disable disc dragging (e.g. off once the game is won)."""
+        self._interactive = interactive
+        if not interactive:
+            self._end_drag()
+
+    def _peg_at(self, x: float) -> int:
+        """The physical peg (0,1,2) whose centre is nearest `x` — forgiving
+        drop targeting, the decided behaviour for the spike."""
+        centres: list[float] = self._centres
+        if not centres:
+            return 0
+        return min(range(len(centres)), key=lambda i: abs(x - centres[i]))
+
+    def _end_drag(self) -> None:
+        """Clear any in-progress drag and release the mouse capture."""
+        self._drag_src = None
+        if self._panel.HasCapture():
+            self._panel.ReleaseMouse()
+
+    def _on_left_down(self, evt: wx.MouseEvent) -> None:
+        """Pick up the top disc of the peg under the cursor, if any."""
+        if not self._interactive or self._game is None:
+            evt.Skip()
+            return
+        peg: int = self._peg_at(float(evt.GetX()))
+        stack: list[int] = self._game.towers[peg]
+        if not stack:
+            evt.Skip()
+            return
+        self._drag_src = peg
+        self._drag_size = stack[-1]
+        self._drag_pos = (float(evt.GetX()), float(evt.GetY()))
+        if not self._panel.HasCapture():
+            self._panel.CaptureMouse()
+        self._panel.Refresh()
+
+    def _on_motion(self, evt: wx.MouseEvent) -> None:
+        """While dragging, move the picked-up disc with the cursor."""
+        if self._drag_src is None:
+            evt.Skip()
+            return
+        self._drag_pos = (float(evt.GetX()), float(evt.GetY()))
+        self._panel.Refresh()
+
+    def _on_left_up(self, evt: wx.MouseEvent) -> None:
+        """Drop: dispatch a move to the nearest peg (if not the source)."""
+        if self._drag_src is None:
+            evt.Skip()
+            return
+        src: int = self._drag_src
+        target: int = self._peg_at(float(evt.GetX()))
+        self._end_drag()
+        self._panel.Refresh()  # snap back to the true board state
+        if target != src and self._move_callback is not None:
+            self._move_callback(src, target)
+
+    def _on_capture_lost(self, _evt: wx.MouseCaptureLostEvent) -> None:
+        """Abandon the drag if the capture is lost (required by wx)."""
+        self._drag_src = None
+        self._panel.Refresh()
 
     def update(self, game: HanoiGame, labelling: Labelling) -> None:
         """Store the new game/labelling and request a repaint."""
@@ -273,6 +362,14 @@ class GraphicsBoardRenderer(BoardRenderer):
             margin + peg_zone_w * (i + 0.5) for i in range(3)
         ]
 
+        # Remember the geometry so the mouse handlers can hit-test pegs and
+        # size the dragged disc (drag-and-drop spike).
+        self._centres = peg_centres
+        self._base_y = float(base_y)
+        self._disc_h = disc_h
+        self._max_disc_w = max_disc_w
+        self._n = n
+
         # Base bar across the full width.
         self._draw_rounded_fill(
             gc,
@@ -315,11 +412,29 @@ class GraphicsBoardRenderer(BoardRenderer):
             stack_idx: int
             size: int
             for stack_idx, size in enumerate(peg):
+                # The disc being dragged is drawn at the cursor, not on its peg.
+                if self._drag_src == p_idx and stack_idx == len(peg) - 1:
+                    continue
                 disc_w: float = self._disc_width(size, n, max_disc_w)
                 y: float = base_y - (stack_idx + 1) * disc_h * 1.04
                 self._draw_disc(
                     gc, cx, y, disc_w, disc_h, self._disc_colour(size)
                 )
+
+        # The disc currently being dragged follows the cursor.
+        if self._drag_src is not None:
+            drag_w: float = self._disc_width(self._drag_size, n, max_disc_w)
+            dx: float
+            dy: float
+            dx, dy = self._drag_pos
+            self._draw_disc(
+                gc,
+                dx,
+                dy - disc_h / 2,
+                drag_w,
+                disc_h,
+                self._disc_colour(self._drag_size),
+            )
 
         # Active label badges — colour mirrors the curses peg colour for
         # this label, so the colour ↔ label binding stays legible across
