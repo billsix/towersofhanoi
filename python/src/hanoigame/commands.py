@@ -69,6 +69,11 @@ class ListCmd:
 
 
 @dataclass(frozen=True)
+class HistoryCmd:
+    """Show the running move history (the numbered default-space tally)."""
+
+
+@dataclass(frozen=True)
 class HelpCmd:
     """Show help text."""
 
@@ -97,6 +102,7 @@ Command = (
     | ApplyCmd
     | ShowCmd
     | ListCmd
+    | HistoryCmd
     | HelpCmd
     | QuitCmd
     | EmptyCmd
@@ -114,6 +120,7 @@ COMMAND_VERBS: tuple[str, ...] = (
     "apply",
     "show",
     "list",
+    "history",
     "help",
     "quit",
 )
@@ -128,6 +135,7 @@ Commands:
   apply <name>     replay a saved recipe under the current labelling
   show <name>      print the moves in a saved recipe
   list             list saved recipes
+  history          show the running move list this game (also: 'moves')
   help             show this help
   quit             quit the game"""
 
@@ -223,6 +231,8 @@ def parse(line: str) -> Command:
         return HelpCmd()
     if lower == "list":
         return ListCmd()
+    if lower in ("history", "moves"):
+        return HistoryCmd()
 
     # Move with explicit arrow: "1 -> 3", "1->3", with any internal spacing.
     if "->" in s:

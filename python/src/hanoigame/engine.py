@@ -35,6 +35,7 @@ from .commands import (
     Command,
     EmptyCmd,
     HelpCmd,
+    HistoryCmd,
     ListCmd,
     MoveCmd,
     ParseError,
@@ -47,6 +48,7 @@ from .hanoimodel import HanoiGame, ValidMove
 from .presenter import (
     Labelling,
     change_labels_on_pegs,
+    format_move_tally,
     labelling_for,
     labels_to_towers,
 )
@@ -180,6 +182,8 @@ class GameSession:
             return DispatchResult(lines=self._handle_show(cmd))
         if isinstance(cmd, ListCmd):
             return DispatchResult(lines=self._handle_list())
+        if isinstance(cmd, HistoryCmd):
+            return DispatchResult(lines=self._handle_history())
         if isinstance(cmd, SaveCmd):
             return DispatchResult(
                 lines=[
@@ -353,3 +357,18 @@ class GameSession:
                 f"{len(recipe.default_moves)} moves)"
             )
         return lines
+
+    def _handle_history(self) -> list[str]:
+        """Return the running move history: a header with the live count vs the
+        optimal 2^N-1, then the numbered default-space (physical 1-2-3) move
+        tally -- every move this game, resetting with a new game. The text-UI
+        form of the always-visible Tier-1 history (feature-spec §4.11, §6.1)."""
+        moves: list[tuple[int, int]] = list(self.recorder.default_moves)
+        count: int = len(moves)
+        noun: str = "move" if count == 1 else "moves"
+        header: str = (
+            f"History — {count} {noun} "
+            f"(optimal {self.min_moves()}, default 1-2-3 labels):"
+        )
+        tally: list[str] = format_move_tally(moves)
+        return [header, *(tally or ["  (no moves yet)"])]
