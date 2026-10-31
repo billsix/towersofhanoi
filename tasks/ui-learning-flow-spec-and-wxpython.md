@@ -1,6 +1,6 @@
 # Learning-flow UI redesign — spec + wxPython (the oracle)
 
-**Status:** proposed — plan agreed, concrete wx-layout specifics are open questions below.
+**Status:** proposed — plan and all wx-layout specifics agreed; ready to start on go-ahead.
 **Priority:** 2
 **Difficulty:** 5
 
@@ -57,20 +57,17 @@ separate follow-on task.
 ### Phase 3 — docs + staging
 - Stage spec + reference-doc + CLAUDE.md pointer + the wxPython changes by path. File the fan-out task.
 
-## Open questions (concrete wx specifics — answer by number)
+## Decisions — concrete wx specifics (maintainer deferred to recommendations, 2026-10-31)
 
-1. **Move-history panel placement** in the wx window — right-hand side column, or a bottom strip under
-   the board? (Rec: right-hand column, so vertical move growth reads naturally and the board keeps its
-   width.)
-2. **"How to play" presentation** — a dismissible inline panel that starts expanded on a fresh game, a
-   Help-menu dialog, or a one-time first-run overlay? (Rec: a collapsible inline panel, expanded by
-   default, collapsed once dismissed — always one click away, never modal.)
-3. **Tier-2 gating mechanism** — before the first win, should the Relabel/Recipe menus be **disabled
-   (greyed, with a tooltip "available after your first win")** per perceived-stability "dim don't
-   remove", or **absent until the win**? (Rec: disabled-with-tooltip — keeps the menubar stable.)
-4. **Scope of "first win" gating** — does Tier 2 unlock for the rest of the session once *any* game is
-   won, or re-lock on each new game until that game is won? (Rec: unlock for the session — a learner
-   who has seen the method shouldn't lose access.)
+1. **Move-history panel placement:** a **right-hand side column**, so vertical move growth reads
+   naturally and the board keeps its width.
+2. **"How to play" presentation:** a **collapsible inline panel, expanded by default on a fresh game,
+   collapsed once dismissed** — always one click away, never modal.
+3. **Tier-2 gating mechanism:** before the first win, the Relabel/Recipe menus are **disabled (greyed,
+   with a tooltip "available after your first win")** — perceived-stability "dim, don't remove" keeps
+   the menubar stable; they are not absent-then-appearing.
+4. **"First win" unlock scope:** Tier 2 **unlocks for the rest of the session** once any game is won
+   (it does not re-lock on each new game) — a learner who has seen the method keeps access.
 
 ## Related
 

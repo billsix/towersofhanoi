@@ -38,14 +38,15 @@ wxPython spike + a recommendation (keep / drop / keep-both-with-buttons), not a 
    larger-on-smaller — §4.2) — snap-back + reason is the *forgiveness* principle made visible.
 3. **Compare** against the move-button interaction and write the recommendation.
 
+## Decisions (maintainer, 2026-10-31)
+
+- **Keep both during the spike:** drag-and-drop **plus** the existing move buttons, so the two
+  interactions can be compared fairly; whether to drop the buttons is decided after. (The feature-spec
+  §6.2 "show all move buttons and disable the illegal ones" guidance stays until that decision.)
+
 ## Open questions (answer by number)
 
-1. **Keep a non-drag path?** Apple HIG favors direct manipulation, but a pure drag-only board drops
-   keyboard/screen-reader access. Options: (a) drag-only, (b) drag **plus** the existing buttons as a
-   secondary/accessible path, (c) drag plus keyboard move entry. (Rec: (b) for the spike — compare
-   fairly, decide removal after.) The feature-spec §6.2 currently says "show all move buttons and
-   disable the illegal ones" (perceived stability) — dropping buttons would amend that.
-2. **Drop precision:** must the disk be dropped within a peg's column, or is "nearest peg to the drop
+1. **Drop precision:** must the disk be dropped within a peg's column, or is "nearest peg to the drop
    point" close enough? (Rec: nearest-peg — more forgiving.)
 
 ## Related
