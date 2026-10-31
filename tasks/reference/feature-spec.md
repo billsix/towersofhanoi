@@ -146,10 +146,16 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
      labelling (shown only when a non-default labelling is active; the default has no rebinding),
   3. the **rebound move set on the global/physical pegs** — the recipe's moves expressed on the physical
      pegs,
-  4. a per-step log and a final "Done" / "stopped — <reason>".
+  4. a final **"Done."** (or "stopped — <reason>" on an illegal step).
   These three — recipe moves, the label→peg rebinding, the rebound physical moves — are the **three-panel
   rebinding view** (`recipe.format_rebinding_table`: `<left_header> | Rebinding (label -> peg) | Rebound
   (physical pegs)`).
+- **Per-step log — only under the default labelling** (decision 2026-10-31, William Emerison Six
+  <billsix@gmail.com>): the per-step `step N: <from> -> <to>` lines are shown **only** when no table is
+  shown (the default labelling). **Under a relabelling the per-step log is omitted** — the three-panel
+  table's left and right columns already list every recipe move and its rebound physical move, so a
+  per-step log merely repeats the Rebound column (it confused readers). Text UIs (CLI/TUI) follow this;
+  GUIs show the three panels as their own view and summarise to a move count. (`engine._handle_apply`.)
 - **Do:** name a recipe to invoke under the current labelling.
 - **Why:** this is where the relabelling method becomes concrete — the learner *sees* their small solve,
   under the current renaming, become the moves that advance the bigger puzzle. (Rationale:

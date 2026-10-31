@@ -224,6 +224,9 @@ def test_bill_worked_example_via_cli() -> None:
     output: str = _drive(script)
     assert "Applying recipe 'solve-2-from-1-to-3'" in output
     assert "Done." in output
+    # Under a relabelling the three-panel table already lists every move, so
+    # the per-step "step N:" log is omitted (it duplicated the Rebound column).
+    assert "step 1:" not in output
     # After the apply: physical peg 0 holds disc 3 (alone), physical peg 1
     # holds discs 2 and 1 (stacked correctly). Under labelling ONE_THREE_TWO
     # the label row reads "1 3 2".

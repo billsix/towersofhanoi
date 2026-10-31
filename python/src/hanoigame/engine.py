@@ -259,8 +259,10 @@ class GameSession:
         """Replay a saved recipe under the current labelling.
 
         Returns:
-            The application log: a header, the three-column rebinding table
-            (only when relabelled), one line per step, and a final status.
+            The application log: a header; then either the three-column
+            rebinding table (when relabelled -- it already shows every move,
+            so the per-step log is omitted) or a per-step ``step N: from ->
+            to`` log (default labelling); and a final ``Done.`` status.
         """
         recipe: Recipe | None = self.registry.get(cmd.name)
         if recipe is None:
@@ -280,7 +282,8 @@ class GameSession:
         table: list[str] = format_rebinding_table(
             recipe.default_moves, self.labelling
         )
-        if table:
+        show_table: bool = bool(table)
+        if show_table:
             lines.append("")
             lines.extend(table)
             lines.append("")
@@ -290,9 +293,17 @@ class GameSession:
             apply_iter(recipe, self.game, self.labelling), start=1
         ):
             if result.ok:
-                lines.append(
-                    f"  step {step}: {result.from_label} -> {result.to_label}"
-                )
+                # When the three-panel table is shown it already lists every
+                # recipe move (left) and its rebound physical move (right), so
+                # a per-step "from -> to" log just repeats the right column --
+                # omit it under a relabelling, keep it otherwise (then it is
+                # the only move output). The move is recorded either way (the
+                # running tally depends on it).
+                if not show_table:
+                    lines.append(
+                        f"  step {step}: {result.from_label} -> "
+                        f"{result.to_label}"
+                    )
                 # A successful step always carries concrete pegs (see
                 # StepResult / apply_iter); narrow the Optional for the checker.
                 assert result.from_peg is not None
