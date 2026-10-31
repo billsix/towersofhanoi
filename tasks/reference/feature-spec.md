@@ -53,6 +53,33 @@ rebinding features is not a hanoi UI in this sense, even if it can solve the puz
   recipe's moves expressed on the physical pegs are the **rebound moves**. The default labelling has no
   rebinding to show. (Source: `recipe.rebinding`, `rebound_moves`, `format_rebinding_table`.)
 
+## 3.5 Learning flow / progressive disclosure (information architecture)
+
+hanoi's audience is a user who does **not already know** how to solve Towers of Hanoi and who learns by
+**incremental discovery** (§1). The features in §4 are therefore presented in **three tiers keyed to
+the learner's journey**, not all at once. The rationale and the Apple-HIG grounding live in
+`tasks/reference/ui-design-principles.md`; this section is the contract every UI conforms to.
+
+- **Tier 1 — the core workspace, always visible.** The board; a one-line **goal** statement; the
+  **move history** (§4.11, always visible — numbered, default 1-2-3 labels, live count vs the optimal
+  `2^N−1`); legal/illegal-move feedback (§4.2). This tier alone is enough to play and win a first game
+  with no knowledge of recipes or relabelling.
+- **Tier 2 — revealed at the first win.** Relabelling (§4.3) and saving a recipe (§4.5). These are
+  meaningless before a win (a recipe can only be saved after winning, §4.5; relabelling has no
+  motivation until there is a solved stack to reuse). The **win** (§4.9) is the teaching hinge: on
+  winning, the UI offers the next step — save this solve, start a larger stack, reuse it under a
+  relabelling. Tier-2 affordances become available (not forced) at the first win and **stay available
+  for the rest of the session**.
+- **Tier 3 — advanced / reference, out of the main workspace.** Recipe list / show / apply (§4.6–4.8)
+  and the three-panel rebinding view (§4.8). Present and discoverable, but never competing with the
+  board: a **menu** in a GUI, a **secondary tab or toggled panel** in a TUI.
+
+**Gating is "dim, don't remove"** (perceived stability): before the first win a Tier-2/3 affordance is
+**disabled with a hint** ("available after your first win"), not absent — the layout stays stable.
+**Onboarding:** every UI shows an always-present **goal line** and offers a dismissible **"How to
+play"** (the rules + the one legal-move rule + "solve small, relabel, replay"); implicit teaching is
+not sufficient for an audience that does not know the puzzle.
+
 ## 4. Features — what the user can do
 
 Each feature lists *what it does*, what the UI must let the user **see**/**do**, and **why**.
@@ -153,7 +180,9 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   `recipe.Recorder.default_moves` (existing state — not new bookkeeping) and **updates live** as moves
   are made while it is open; it **resets with a new game** (the recorder's own lifetime). A UI may
   present the same content as an always-visible panel instead of a dialog, as long as it is the numbered
-  default-space list + live count, moves-only, reset-per-game.
+  default-space list + live count, moves-only, reset-per-game. **Per the learning flow (§3.5), the
+  always-visible panel is the preferred Tier-1 presentation**; an on-demand dialog/menu item may remain
+  as an additional way to focus it, but the history should not be hidden by default.
 - **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
   ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
 - **Status:** implemented in the **wxPython GUI** (the oracle) 2026-10-26
@@ -185,11 +214,21 @@ These are recommendations for *how* a category of UI presents the features above
   (`format_rebinding_table`); after a single move under a relabelling, a text UI may print that one move's
   rebinding inline (`engine.move_teaching_lines`). Keep a **plain stdin/stdout** mode usable by screen
   readers (no curses required).
+- **Apply the learning-flow tiers (§3.5):** keep the board + goal line + the move history as the
+  always-present Tier-1 view (a curses TUI shows the history in a visible region or a toggled panel; a
+  plain CLI prints it on demand and after each move); treat relabel/save as Tier-2 (surface them once a
+  game is won) and recipe list/show/apply as Tier-3 (a secondary tab or a toggled panel, not the main
+  prompt). A plain CLI can state the gating in text rather than disabling a control.
 
 ### 6.2 GUI (windowed)
 - Group actions on a **menubar**: a Game menu (new game / disk count, quit), a Relabel menu (the six
   labellings), a Recipe menu (save / list / show / apply). Keep action controls **stable** — e.g. show
   all move buttons and **disable** the illegal ones rather than hiding them, so controls don't jump.
+- **Apply the learning-flow tiers (§3.5):** keep the board + goal line + an **always-visible move-history
+  panel** as the Tier-1 workspace; **gate the Relabel and Recipe menus** until the first win (disabled
+  with a hint, "dim don't remove"), then leave them enabled for the session; present recipes/rebinding
+  as the Tier-3 menu content. Offer the "How to play" onboarding (§3.5) from a dismissible panel or a
+  Help menu item.
 - Present the **three-panel rebinding view** as three side-by-side panels/lists (recipe moves | rebinding
   | rebound physical moves), not only as text.
 - An **illegal move** is surfaced as a dialog, not folded into the board redraw. (Source: the GUI
@@ -221,6 +260,12 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
     view listing every move this game, numbered, in default 1-2-3 labels, with a live count, moves-only,
     resetting on new game, via `presenter.format_move_tally`. Implemented in wxPython; other UIs tracked
     by `tasks/fan-out-move-tally.md`.
+16. **Move history is always-visible** (§3.5 Tier 1), not hidden behind an on-demand action by default.
+17. **Tier-2 gating** (§3.5): relabel + save-recipe are gated until the first win (disabled-with-hint in
+    a GUI, stated in text in a CLI), then available for the session.
+18. **Tier-3 placement** (§3.5): recipe list/show/apply + the rebinding view live in a menu (GUI) or a
+    secondary tab/panel (TUI), not in the first-solve workspace.
+19. **Onboarding for the non-knower** (§3.5): an always-present goal line + a dismissible "How to play".
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 
