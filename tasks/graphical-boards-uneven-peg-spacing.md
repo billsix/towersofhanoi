@@ -1,8 +1,33 @@
 # Fix uneven peg spacing in the C++ ImGui board
 
-**Status:** proposed — investigate root cause, then fix; needs go-ahead to start.
+**Status:** DONE 2026-10-31 (fix on branch `ui-learning-flow-and-fixes`).
 **Priority:** 3
 **Difficulty:** 3
+
+## Work record / findings (DONE 2026-10-31)
+
+- **Root cause (verified in the code, not inherited):** the three peg **centres** are evenly spaced in
+  *every* graphical board — egui (`rust/hanoi-egui/src/main.rs:285-293`) and wxPython
+  (`python/src/hanoigame/board_renderers.py:260-274`) share the formula
+  `centre = left + margin + (avail_w/3)*(i+0.5)` with `avail_w = w − 2·margin` (margin 20px). The
+  **C++ ImGui board** (`cpp/main.cpp` `draw_board`) alone used `peg_gap = board_w/3`,
+  `cx = origin.x + peg_gap*(i+0.5)` — centres at 1/6, 1/2, 5/6 of the **full** width with **no edge
+  margin**, so the outer pegs and the widest bottom discs hugged the board edges. That edge-crowding
+  is the "uneven" look; the centre spacing itself was never wrong.
+- **Fix:** gave the ImGui board the same inset layout (margin 20px; `avail_w = board_w − 2·margin`;
+  `peg_gap = avail_w/3`; `cx = origin.x + margin + peg_gap*(i+0.5)`), so the outer pegs clear the edges
+  and all three graphical boards share one peg layout (the Consistency principle). Commit on the branch.
+- **The other boards left as-is (report-only, per the maintainer's decision):** egui and wxPython were
+  already correctly inset; no change. ("The python one" in the original request is the wxPython Cairo
+  board — already even.)
+- **Verification:** `cd cpp && make build` (hanoi-cpp + hanoi-wx + hanoi-tests compile) + `make test`
+  (ctest) green; clang-format clean. No headless screenshot path exists for the ImGui board, so the
+  spacing was reasoned from the (now-unified) layout math; the maintainer's on-display `make gui` is
+  the final visual check.
+- **Tooling note (for the session report):** `make -o image format` ran the image's **stale baked**
+  `/format.sh` (predating the `./doctest` prune now in `entrypoint/format.sh`) and reformatted the
+  vendored `cpp/doctest/doctest.h`; restored it and re-verified with the mounted current script. A
+  fresh image (the maintainer's CI) uses the current script and is unaffected.
 
 ## BLUF
 
