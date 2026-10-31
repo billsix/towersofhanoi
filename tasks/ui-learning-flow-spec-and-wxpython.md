@@ -1,8 +1,31 @@
 # Learning-flow UI redesign — spec + wxPython (the oracle)
 
-**Status:** proposed — plan and all wx-layout specifics agreed; ready to start on go-ahead.
+**Status:** DONE 2026-10-31 (spec + wxPython on branch `ui-learning-flow-and-fixes`).
 **Priority:** 2
 **Difficulty:** 5
+
+## Work record (DONE 2026-10-31)
+
+- **Phase 1 (spec):** `tasks/reference/feature-spec.md` gained §3.5 (the three tiers + gating +
+  onboarding), a §4.11 note that always-visible is the preferred presentation, tier pointers in §6.1
+  /§6.2, and compliance rows 16–19. Grounded in the new `tasks/reference/ui-design-principles.md`.
+- **Phase 2 (wxPython):** redesigned `python/src/hanoigame/hanoigui.py` **programmatically** — the
+  shared `ui/hanoi.xrc` is untouched, so the C++/Rust wx front-ends are unaffected until the fan-out
+  (same discipline the move-tally used). Tier 1: always-visible history panel (right of the board,
+  replacing the Ctrl+H dialog) + goal line + collapsible "How to play"; View-menu toggles for both.
+  Tier 2: relabel + save gated until the first win, then enabled for the session (`EnableTop`, "dim
+  don't remove"); the win message is the teaching handoff. Tier 3: recipes moved to a new Recipe menu
+  (Save / Apply… / Show… / List…) with a `SingleChoiceDialog` chooser; the in-panel recipe sidebar is
+  hidden via sizer surgery.
+- **Decisions applied:** history panel on the right; "How to play" collapsible, expanded by default;
+  Tier-2 gating by disabling the menus (not hiding); unlock is session-scoped. Drop-precision-style
+  questions didn't arise here.
+- **Verification:** `cd python && make format` clean, `make type-check` clean, `make test` = 130
+  passed / 2 skipped (byhand drift guard, expected in the isolated image); a headless Xvfb smoke
+  constructed the frame, won a 1-disc game (unlock), relabelled, toggled both panels, and confirmed
+  the history reflects the move. The maintainer's on-display `make wx` run is the remaining check.
+- **Follow-on filed:** `tasks/fan-out-ui-learning-flow.md` (apply the same flow to the other UIs +
+  settle the shared XRC form).
 
 ## BLUF
 
