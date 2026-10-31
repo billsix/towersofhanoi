@@ -64,3 +64,13 @@ make the pegs **evenly spaced**. Verify headless, then the maintainer's on-displ
 
 - `cpp/main.cpp` (the C++ ImGui board), `tasks/reference/imgui-cpp-native-and-wasm.md` (build/run +
   headless path), `tasks/reference/feature-spec.md` §5 (the board is a mandatory shown element).
+
+## Follow-up (maintainer on-display, 2026-10-31)
+
+The margin fix was correct, but on `make gui` the (evenly-spaced) peg group still **hung to the
+right** — screen centre fell between pegs 1 and 2. **Pre-existing, unrelated cause:** in
+`draw_frame` the "Moves:" line called `ImGui::SameLine()` **unconditionally**, but its trailing
+"-- solved!" text is drawn only after a win. During normal play nothing followed the `SameLine()`, so
+`draw_board` began on that line, to the right of the "Moves:" text — shifting the board's origin right
+and shrinking its content-region width. Fix: move the `SameLine()` inside the `if (app.won())` block
+(`cpp/main.cpp`). Build green; maintainer's on-display re-check is the last word.

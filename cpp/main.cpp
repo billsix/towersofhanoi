@@ -543,8 +543,8 @@ void draw_frame(App &app) {
 
   ImGui::Text("Moves: %d   (optimal: %d)", app.game.current_moves(),
               optimal_moves(app.game.num_disks()));
-  ImGui::SameLine();
   if (app.won()) {
+    ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.3f, 0.9f, 0.3f, 1.0f), "  -- solved!");
   }
 
