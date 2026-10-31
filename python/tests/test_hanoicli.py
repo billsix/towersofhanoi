@@ -63,6 +63,24 @@ def test_winning_with_extra_moves_reports_diff() -> None:
     assert "2 more than the minimum." in output
 
 
+def test_howto_and_goal_shown_for_the_learner() -> None:
+    """The learner sees onboarding (the one rule) and an always-present goal
+    line with a running move count (feature-spec §3.5 / §6.1)."""
+    output: str = _drive(_script("3", "quit"))
+    assert "How to play" in output
+    assert "Never place a larger disc on a smaller one." in output
+    assert "Goal: move all 3 discs to peg 3" in output
+    assert "Moves: 0" in output  # the legend's running count
+
+
+def test_history_command_lists_the_running_tally() -> None:
+    """`history` prints the numbered default-space tally and a live count."""
+    output: str = _drive(_script("3", "1 3", "1 2", "history", "quit"))
+    assert "History — 2 moves" in output
+    assert "1. 1 -> 3" in output
+    assert "2. 1 -> 2" in output
+
+
 def test_illegal_move_empty_source() -> None:
     """Moving from an empty peg is rejected with an explanation."""
     output: str = _drive(_script("3", "2 1", "quit"))
@@ -224,6 +242,9 @@ def test_bill_worked_example_via_cli() -> None:
     output: str = _drive(script)
     assert "Applying recipe 'solve-2-from-1-to-3'" in output
     assert "Done." in output
+    # Under a relabelling the three-panel table already lists every move, so
+    # the per-step "step N:" log is omitted (it duplicated the Rebound column).
+    assert "step 1:" not in output
     # After the apply: physical peg 0 holds disc 3 (alone), physical peg 1
     # holds discs 2 and 1 (stacked correctly). Under labelling ONE_THREE_TWO
     # the label row reads "1 3 2".

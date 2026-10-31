@@ -17,7 +17,9 @@
 
 use crate::commands::{Command, HELP_TEXT};
 use crate::model::{HanoiGame, Move};
-use crate::presenter::{change_labels_on_pegs, labelling_for, labels_to_towers, Labelling};
+use crate::presenter::{
+    change_labels_on_pegs, format_move_tally, labelling_for, labels_to_towers, Labelling,
+};
 use crate::recipe::{apply, format_rebinding_table, Recipe, RecipeRegistry, Recorder, StepResult};
 
 /// The fallout from [`GameSession::dispatch`]: the front-end renders `lines` and
@@ -146,6 +148,7 @@ impl<'r> GameSession<'r> {
             Command::Apply(name) => DispatchResult::from_lines(self.handle_apply(name)),
             Command::Show(name) => DispatchResult::from_lines(self.handle_show(name)),
             Command::List => DispatchResult::from_lines(self.handle_list()),
+            Command::History => DispatchResult::from_lines(self.handle_history()),
             Command::Save(_) => DispatchResult::from_lines(vec![
                 "Save only works after winning a game. Keep playing — you'll be \
                  prompted to name the recipe when you finish."
@@ -215,7 +218,8 @@ impl<'r> GameSession<'r> {
         )];
         let table: Vec<String> =
             format_rebinding_table(&recipe.default_moves, self.labelling, "Recipe (its labels)");
-        if !table.is_empty() {
+        let show_table: bool = !table.is_empty();
+        if show_table {
             lines.push(String::new());
             lines.extend(table);
             lines.push(String::new());
@@ -224,10 +228,17 @@ impl<'r> GameSession<'r> {
         for (i, result) in results.iter().enumerate() {
             let step: usize = i + 1;
             if result.ok() {
-                lines.push(format!(
-                    "  step {step}: {} -> {}",
-                    result.from_label, result.to_label
-                ));
+                // When the three-panel table is shown it already lists every
+                // recipe move (left) and its rebound physical move (right), so
+                // a per-step log just repeats the right column -- omit it under
+                // a relabelling, keep it otherwise (feature-spec §4.8). The move
+                // is recorded either way (the running tally depends on it).
+                if !show_table {
+                    lines.push(format!(
+                        "  step {step}: {} -> {}",
+                        result.from_label, result.to_label
+                    ));
+                }
                 let fp: usize = result.from_peg.expect("a successful step carries pegs");
                 let tp: usize = result.to_peg.expect("a successful step carries pegs");
                 self.recorder.record((fp + 1) as u32, (tp + 1) as u32);
@@ -275,6 +286,27 @@ impl<'r> GameSession<'r> {
                 recipe.disk_count,
                 recipe.default_moves.len()
             ));
+        }
+        lines
+    }
+
+    /// The running move history: a header with the live count vs the optimal
+    /// 2^N-1, then the numbered default-space (physical 1-2-3) move tally --
+    /// every move this game, resetting with a new game. The text-UI form of the
+    /// always-visible Tier-1 history (feature-spec §4.11, §6.1).
+    fn handle_history(&self) -> Vec<String> {
+        let moves: &[(u32, u32)] = &self.recorder.default_moves;
+        let count: usize = moves.len();
+        let noun: &str = if count == 1 { "move" } else { "moves" };
+        let mut lines: Vec<String> = vec![format!(
+            "History — {count} {noun} (optimal {}, default 1-2-3 labels):",
+            self.min_moves()
+        )];
+        let tally: Vec<String> = format_move_tally(moves);
+        if tally.is_empty() {
+            lines.push("  (no moves yet)".to_string());
+        } else {
+            lines.extend(tally);
         }
         lines
     }

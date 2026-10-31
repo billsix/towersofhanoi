@@ -35,6 +35,7 @@ from .commands import (
     Command,
     EmptyCmd,
     HelpCmd,
+    HistoryCmd,
     ListCmd,
     MoveCmd,
     ParseError,
@@ -47,6 +48,7 @@ from .hanoimodel import HanoiGame, ValidMove
 from .presenter import (
     Labelling,
     change_labels_on_pegs,
+    format_move_tally,
     labelling_for,
     labels_to_towers,
 )
@@ -180,6 +182,8 @@ class GameSession:
             return DispatchResult(lines=self._handle_show(cmd))
         if isinstance(cmd, ListCmd):
             return DispatchResult(lines=self._handle_list())
+        if isinstance(cmd, HistoryCmd):
+            return DispatchResult(lines=self._handle_history())
         if isinstance(cmd, SaveCmd):
             return DispatchResult(
                 lines=[
@@ -259,8 +263,10 @@ class GameSession:
         """Replay a saved recipe under the current labelling.
 
         Returns:
-            The application log: a header, the three-column rebinding table
-            (only when relabelled), one line per step, and a final status.
+            The application log: a header; then either the three-column
+            rebinding table (when relabelled -- it already shows every move,
+            so the per-step log is omitted) or a per-step ``step N: from ->
+            to`` log (default labelling); and a final ``Done.`` status.
         """
         recipe: Recipe | None = self.registry.get(cmd.name)
         if recipe is None:
@@ -280,7 +286,8 @@ class GameSession:
         table: list[str] = format_rebinding_table(
             recipe.default_moves, self.labelling
         )
-        if table:
+        show_table: bool = bool(table)
+        if show_table:
             lines.append("")
             lines.extend(table)
             lines.append("")
@@ -290,9 +297,17 @@ class GameSession:
             apply_iter(recipe, self.game, self.labelling), start=1
         ):
             if result.ok:
-                lines.append(
-                    f"  step {step}: {result.from_label} -> {result.to_label}"
-                )
+                # When the three-panel table is shown it already lists every
+                # recipe move (left) and its rebound physical move (right), so
+                # a per-step "from -> to" log just repeats the right column --
+                # omit it under a relabelling, keep it otherwise (then it is
+                # the only move output). The move is recorded either way (the
+                # running tally depends on it).
+                if not show_table:
+                    lines.append(
+                        f"  step {step}: {result.from_label} -> "
+                        f"{result.to_label}"
+                    )
                 # A successful step always carries concrete pegs (see
                 # StepResult / apply_iter); narrow the Optional for the checker.
                 assert result.from_peg is not None
@@ -342,3 +357,18 @@ class GameSession:
                 f"{len(recipe.default_moves)} moves)"
             )
         return lines
+
+    def _handle_history(self) -> list[str]:
+        """Return the running move history: a header with the live count vs the
+        optimal 2^N-1, then the numbered default-space (physical 1-2-3) move
+        tally -- every move this game, resetting with a new game. The text-UI
+        form of the always-visible Tier-1 history (feature-spec §4.11, §6.1)."""
+        moves: list[tuple[int, int]] = list(self.recorder.default_moves)
+        count: int = len(moves)
+        noun: str = "move" if count == 1 else "moves"
+        header: str = (
+            f"History — {count} {noun} "
+            f"(optimal {self.min_moves()}, default 1-2-3 labels):"
+        )
+        tally: list[str] = format_move_tally(moves)
+        return [header, *(tally or ["  (no moves yet)"])]

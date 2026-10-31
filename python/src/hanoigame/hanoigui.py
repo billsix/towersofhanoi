@@ -629,21 +629,22 @@ class HanoiFrame(wx.Frame):
         """Replay `name`; under a relabelling, show the three-panel rebinding
         dialog for the whole recipe (the teaching moment, feature-spec §4.8)."""
         relabelled: bool = self.session.labelling != Labelling.ONE_TWO_THREE
+        recipe: Recipe | None = self.session.registry.get(name)
         result: DispatchResult = self.session.dispatch(ApplyCmd(name))
-        # Apply streams multiple "step N: from -> to" lines; the board
-        # animation already shows what happened, so summarise to a count.
-        step_lines: list[str] = [
-            ln for ln in result.lines if ln.strip().startswith("step ")
-        ]
-        if step_lines:
-            self._set_status(f"Applied '{name}' — {len(step_lines)} moves.")
+        # The board (and, under a relabelling, the rebinding dialog below)
+        # already show what happened, so the status bar just summarises to a
+        # move count -- taken from the recipe, not by parsing the apply log
+        # (which omits the per-step log under relabelling, feature-spec §4.8).
+        if recipe is not None:
+            self._set_status(
+                f"Applied '{name}' — {len(recipe.default_moves)} moves."
+            )
         elif result.lines:
             self._set_status(result.lines[-1])
         # Teaching step: when the recipe was replayed under a relabelling, pop
         # up the three-panel local->global rebinding so the student sees why the
         # recorded solution's labels change. See
         # tasks/record-recipe-bindings-and-show-rebinding.md.
-        recipe: Recipe | None = self.session.registry.get(name)
         if relabelled and recipe is not None:
             self._show_rebinding_dialog(
                 title=f"Rebinding for '{name}'",

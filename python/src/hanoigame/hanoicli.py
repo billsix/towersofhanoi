@@ -38,6 +38,17 @@ from .recipe import RecipeRegistry
 
 MAX_DISKS: int = 10
 
+# Tier-1 onboarding for the learner who does not know the puzzle (feature-spec
+# §3.5 / §6.1): the goal, the one rule, and -- stated in text, not enforced --
+# that relabel/save are the post-win "reuse a solved stack" tools.
+HOWTO: str = """\
+How to play — move the whole stack of discs onto peg 3.
+  * Move one disc at a time (the top disc of a peg): '1 -> 3' (or '1 3', '13').
+  * Never place a larger disc on a smaller one.
+Type 'history' for your moves so far, 'help' for every command.
+Relabelling pegs and saving a recipe are the "solve small, relabel, replay"
+tools -- most useful once you have won your first game."""
+
 
 def _is_interactive(in_: TextIO) -> bool:
     """Return whether we are reading from the real interactive terminal.
@@ -144,6 +155,9 @@ def _print_board(session: GameSession, out: TextIO) -> None:
         session: The live game session to render.
         out: The stream board lines are written to.
     """
+    # Tier-1 goal line above the board; the running move count is the legend's
+    # trailing "Moves: N" line, so it is not repeated here.
+    out.write(f"Goal: move all {session.num_disks} discs to peg 3\n")
     line: str
     for line in presenter.render_with_legend(session.game, session.labelling):
         out.write(line + "\n")
@@ -277,7 +291,8 @@ def run(in_: TextIO, out: TextIO) -> int:
     Returns:
         The process exit code (always ``0``).
     """
-    out.write("Towers of Hanoi — type 'help' for commands.\n")
+    out.write("Towers of Hanoi\n")
+    out.write(HOWTO + "\n")
     registry: RecipeRegistry = RecipeRegistry()
     _install_completion(registry, in_)
     while True:

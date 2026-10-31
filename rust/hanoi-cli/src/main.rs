@@ -119,8 +119,25 @@ impl rustyline::highlight::Highlighter for HanoiHelper {}
 impl rustyline::validate::Validator for HanoiHelper {}
 impl rustyline::Helper for HanoiHelper {}
 
-/// Render the current board plus the running move count to `output`.
+/// Tier-1 onboarding for the learner who does not know the puzzle (feature-spec
+/// §3.5 / §6.1): the goal, the one rule, and -- stated in text, not enforced --
+/// that relabel/save are the post-win "reuse a solved stack" tools.
+const HOWTO: &str = "\
+How to play — move the whole stack of discs onto peg 3.
+  * Move one disc at a time (the top disc of a peg): '1 -> 3' (or '1 3', '13').
+  * Never place a larger disc on a smaller one.
+Type 'history' for your moves so far, 'help' for every command.
+Relabelling pegs and saving a recipe are the \"solve small, relabel, replay\"
+tools -- most useful once you have won your first game.";
+
+/// Render the current board plus the running move count to `output`, with the
+/// Tier-1 goal line above it (the move count is the legend's trailing line).
 fn print_board<W: Write>(session: &GameSession, output: &mut W) {
+    let _ = writeln!(
+        output,
+        "Goal: move all {} discs to peg 3",
+        session.num_disks()
+    );
     for line in render_with_legend(&session.game, session.labelling) {
         let _ = writeln!(output, "{line}");
     }
@@ -228,7 +245,8 @@ fn play_game<W: Write>(
 /// The game loop: greet, then prompt for a disc count and play until the user
 /// quits or EOFs. Returns the process exit code (always `0`).
 fn game_loop<W: Write>(reader: &mut dyn LineReader, output: &mut W) -> i32 {
-    let _ = writeln!(output, "Towers of Hanoi — type 'help' for commands.");
+    let _ = writeln!(output, "Towers of Hanoi");
+    let _ = writeln!(output, "{HOWTO}");
     let mut registry: RecipeRegistry = RecipeRegistry::new();
     loop {
         let names: Vec<String> = registry.names();
@@ -439,6 +457,22 @@ mod tests {
     }
 
     #[test]
+    fn howto_and_goal_shown_for_the_learner() {
+        let out = drive(&script(&["3", "quit"]));
+        assert!(out.contains("How to play"));
+        assert!(out.contains("Never place a larger disc on a smaller one."));
+        assert!(out.contains("Goal: move all 3 discs to peg 3"));
+    }
+
+    #[test]
+    fn history_command_lists_the_running_tally() {
+        let out = drive(&script(&["3", "1 3", "1 2", "history", "quit"]));
+        assert!(out.contains("History — 2 moves"));
+        assert!(out.contains("1. 1 -> 3"));
+        assert!(out.contains("2. 1 -> 2"));
+    }
+
+    #[test]
     fn bill_worked_example_via_cli() {
         let mut chunks = vec!["2"];
         chunks.extend(WIN_2_OPTIMAL);
@@ -453,6 +487,9 @@ mod tests {
         let out = drive(&script(&chunks));
         assert!(out.contains("Applying recipe 'solve-2-from-1-to-3'"));
         assert!(out.contains("Done."));
+        // Under a relabelling the three-panel table already lists every move,
+        // so the per-step "step N:" log is omitted (feature-spec §4.8).
+        assert!(!out.contains("step 1:"));
         for line in [
             "  |         |         |  ",
             "  |         *         |  ",
