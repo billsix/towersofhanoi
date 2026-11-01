@@ -1,10 +1,11 @@
 # Fan out the learning-flow UI to every other front-end
 
 **Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged],
-`ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui`; gpg off → restored). All
-**text UIs done** + the **C++ ImGui GUI** (the reference GUI) + the **Rust egui GUI**; **3 GUIs
-remain** (C++ wx + Rust wxDragon via the shared `ui/hanoi.xrc`; Rust Tauri) + **drag-drop** per
-graphical UI — all need on-display sign-off.
+`ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui` [merged],
+`ui-egui-relabel-glyph` [merged], and an overnight branch carrying the emacs-Dockerfile fix + this
+Tauri GUI; gpg off → restored). All **text UIs done** + the **C++ ImGui GUI** (the reference GUI) +
+the **Rust egui GUI** + the **Rust Tauri GUI**; **2 GUIs remain** (C++ wx + Rust wxDragon via the
+shared `ui/hanoi.xrc`) + **drag-drop** per graphical UI — all need on-display sign-off.
 **Priority:** 3
 **Difficulty:** 6
 
@@ -52,11 +53,22 @@ graphical UI — all need on-display sign-off.
   `cargo check` clean (own workspace, excluded from `make check`); a headless Xvfb + software-GL launch
   ran 6 s with no panic (EXIT=137 from `timeout -s KILL`, empty log). **On-display `make egui` is the
   visual check.** Drag-drop for egui is still pending (below).
+- **Rust Tauri GUI (`rust/tauri`) — learning-flow DONE** (overnight branch), the webview front-end:
+  Tier-1 goal line in the status bar + an always-visible **History** `<ol>` fed by a new `history`
+  field on the backend `Snapshot` (the recorder's default-label move pairs); Tier-2 gating is a
+  frontend `wonOnce` latch that disables the **Relabel** and **Recipe** menu-bar buttons until the
+  first win; Tier-3 moves relabelling and recipes onto a **menu bar** (Game / Relabel / Recipe / Help)
+  — Relabel menu = one radio-marked item per permutation (dimmed while solved); Recipe menu = Save
+  current solution (auto-named `solve-N`, enabled at a win) + each saved recipe a row with View / Apply
+  (Apply dimmed while solved); the first-run **How to Play** `<dialog>` auto-opens once and reopens from
+  the Help menu. Move/history text uses ASCII `->`. The backend stays a thin view-model over the
+  `hanoigame` crate (one new `history` field; no logic added). Verified: frontend `deno check`/`lint`/
+  `fmt` clean (`make type-check`), backend `cargo check` clean. **On-display `make tauri` is the visual
+  check.** Drag-drop for Tauri is still pending (below).
 - **Remaining, per UI (needs on-display sign-off):**
   - **C++ wx (`cpp/hanoiwx.cpp`) + Rust wxDragon (`rust/hanoi-gui`)** via the **shared `ui/hanoi.xrc`
     decision** — the coupled trio; settle whether the tier structure moves into the shared XRC (the
     wxPython oracle did it programmatically, XRC untouched). Do these together.
-  - **Rust Tauri** (`rust/tauri`): the web frontend.
   - Fold in **drag-drop** per graphical UI incl. ImGui (`tasks/port-drag-drop-to-graphical-uis.md`).
 
 ## BLUF

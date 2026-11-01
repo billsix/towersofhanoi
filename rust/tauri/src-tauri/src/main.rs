@@ -127,6 +127,8 @@ impl AppState {
                 })
             })
             .collect();
+        let history: Vec<[u32; 2]> =
+            self.recorder.default_moves.iter().map(|&(a, b)| [a, b]).collect();
         Snapshot {
             board: presenter::render(&self.game, self.labelling),
             towers: self.game.towers.clone(),
@@ -138,6 +140,7 @@ impl AppState {
             won: self.game.check_win_condition(),
             rebinding,
             recipes,
+            history,
             message,
             apply: None,
         }
@@ -227,6 +230,9 @@ struct Snapshot {
     /// the recipe-rebinding teaching key.
     rebinding: Vec<[u32; 2]>,
     recipes: Vec<RecipeInfo>,
+    /// The running move tally in default-label space (the Tier-1 always-visible
+    /// history; `[from_peg, to_peg]` pairs as the recorder recorded them).
+    history: Vec<[u32; 2]>,
     message: String,
     /// Populated only by `apply_recipe`: the three-panel rebinding view + the
     /// per-step replay log (feature-spec.md §4.8). `None` for every other command.

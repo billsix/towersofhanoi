@@ -67,7 +67,7 @@ h1 {
   font-size: 0.85rem;
 }
 
-.controls {
+.tier1 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -150,4 +150,128 @@ select {
   margin-top: 0.5rem;
   font-family: ui-monospace, monospace;
   font-size: 0.85rem;
+}
+
+/* --- Tier-3 menu bar (Game / Relabel / Recipe / Help). ---------------------- */
+.menubar {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #39425a;
+  padding-bottom: 0.35rem;
+}
+.menu {
+  position: relative;
+}
+.menu-btn {
+  background: transparent;
+  border: 1px solid transparent;
+}
+.menu-btn:hover:not(:disabled) {
+  background: #3b4867;
+}
+.menu.open > .menu-btn {
+  background: #3b4867;
+  border-color: #44507080;
+}
+.menu-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  min-width: 13rem;
+  margin-top: 0.2rem;
+  padding: 0.3rem;
+  background: #2a3348;
+  border: 1px solid #44507080;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px #0006;
+}
+.menu.open > .menu-panel {
+  display: block;
+}
+.menu-panel .menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+}
+.menu-panel .menu-item:hover:not(:disabled) {
+  background: #3b4867;
+}
+.menu-panel hr {
+  border: none;
+  border-top: 1px solid #44507060;
+  margin: 0.3rem 0;
+}
+.menu-panel label {
+  display: block;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.9rem;
+}
+.menu-empty {
+  display: block;
+  padding: 0.3rem 0.5rem;
+  color: #8891a6;
+  font-size: 0.85rem;
+}
+.recipe-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.3rem;
+}
+.recipe-row span {
+  flex: 1;
+  font-size: 0.85rem;
+}
+.recipe-row .menu-item {
+  width: auto;
+  padding: 0.2rem 0.5rem;
+}
+
+/* --- Tier-1 move history. --------------------------------------------------- */
+.history {
+  margin: 0;
+  padding-left: 1.6rem;
+  max-height: 10rem;
+  overflow-y: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+.history.empty {
+  list-style: none;
+  padding-left: 0.3rem;
+}
+.history .muted {
+  color: #8891a6;
+}
+
+/* --- How-to-Play dialog. ---------------------------------------------------- */
+dialog.howto {
+  max-width: 28rem;
+  background: #2a3348;
+  color: #e8ecf3;
+  border: 1px solid #44507080;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+dialog.howto h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+}
+dialog.howto p {
+  margin: 0.4rem 0;
+  line-height: 1.4;
+}
+dialog.howto form {
+  margin-top: 0.8rem;
+  text-align: right;
+}
+dialog.howto::backdrop {
+  background: #0008;
 }
