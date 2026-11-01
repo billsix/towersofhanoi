@@ -68,13 +68,14 @@ struct App {
   hanoi::RecipeRegistry registry;
   char name_buf[64] = "";
   std::string status;        // last action / feedback message
-  int recipe_sel = -1;       // selected index into registry.names()
   RecipeView view;           // the three-panel rebinding snapshot
   bool open_save = false;    // request to open the save-recipe modal
   bool open_help = false;    // request to open the help popup
   std::string illegal_msg;   // pending illegal-move reason (-> popup)
   bool open_illegal = false; // request to open the illegal-move popup
   bool want_quit = false;    // native: exit the loop
+  bool won_once = false;     // Tier-2 unlock: latched at the first win, kept
+  bool help_shown = false;   // first-run "How to Play" shown once
 
   void new_game(int n) {
     game = hanoi::Game(n);
@@ -238,6 +239,54 @@ void open_view(App &app, const std::string &title,
   app.view.labelling = app.labelling;
 }
 
+// View a saved recipe (Recipe menu -> <name> -> View): under a relabelling the
+// three-panel rebinding view (recipe moves | label->peg | rebound pegs), else
+// just the recipe's moves. Mirrors the wxPython oracle's _view_recipe.
+void view_recipe(App &app, const std::string &name) {
+  const hanoi::Recipe *r = app.registry.get(name);
+  if (r == nullptr) {
+    return;
+  }
+  open_view(app, "Recipe '" + name + "'", "Recipe moves", r->default_moves);
+}
+
+// Apply a saved recipe under the current labelling (Recipe menu -> <name> ->
+// Apply): replay + record each move, show the rebinding view when relabelled,
+// and summarise to the status line. Mirrors the oracle's _apply_recipe_by_name.
+void apply_recipe(App &app, const std::string &name) {
+  const hanoi::Recipe *r = app.registry.get(name);
+  if (r == nullptr) {
+    return;
+  }
+  const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
+  const std::vector<hanoi::StepResult> res =
+      hanoi::apply(*r, app.game, app.labelling);
+  int applied = 0;
+  std::string err;
+  for (const hanoi::StepResult &s : res) {
+    if (s.ok()) {
+      ++applied;
+      app.recorder.record(*s.from_peg + 1, *s.to_peg + 1);
+    } else {
+      err = *s.error;
+    }
+  }
+  app.status = "Applied '" + name + "': " + std::to_string(applied) + "/" +
+               std::to_string(r->default_moves.size()) + " moves" +
+               (err.empty() ? "." : " - stopped: " + err);
+  if (relabelled) {
+    open_view(app, "Rebinding for '" + name + "'", "Recipe moves",
+              r->default_moves);
+  }
+  if (app.won()) {
+    const int mm = optimal_moves(app.game.num_disks());
+    const int mv = app.game.current_moves();
+    app.status += (mv == mm) ? "  Solved - optimal!"
+                             : "  Solved in " + std::to_string(mv) +
+                                   " moves (min " + std::to_string(mm) + ").";
+  }
+}
+
 void draw_menubar(App &app) {
   if (!ImGui::BeginMenuBar()) {
     return;
@@ -264,6 +313,9 @@ void draw_menubar(App &app) {
 #endif
     ImGui::EndMenu();
   }
+  // Tier-2 (feature-spec §3.5): Relabel + Recipe are gated until the first win,
+  // then stay enabled for the session (dim, don't remove).
+  ImGui::BeginDisabled(!app.won_once);
   if (ImGui::BeginMenu("Relabel")) {
     for (const hanoi::Labelling l : hanoi::kAllLabellings) {
       if (ImGui::MenuItem(hanoi::labelling_name(l), nullptr,
@@ -273,8 +325,46 @@ void draw_menubar(App &app) {
     }
     ImGui::EndMenu();
   }
+  // Tier-3: recipes live in a menu, not the main workspace. "Save current
+  // solution" first; then each saved recipe is a submenu -> View / Apply
+  // (point at the recipe, not an abstract verb). Matches the wxPython oracle.
+  if (ImGui::BeginMenu("Recipe")) {
+    if (ImGui::MenuItem("Save current solution", nullptr, false,
+                        app.won() && !app.recorder.moves().empty())) {
+      app.open_save = true;
+    }
+    if (ImGui::MenuItem("Reset recording", nullptr, false,
+                        !app.recorder.moves().empty())) {
+      app.recorder.reset();
+      app.status = "Recording reset.";
+    }
+    ImGui::Separator();
+    const std::vector<std::string> recipe_names = app.registry.names();
+    if (recipe_names.empty()) {
+      ImGui::MenuItem("(no saved recipes yet)", nullptr, false, false);
+    } else {
+      for (const std::string &name : recipe_names) {
+        const hanoi::Recipe *r = app.registry.get(name);
+        char label[128];
+        std::snprintf(label, sizeof(label), "%s  (%d discs, %zu moves)",
+                      name.c_str(), r != nullptr ? r->disk_count : 0,
+                      r != nullptr ? r->default_moves.size() : 0);
+        if (ImGui::BeginMenu(label)) {
+          if (ImGui::MenuItem("View")) {
+            view_recipe(app, name);
+          }
+          if (ImGui::MenuItem("Apply")) {
+            apply_recipe(app, name);
+          }
+          ImGui::EndMenu();
+        }
+      }
+    }
+    ImGui::EndMenu();
+  }
+  ImGui::EndDisabled();
   if (ImGui::BeginMenu("Help")) {
-    if (ImGui::MenuItem("Controls / About")) {
+    if (ImGui::MenuItem("How to Play")) {
       app.open_help = true;
     }
     ImGui::EndMenu();
@@ -316,29 +406,31 @@ void draw_save_modal(App &app) {
 
 void draw_help_modal(App &app) {
   if (app.open_help) {
-    ImGui::OpenPopup("Controls / About");
+    ImGui::OpenPopup("How to Play");
     app.open_help = false;
   }
-  if (ImGui::BeginPopupModal("Controls / About", nullptr,
+  if (ImGui::BeginPopupModal("How to Play", nullptr,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::TextUnformatted("Towers of Hanoi -- C++ / Dear ImGui");
+    ImGui::TextUnformatted("How to Play -- Towers of Hanoi");
     ImGui::Separator();
     ImGui::TextWrapped(
-        "A teaching tool for solving Hanoi by hand: solve small, relabel the "
-        "pegs, replay.\n\n"
-        "- Game menu: start a new game (pick the disk count) or restart.\n"
+        "Goal: move the whole stack of disks onto physical peg 3.\n"
+        "  - Move one disk at a time (the top disk of a peg).\n"
+        "  - Never place a larger disk on a smaller one.\n\n"
+        "The method this teaches: solve a SMALL stack, then RELABEL the pegs "
+        "to "
+        "reuse that solution for a bigger stack -- \"solve small, relabel, "
+        "replay.\" Relabelling and recipes unlock after your first win.\n\n"
+        "- Move buttons (or drag a disk): move the top disk between pegs, in "
+        "the CURRENT labels. An illegal move explains why.\n"
         "- Relabel menu: rename the pegs (a permutation of 1,2,3). Disks don't "
         "move; colour follows the LABEL.\n"
-        "- Move buttons: move the top disk between pegs, in the CURRENT "
-        "labels. "
-        "An illegal move explains why.\n"
-        "- Recipes: Save a solved game as a named recipe (after you win). "
-        "View a recipe's moves, or Apply it under the current labelling -- "
-        "when relabelled, you see the three-panel rebinding "
-        "(recipe moves | label->peg | rebound to physical pegs).\n\n"
-        "The goal peg is physical peg 3. Optimal solution: 2^N - 1 moves.");
+        "- Recipe menu: Save a solved game, then View or Apply it under the "
+        "current labelling -- when relabelled, you see the three-panel "
+        "rebinding (recipe moves | label->peg | rebound to physical pegs).\n\n"
+        "Optimal solution: 2^N - 1 moves.");
     ImGui::Separator();
-    if (ImGui::Button("Close")) {
+    if (ImGui::Button("Got it")) {
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -432,98 +524,24 @@ void draw_moves(App &app) {
   ImGui::NewLine();
 }
 
-// The recipes panel: the saved list (name + disk/move counts), View / Apply,
-// Save (only when won) and Reset recording.
-void draw_recipes(App &app) {
+// The always-visible Tier-1 move history: the numbered default-space (physical
+// 1-2-3) move tally + live count vs the optimal 2^N-1, in a scrolling region;
+// resets with a new game. Replaces the old always-on recipes panel, which moved
+// to the Recipe menu (Tier 3). (feature-spec §4.11, §6.2.)
+void draw_history(App &app) {
   ImGui::Separator();
-  ImGui::Text("Recipes  (recording: %zu moves)", app.recorder.moves().size());
-
-  const std::vector<std::string> names = app.registry.names();
-  if (app.recipe_sel >= static_cast<int>(names.size())) {
-    app.recipe_sel = -1;
-  }
-  if (ImGui::BeginListBox("##recipes", ImVec2(-FLT_MIN, 120))) {
-    for (int i = 0; i < static_cast<int>(names.size()); ++i) {
-      const hanoi::Recipe *r =
-          app.registry.get(names[static_cast<std::size_t>(i)]);
-      char row[128];
-      std::snprintf(row, sizeof(row), "%s  (%d discs, %zu moves)",
-                    names[static_cast<std::size_t>(i)].c_str(),
-                    r != nullptr ? r->disk_count : 0,
-                    r != nullptr ? r->default_moves.size() : 0);
-      if (ImGui::Selectable(row, app.recipe_sel == i)) {
-        app.recipe_sel = i;
-      }
-    }
-    ImGui::EndListBox();
-  }
-
-  const bool has_sel =
-      app.recipe_sel >= 0 && app.recipe_sel < static_cast<int>(names.size());
-  const std::string sel_name =
-      has_sel ? names[static_cast<std::size_t>(app.recipe_sel)] : std::string();
-
-  ImGui::BeginDisabled(!has_sel);
-  if (ImGui::Button("View")) {
-    const hanoi::Recipe *r = app.registry.get(sel_name);
-    if (r != nullptr) {
-      open_view(app, "Recipe '" + sel_name + "'", "Recipe moves",
-                r->default_moves);
+  const std::vector<std::array<int, 2>> &moves = app.recorder.moves();
+  ImGui::Text("History -- %zu moves (optimal %d, default 1-2-3 labels):",
+              moves.size(), optimal_moves(app.game.num_disks()));
+  ImGui::BeginChild("##history", ImVec2(0.0f, 96.0f), ImGuiChildFlags_Borders);
+  if (moves.empty()) {
+    ImGui::TextDisabled("  (no moves yet)");
+  } else {
+    for (std::size_t i = 0; i < moves.size(); ++i) {
+      ImGui::Text("%zu. %d -> %d", i + 1, moves[i][0], moves[i][1]);
     }
   }
-  ImGui::SameLine();
-  if (ImGui::Button("Apply")) {
-    const hanoi::Recipe *r = app.registry.get(sel_name);
-    if (r != nullptr) {
-      const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
-      const std::vector<hanoi::StepResult> res =
-          hanoi::apply(*r, app.game, app.labelling);
-      int applied = 0;
-      std::string err;
-      for (const hanoi::StepResult &s : res) {
-        if (s.ok()) {
-          ++applied;
-          // Record the applied move in default-label space (like the Python
-          // engine), so a replayed solution is itself saveable.
-          app.recorder.record(*s.from_peg + 1, *s.to_peg + 1);
-        } else {
-          err = *s.error;
-        }
-      }
-      app.status = "Applied '" + sel_name + "': " + std::to_string(applied) +
-                   "/" + std::to_string(r->default_moves.size()) + " moves" +
-                   (err.empty() ? "." : " - stopped: " + err);
-      if (relabelled) {
-        open_view(app, "Rebinding for '" + sel_name + "'", "Recipe moves",
-                  r->default_moves);
-      }
-      if (app.won()) {
-        const int mm = optimal_moves(app.game.num_disks());
-        const int mv = app.game.current_moves();
-        app.status += (mv == mm)
-                          ? "  Solved - optimal!"
-                          : "  Solved in " + std::to_string(mv) +
-                                " moves (min " + std::to_string(mm) + ").";
-      }
-    }
-  }
-  ImGui::EndDisabled();
-
-  ImGui::SameLine();
-  // Save the current recording -- only meaningful after a win (spec: save is
-  // post-win), and the overwrite is reported in the modal's result.
-  ImGui::BeginDisabled(!app.won() || app.recorder.moves().empty());
-  if (ImGui::Button("Save current solution")) {
-    app.open_save = true;
-  }
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(app.recorder.moves().empty());
-  if (ImGui::Button("Reset recording")) {
-    app.recorder.reset();
-    app.status = "Recording reset.";
-  }
-  ImGui::EndDisabled();
+  ImGui::EndChild();
 }
 
 void draw_frame(App &app) {
@@ -536,12 +554,22 @@ void draw_frame(App &app) {
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBringToFrontOnFocus;
   ImGui::Begin("Towers of Hanoi", nullptr, flags);
 
+  // Tier-2 unlock latches at the first win (by any path -- button or applied
+  // recipe) and stays for the session. First run opens "How to Play" once.
+  app.won_once = app.won_once || app.won();
+  if (!app.help_shown) {
+    app.open_help = true;
+    app.help_shown = true;
+  }
+
   draw_menubar(app);
   draw_save_modal(app);
   draw_help_modal(app);
   draw_illegal_modal(app);
 
-  ImGui::Text("Moves: %d   (optimal: %d)", app.game.current_moves(),
+  // Tier-1 goal line + the running count vs optimal.
+  ImGui::Text("Goal: move all %d discs to peg 3   (Moves: %d / optimal %d)",
+              app.game.num_disks(), app.game.current_moves(),
               optimal_moves(app.game.num_disks()));
   if (app.won()) {
     ImGui::SameLine();
@@ -550,7 +578,7 @@ void draw_frame(App &app) {
 
   draw_board(app);
   draw_moves(app);
-  draw_recipes(app);
+  draw_history(app);
   draw_recipe_view(app);
 
   if (!app.status.empty()) {

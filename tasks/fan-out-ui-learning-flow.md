@@ -1,8 +1,9 @@
 # Fan out the learning-flow UI to every other front-end
 
-**Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged] +
-`ui-fanout-tuis`, gpg off → restored). All **text UIs done** (Python + Rust CLI **and** TUI); the
-**5 GUIs + shared `ui/hanoi.xrc`** remain (need the maintainer's on-display sign-off).
+**Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged],
+`ui-fanout-tuis` [merged], `ui-fanout-guis`; gpg off → restored). All **text UIs done** + the
+**C++ ImGui GUI** (the reference GUI); **4 GUIs remain** (Rust egui; C++ wx + Rust wxDragon via the
+shared `ui/hanoi.xrc`; Rust Tauri) + **drag-drop** per graphical UI — all need on-display sign-off.
 **Priority:** 3
 **Difficulty:** 6
 
@@ -26,10 +27,21 @@
   §6.1 the always-visible history is the status count + the on-demand `history` panel (the fixed curses/
   ratatui layout makes a permanent full-tally region impractical without a larger rework). The Rust
   ratatui `screen()` render test asserts the goal line; Python/Rust gates green.
+- **C++ Dear ImGui GUI (`cpp/main.cpp`) — learning-flow DONE** (branch `ui-fanout-guis`), the reference
+  GUI: Tier-1 goal line + a new always-visible `draw_history` tally panel (replacing the old always-on
+  recipes panel); Tier-2 `won_once` latch dims the Relabel + Recipe menus until the first win; Tier-3
+  recipes moved into a **Recipe menu** (Save first, then each recipe a submenu → View/Apply, via
+  `view_recipe`/`apply_recipe`); the help modal became **How to Play** (goal + the one rule + method),
+  auto-opened once on first run. Builds (all targets) + ctest green; a headless Xvfb+softGL launch ran
+  4 s with no ImGui assert. **On-display `make gui` is the visual check.** Drag-drop for ImGui is still
+  pending (below).
 - **Remaining, per UI (needs on-display sign-off):**
-  - **The 5 GUIs + the shared `ui/hanoi.xrc` decision** (C++ ImGui/wx, Rust wxDragon/egui/Tauri): the
-    tier layout + recipe submenus + status-bar goal + How-to-Play panel.
-  - Fold in **drag-drop** per graphical UI (`tasks/port-drag-drop-to-graphical-uis.md`) — same files.
+  - **Rust egui** (`rust/hanoi-egui`): the same tiers (immediate-mode, like ImGui).
+  - **C++ wx (`cpp/hanoiwx.cpp`) + Rust wxDragon (`rust/hanoi-gui`)** via the **shared `ui/hanoi.xrc`
+    decision** — the coupled trio; settle whether the tier structure moves into the shared XRC (the
+    wxPython oracle did it programmatically, XRC untouched). Do these together.
+  - **Rust Tauri** (`rust/tauri`): the web frontend.
+  - Fold in **drag-drop** per graphical UI incl. ImGui (`tasks/port-drag-drop-to-graphical-uis.md`).
 
 ## BLUF
 
