@@ -5,6 +5,11 @@ save-on-New-Game hybrid): first-win teaching modal kept, later wins a lightweigh
 offer moved to the new-game / discard boundary (suppressed on apply-wins and when already saved), applied
 across all GUIs; text UIs keep showing everything inline at the win. **Implementing** on branch
 `win-celebration-recipe-discovery`. The UX write-up: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
+
+**Implemented 2026-11-01** across all six GUIs — Python wx, Rust wx/egui/tauri, C++ ImGui/wx — each
+gated green (ty/pytest/ruff; cargo check×3 + deno + cargo fmt; host build + doctests + clang-format).
+Text UIs unchanged (they show everything inline at the win). **Pending:** the maintainer's display-verify
+of the GUIs — then this archives alongside the win-celebration tasks.
 **Priority:** 5 **Difficulty:** 3
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). Found during the display-verify of
 the win-celebration work (`tasks/win-celebration-recipe-discovery.md`): in the wxPython GUI, a recipe
