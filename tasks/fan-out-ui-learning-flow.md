@@ -1,9 +1,10 @@
 # Fan out the learning-flow UI to every other front-end
 
 **Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged],
-`ui-fanout-tuis` [merged], `ui-fanout-guis`; gpg off → restored). All **text UIs done** + the
-**C++ ImGui GUI** (the reference GUI); **4 GUIs remain** (Rust egui; C++ wx + Rust wxDragon via the
-shared `ui/hanoi.xrc`; Rust Tauri) + **drag-drop** per graphical UI — all need on-display sign-off.
+`ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui`; gpg off → restored). All
+**text UIs done** + the **C++ ImGui GUI** (the reference GUI) + the **Rust egui GUI**; **3 GUIs
+remain** (C++ wx + Rust wxDragon via the shared `ui/hanoi.xrc`; Rust Tauri) + **drag-drop** per
+graphical UI — all need on-display sign-off.
 **Priority:** 3
 **Difficulty:** 6
 
@@ -35,8 +36,20 @@ shared `ui/hanoi.xrc`; Rust Tauri) + **drag-drop** per graphical UI — all need
   auto-opened once on first run. Builds (all targets) + ctest green; a headless Xvfb+softGL launch ran
   4 s with no ImGui assert. **On-display `make gui` is the visual check.** Drag-drop for ImGui is still
   pending (below).
+- **Rust egui GUI (`rust/hanoi-egui/src/main.rs`) — learning-flow DONE** (branch `ui-fanout-egui`),
+  mirroring the ImGui reference (both immediate-mode): Tier-1 goal line + an always-visible right-hand
+  **History** panel (`format_move_tally` over the recorder's default-label moves, with the running count
+  vs the optimal `2^N-1`) replacing the old always-on Recipes side panel; Tier-2 `won_once` latch dims
+  **Relabel** (central) and the whole **Recipe menu** until the first win; Tier-3 recipes moved into a
+  top **menu bar** (`egui::menu::bar`) — Recipe menu = Save current solution (enabled at a win) /
+  Reset recording / separator / each saved recipe a submenu → View (`view_recipe`) / Apply
+  (`apply_recipe_named`, which counts from the recipe not the suppressed step-log); the first-run
+  **How to Play** window (goal + the one rule + the solve-small-relabel-replay method) auto-opens once
+  and reopens from a **Help** menu. The web (`#[cfg(wasm32)]`) entry is untouched — same `HanoiApp`.
+  `cargo check` clean (own workspace, excluded from `make check`); a headless Xvfb + software-GL launch
+  ran 6 s with no panic (EXIT=137 from `timeout -s KILL`, empty log). **On-display `make egui` is the
+  visual check.** Drag-drop for egui is still pending (below).
 - **Remaining, per UI (needs on-display sign-off):**
-  - **Rust egui** (`rust/hanoi-egui`): the same tiers (immediate-mode, like ImGui).
   - **C++ wx (`cpp/hanoiwx.cpp`) + Rust wxDragon (`rust/hanoi-gui`)** via the **shared `ui/hanoi.xrc`
     decision** — the coupled trio; settle whether the tier structure moves into the shared XRC (the
     wxPython oracle did it programmatically, XRC untouched). Do these together.
