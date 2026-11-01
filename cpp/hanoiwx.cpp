@@ -25,6 +25,8 @@
 #include <wx/xrc/xmlres.h>
 
 #include <array>
+#include <cmath>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -194,7 +196,7 @@ public:
   // wxGraphicsContext for antialiasing + gradients -- C++ wxWidgets has it
   // (unlike Rust's wxDragon, which was limited to wxDC and drew flat
   // rectangles).
-  void paint_graphics(wxGraphicsContext &gc, const wxSize &sz) const {
+  void paint_graphics(wxGraphicsContext &gc, const wxSize &sz) {
     const int n = game_->num_disks();
     const double w = sz.GetWidth();
     const double h = sz.GetHeight();
@@ -224,6 +226,7 @@ public:
     for (int i = 0; i < 3; ++i) {
       peg_cx[static_cast<std::size_t>(i)] = margin + peg_zone_w * (i + 0.5);
     }
+    geo_cx_ = peg_cx; // cache for mouse hit-testing (drag-drop)
 
     gc.SetBrush(wxBrush(kBaseFill));
     gc.SetPen(wxPen(kBaseEdge, 1));
@@ -248,6 +251,10 @@ public:
       const std::vector<int> &stack =
           game_->towers()[static_cast<std::size_t>(peg)];
       for (std::size_t level = 0; level < stack.size(); ++level) {
+        // Omit the disc currently being dragged from its home peg.
+        if (drag_src_ == peg && level == stack.size() - 1) {
+          continue;
+        }
         const int size = stack[level];
         const double dw = disc_width(size, n, max_disc_w);
         const double y =
@@ -278,6 +285,13 @@ public:
         gc.DrawText(t, cx - tw / 2, ref_y - th / 2);
       }
     }
+
+    // The dragged disc follows the cursor, drawn on top in its size colour.
+    if (drag_src_ >= 0) {
+      const double dw = disc_width(drag_size_, n, max_disc_w);
+      draw_disc(gc, drag_x_, drag_y_ - disc_h / 2.0, dw, disc_h,
+                kDiscColours[static_cast<std::size_t>((drag_size_ - 1) % 10)]);
+    }
   }
 
   void paint_text(wxDC &dc) const {
@@ -295,11 +309,104 @@ public:
     }
   }
 
+  // --- Drag-and-drop (spike, mirrors the wxPython GraphicsBoardRenderer) ---
+
+  void set_move_callback(std::function<void(int, int)> cb) {
+    move_cb_ = std::move(cb);
+  }
+  // Enable/disable disc dragging (off once the game is won).
+  void set_interactive(bool interactive) {
+    interactive_ = interactive;
+    if (!interactive) {
+      end_drag();
+    }
+  }
+  void on_left_down(wxMouseEvent &evt) {
+    if (!interactive_ || game_ == nullptr) {
+      evt.Skip();
+      return;
+    }
+    const int peg = peg_at(evt.GetX());
+    const std::vector<int> &stack =
+        game_->towers()[static_cast<std::size_t>(peg)];
+    if (stack.empty()) {
+      evt.Skip();
+      return;
+    }
+    drag_src_ = peg;
+    drag_size_ = stack.back();
+    drag_x_ = evt.GetX();
+    drag_y_ = evt.GetY();
+    if (slot_ != nullptr && !slot_->HasCapture()) {
+      slot_->CaptureMouse();
+    }
+    refresh_slot();
+  }
+  void on_motion(wxMouseEvent &evt) {
+    if (drag_src_ < 0) {
+      evt.Skip();
+      return;
+    }
+    drag_x_ = evt.GetX();
+    drag_y_ = evt.GetY();
+    refresh_slot();
+  }
+  void on_left_up(wxMouseEvent &evt) {
+    if (drag_src_ < 0) {
+      evt.Skip();
+      return;
+    }
+    const int src = drag_src_;
+    const int target = peg_at(evt.GetX());
+    end_drag();
+    refresh_slot(); // snap back to the true board state
+    if (target != src && move_cb_) {
+      move_cb_(src, target);
+    }
+  }
+  void on_capture_lost(wxMouseCaptureLostEvent &) {
+    drag_src_ = -1;
+    refresh_slot();
+  }
+
 private:
+  void refresh_slot() {
+    if (slot_ != nullptr) {
+      slot_->Refresh();
+    }
+  }
+  // The physical peg (0,1,2) whose centre is nearest x -- forgiving targeting.
+  int peg_at(double x) const {
+    int best = 0;
+    for (int i = 1; i < 3; ++i) {
+      if (std::fabs(x - geo_cx_[static_cast<std::size_t>(i)]) <
+          std::fabs(x - geo_cx_[static_cast<std::size_t>(best)])) {
+        best = i;
+      }
+    }
+    return best;
+  }
+  void end_drag() {
+    drag_src_ = -1;
+    if (slot_ != nullptr && slot_->HasCapture()) {
+      slot_->ReleaseMouse();
+    }
+  }
+
   wxWindow *slot_ = nullptr;
   const hanoi::Game *game_ = nullptr;
   hanoi::Labelling labelling_ = hanoi::Labelling::OneTwoThree;
   bool graphics_ = true;
+  // Peg centres captured each paint, for mouse hit-testing; the in-progress
+  // drag (physical src peg, its disc size, cursor position); the interactive
+  // flag; and the drop callback (physical from/to pegs -> the frame).
+  std::array<double, 3> geo_cx_{};
+  int drag_src_ = -1;
+  int drag_size_ = 0;
+  double drag_x_ = 0.0;
+  double drag_y_ = 0.0;
+  bool interactive_ = true;
+  std::function<void(int, int)> move_cb_;
 };
 
 // A small figure teaching the one rule: a smaller disc may rest on a larger
@@ -504,6 +611,22 @@ private:
       }
     });
 
+    // Disc drag-drop (spike): forward the board panel's mouse events to the
+    // BoardView, and point its drop callback at on_board_drop (physical pegs ->
+    // current labels -> the shared on_move). The move buttons stay as the
+    // keyboard/accessible path. Mirrors the wxPython oracle.
+    board_slot_->Bind(wxEVT_LEFT_DOWN,
+                      [this](wxMouseEvent &e) { board_.on_left_down(e); });
+    board_slot_->Bind(wxEVT_MOTION,
+                      [this](wxMouseEvent &e) { board_.on_motion(e); });
+    board_slot_->Bind(wxEVT_LEFT_UP,
+                      [this](wxMouseEvent &e) { board_.on_left_up(e); });
+    board_slot_->Bind(
+        wxEVT_MOUSE_CAPTURE_LOST,
+        [this](wxMouseCaptureLostEvent &e) { board_.on_capture_lost(e); });
+    board_.set_move_callback(
+        [this](int from_peg, int to_peg) { on_board_drop(from_peg, to_peg); });
+
     for (const std::array<int, 2> &p : kLabelPairs) {
       // Dynamic XRC id -> use GetXRCID + FindWindow (XRCCTRL/XRCID wrap their
       // argument in wxT(), so they only take string literals, not variables).
@@ -675,6 +798,46 @@ private:
                  "Shares the engine (src/) with the ImGui and Python "
                  "front-ends; built from the shared wx XRC.",
                  "About Towers of Hanoi", wxOK | wxICON_INFORMATION, this);
+  }
+
+  // A disc drop resolves to physical pegs. Unlike a move button (enabled only
+  // when legal), a drop can be illegal, so validate against the engine's move
+  // options; legal -> the shared on_move (in current labels); illegal -> the
+  // rejection reason in the status bar + a popup, then snap back (the board
+  // already redrew the true state). Mirrors the wxPython
+  // _on_board_drop/_on_move.
+  void on_board_drop(int from_peg, int to_peg) {
+    const int from_label =
+        hanoi::change_labels_on_pegs(labelling_, from_peg) + 1;
+    const int to_label = hanoi::change_labels_on_pegs(labelling_, to_peg) + 1;
+    bool legal = false;
+    for (const hanoi::Move &m : game_.move_options()) {
+      if (m.from_peg == from_peg && m.to_peg == to_peg) {
+        legal = true;
+        break;
+      }
+    }
+    if (legal) {
+      on_move(from_label, to_label);
+      return;
+    }
+    const std::vector<int> &from_stack =
+        game_.towers()[static_cast<std::size_t>(from_peg)];
+    const std::vector<int> &to_stack =
+        game_.towers()[static_cast<std::size_t>(to_peg)];
+    wxString reason;
+    if (from_stack.empty()) {
+      reason =
+          wxString::Format("Peg %d is empty - nothing to move.", from_label);
+    } else if (!to_stack.empty() && from_stack.back() > to_stack.back()) {
+      reason = wxString::Format("Can't put disc %d on disc %d - larger on "
+                                "smaller.",
+                                from_stack.back(), to_stack.back());
+    } else {
+      reason = "Invalid move.";
+    }
+    set_status(reason);
+    wxMessageBox(reason, "Illegal move", wxOK | wxICON_WARNING, this);
   }
 
   void on_move(int from_label, int to_label) {
@@ -942,6 +1105,7 @@ private:
   void refresh() {
     board_.set_state(&game_, labelling_);
     const bool w = won();
+    board_.set_interactive(!w); // disc dragging off once solved
     SetStatusText(wxString::Format("Moves: %d", game_.current_moves()), 2);
 
     std::array<bool, 6> legal{};
