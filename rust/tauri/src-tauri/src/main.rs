@@ -127,8 +127,12 @@ impl AppState {
                 })
             })
             .collect();
-        let history: Vec<[u32; 2]> =
-            self.recorder.default_moves.iter().map(|&(a, b)| [a, b]).collect();
+        let history: Vec<[u32; 2]> = self
+            .recorder
+            .default_moves
+            .iter()
+            .map(|&(a, b)| [a, b])
+            .collect();
         Snapshot {
             board: presenter::render(&self.game, self.labelling),
             towers: self.game.towers.clone(),
@@ -172,17 +176,9 @@ impl AppState {
         };
 
         let results: Vec<StepResult> = apply(&recipe, &mut self.game, labelling);
-        let mut steps: Vec<ApplyStep> = Vec::new();
         let mut applied: usize = 0;
         let mut stopped: Option<String> = None;
         for r in &results {
-            steps.push(ApplyStep {
-                from_label: r.from_label,
-                to_label: r.to_label,
-                from_peg: r.from_peg.map(|p| (p + 1) as u32),
-                to_peg: r.to_peg.map(|p| (p + 1) as u32),
-                error: r.error.clone(),
-            });
             if r.ok() {
                 let fp: usize = r.from_peg.expect("a successful step carries pegs");
                 let tp: usize = r.to_peg.expect("a successful step carries pegs");
@@ -204,7 +200,6 @@ impl AppState {
                 recipe_moves,
                 rebinding: rebind,
                 rebound_moves: rebound,
-                steps,
             }),
         }
     }
@@ -234,8 +229,8 @@ struct Snapshot {
     /// history; `[from_peg, to_peg]` pairs as the recorder recorded them).
     history: Vec<[u32; 2]>,
     message: String,
-    /// Populated only by `apply_recipe`: the three-panel rebinding view + the
-    /// per-step replay log (feature-spec.md §4.8). `None` for every other command.
+    /// Populated only by `apply_recipe`: the three-panel rebinding view
+    /// (feature-spec.md §4.8). `None` for every other command.
     apply: Option<ApplyView>,
 }
 
@@ -248,8 +243,8 @@ struct RecipeInfo {
 
 /// The on-invoke three-panel rebinding view (feature-spec.md §4.8), returned by
 /// `apply_recipe`. `recipe_moves | rebinding | rebound_moves` are the three
-/// columns; `steps` is the per-step replay log; `relabelled` gates the panel
-/// (the three columns are the teaching payoff only under a non-default labelling).
+/// columns; `relabelled` gates the panel (the three columns are the teaching
+/// payoff only under a non-default labelling).
 #[derive(Serialize)]
 struct ApplyView {
     name: String,
@@ -257,18 +252,6 @@ struct ApplyView {
     recipe_moves: Vec<[u32; 2]>,
     rebinding: Vec<[u32; 2]>,
     rebound_moves: Vec<[u32; 2]>,
-    steps: Vec<ApplyStep>,
-}
-
-#[derive(Serialize)]
-struct ApplyStep {
-    from_label: u32,
-    to_label: u32,
-    /// 1-indexed physical pegs the move resolved to (None if unresolved).
-    from_peg: Option<u32>,
-    to_peg: Option<u32>,
-    /// Failure reason, or None if the step applied.
-    error: Option<String>,
 }
 
 /// `apply_structured`'s result: the status message + the view (None if no recipe).
