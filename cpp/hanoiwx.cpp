@@ -773,6 +773,8 @@ private:
     game_ = hanoi::Game(n);
     recorder_.reset();
     labelling_ = hanoi::Labelling::OneTwoThree;
+    won_via_apply_ = false;
+    saved_current_ = false;
     refresh();
   }
 
@@ -791,13 +793,31 @@ private:
     if (n < 1) {
       return; // cancelled
     }
+    maybe_offer_save_before_discard();
     new_game(static_cast<int>(n));
     set_status("");
   }
 
   void on_new_game_same(wxCommandEvent &) {
+    maybe_offer_save_before_discard();
     new_game(disk_count_);
     set_status("");
+  }
+
+  // At a discard point (new game), if the finished game was won by hand and not
+  // yet saved, offer to save its solution as a recipe first (save-before-you-
+  // close; the win-celebration UX doc). No-op otherwise.
+  void maybe_offer_save_before_discard() {
+    if (!won() || won_via_apply_ || saved_current_) {
+      return;
+    }
+    wxMessageDialog dlg(this,
+                        "Save your solution as a recipe before starting over?",
+                        "Save solution?", wxYES_NO | wxICON_QUESTION);
+    dlg.SetYesNoLabels("Save", "Don't save");
+    if (dlg.ShowModal() == wxID_YES) {
+      save_recipe_prompt();
+    }
   }
 
   void on_about(wxCommandEvent &) {
@@ -921,6 +941,7 @@ private:
     }
     refresh();
     if (won()) {
+      won_via_apply_ = true;
       on_win();
     }
   }
@@ -979,6 +1000,7 @@ private:
     const std::string key = name.ToStdString();
     const bool overwrote = registry_.get(key) != nullptr;
     registry_.save(recorder_.to_recipe(key, game_.num_disks()));
+    saved_current_ = true;
     set_status((overwrote ? "Overwrote recipe '" : "Saved recipe '") + name +
                "'.");
     rebuild_recipe_menu();
@@ -986,9 +1008,10 @@ private:
   }
 
   void on_win() {
-    // The teaching hinge (feature-spec §4.9): unlock Tier 2 (refresh() reads
-    // the latch to enable the menus), then show the celebration popup -- the
-    // recipe teaching on the first win, a "Save as recipe" offer on every win.
+    // The teaching hinge (feature-spec §4.9): unlock Tier 2 and note the result
+    // in the status bar; on the FIRST win of the session show a teaching modal
+    // explaining recipes. Later wins are a status line only. The save is
+    // offered at the new-game boundary (maybe_offer_save_before_discard).
     const bool first_win = !won_once_;
     won_once_ = true;
     refresh();
@@ -998,6 +1021,11 @@ private:
     if (!lines.empty()) {
       set_status(wxString::FromUTF8(lines.front()));
     }
+    // Later wins: status line only -- a second window would collide with the
+    // §4.8 rebinding dialog. The teaching modal shows on the first win only.
+    if (!first_win) {
+      return;
+    }
     std::string body;
     for (std::size_t i = 0; i < lines.size(); ++i) {
       body += lines[i];
@@ -1006,11 +1034,8 @@ private:
       }
     }
     wxMessageDialog dlg(this, wxString::FromUTF8(body), "You solved it!",
-                        wxYES_NO | wxICON_INFORMATION);
-    dlg.SetYesNoLabels("Save as recipe", "Not now");
-    if (dlg.ShowModal() == wxID_YES) {
-      save_recipe_prompt();
-    }
+                        wxOK | wxICON_INFORMATION);
+    dlg.ShowModal();
   }
 
   // --- Three-panel rebinding dialog (RebindingDialog in the XRC) -------
@@ -1234,6 +1259,11 @@ private:
   // Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the first
   // win and stay unlocked for the rest of the session.
   bool won_once_ = false;
+  // Save-on-discard (feature-spec §4.9; the win-celebration UX doc): whether
+  // the current won solution was reached by replaying a recipe and whether it
+  // was already saved; both reset per game.
+  bool won_via_apply_ = false;
+  bool saved_current_ = false;
 
   wxConfigBase *config_ = nullptr;
 
