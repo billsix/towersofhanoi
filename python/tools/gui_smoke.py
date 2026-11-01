@@ -12,9 +12,10 @@ needs an X display; run it under Xvfb). Run it from the Python subproject:
           xvfb-run -a python tools/gui_smoke.py'
 
 Prints "SMOKE OK <history-count>" on success. Exercises the hidden recipe
-sidebar, the programmatic Recipe/View menus, the first-run How-to-Play panel
-(+ Help reopen), the Tier-2 win-unlock, the always-visible history panel, the
-status-bar goal line, and the board drop -> engine-dispatch path.
+sidebar, the programmatic Recipe/View menus, the Tier-2 win-unlock, the
+always-visible history panel, the status-bar goal line, and the board drop ->
+engine-dispatch path. (How-to-Play is a centered modal dialog now and is not
+exercised here -- ShowModal would block this no-loop harness.)
 """
 
 import wx
@@ -53,20 +54,15 @@ assert "smoke" in frame._recipe_menu_names, frame._recipe_menu_names
 frame._on_relabel_menu((2, 1, 3))
 frame._refresh()
 
-# View toggles and the drag interactivity switch must not raise.
+# The View history toggle and the drag interactivity switch must not raise.
 frame._history_toggle.Check(False)
 frame._on_toggle_history(None)
-frame._howto_toggle.Check(False)
-frame._on_toggle_howto(None)
 frame.board_renderer.set_interactive(False)
 frame.board_renderer.set_interactive(True)
 
-# How-to-Play panel: built, reopenable from Help, dismissible from "Got it".
-assert frame._howto_panel is not None, "how-to panel built"
-frame._on_help_howto(None)
-assert frame._howto_panel.IsShown(), "Help -> How to Play shows the panel"
-frame._dismiss_howto()
-assert not frame._howto_panel.IsShown(), "'Got it' hides the panel"
+# How-to-Play is now a centered MODAL dialog (shown on first run + from
+# Help -> How to Play). ShowModal would block this no-loop harness, so it is not
+# exercised here -- the maintainer's on-display run is the check.
 
 # Goal line now lives in status-bar field 0.
 assert "Goal: move all" in frame.GetStatusBar().GetStatusText(0)

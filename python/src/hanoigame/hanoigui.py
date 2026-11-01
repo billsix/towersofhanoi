@@ -190,11 +190,10 @@ class HanoiFrame(wx.Frame):
         self._history_list: wx.ListBox | None = None
         self._history_header: wx.StaticText | None = None
         # Tier-1 onboarding: the goal line lives in the status bar (set by
-        # `_update_goal`); "How to Play" is a dismissible panel built in
-        # `_build_ui`, shown on first run and reopenable from the Help menu.
+        # `_update_goal`); "How to Play" is a centered modal dialog
+        # (`_show_howto_dialog`), shown once on first run and reopenable from
+        # the Help menu.
         self._config: wx.ConfigBase = wx.ConfigBase.Get()
-        self._howto_panel: wx.Panel | None = None
-        self._howto_dont_show: wx.CheckBox | None = None
         # Menu-bar positions of the Tier-2 menus `_refresh` enables/disables.
         self._relabel_menu_pos: int = -1
         self._recipe_menu_pos: int = -1
@@ -208,6 +207,10 @@ class HanoiFrame(wx.Frame):
         self.SetStatusWidths([-1, -2, 140])
         self._build_ui()
         self._new_game(DEFAULT_DISKS)
+        # Show the first-run How-to-Play dialog after the frame is up and the
+        # event loop is running (CallAfter defers past Show()), so the modal is
+        # centered over a painted window.
+        wx.CallAfter(self._maybe_show_howto)
 
     # --- UI construction --------------------------------------------------
 
@@ -293,8 +296,9 @@ class HanoiFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._on_save, id=self._recipe_save_item.GetId())
         self._rebuild_recipe_menu()
 
-        # View menu: add the always-visible move-history toggle and the
-        # How-to-play toggle to the existing (XRC) View menu.
+        # View menu: add the always-visible move-history toggle to the existing
+        # (XRC) View menu. (How-to-Play is a dialog now, not a toggled panel, so
+        # it lives only on the Help menu below.)
         view_pos: int = menubar.FindMenu("View")
         view_menu: wx.Menu = menubar.GetMenu(view_pos)
         view_menu.AppendSeparator()
@@ -304,20 +308,13 @@ class HanoiFrame(wx.Frame):
             "Show the running list of moves in default 1-2-3 labels",
         )
         self._history_toggle.Check(True)
-        self._howto_toggle: wx.MenuItem = view_menu.AppendCheckItem(
-            wx.ID_ANY, "How to &play", "Show the How-to-Play panel"
-        )
-        self._howto_toggle.Check(self._config.ReadBool(CONFIG_SHOW_HOWTO, True))
         self.Bind(
             wx.EVT_MENU,
             self._on_toggle_history,
             id=self._history_toggle.GetId(),
         )
-        self.Bind(
-            wx.EVT_MENU, self._on_toggle_howto, id=self._howto_toggle.GetId()
-        )
 
-        # Help → How to Play: reopen the Tier-1 onboarding panel at any time
+        # Help → How to Play: reopen the Tier-1 onboarding dialog at any time
         # (recognition over recall — the learner never has to remember how to
         # summon it). Added programmatically so the shared ui/hanoi.xrc Help
         # menu (also used by the C++/Rust wx front-ends) is untouched here.
@@ -379,9 +376,9 @@ class HanoiFrame(wx.Frame):
                 id=wx.xrc.XRCID(f"move_{from_label}_{to_label}"),
             )
 
-        # Frame layout: the How-to-Play panel on top (hidden if the user chose
-        # "don't show again"), then [board panel | history panel].
-        self._howto_panel = self._build_howto_panel()
+        # Frame layout: [board panel | history panel]. (How-to-Play is a
+        # centered modal dialog now, shown on first run from __init__ and
+        # reopenable from Help — not an inline panel pinned above the board.)
         self._history_panel = self._build_history_panel()
         row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(self.panel, proportion=1, flag=wx.EXPAND)
@@ -392,14 +389,8 @@ class HanoiFrame(wx.Frame):
             border=6,
         )
         frame_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
-        frame_sizer.Add(
-            self._howto_panel, proportion=0, flag=wx.EXPAND | wx.ALL, border=6
-        )
         frame_sizer.Add(row, proportion=1, flag=wx.EXPAND)
         self.SetSizer(frame_sizer)
-        # First-run: show unless the user has dismissed it with "don't show
-        # again". The View → How to play check item mirrors this state.
-        self._howto_panel.Show(self._config.ReadBool(CONFIG_SHOW_HOWTO, True))
         self.Center()
 
     def _hide_recipe_sidebar(self) -> None:
@@ -421,32 +412,35 @@ class HanoiFrame(wx.Frame):
             row.Hide(box_sizer, recursive=True)
         self.panel.Layout()
 
-    def _build_howto_panel(self) -> wx.Panel:
-        """Build the dismissible 'How to Play' panel: a heading, the rules
-        text, a small legal/illegal-move diagram, a 'Don't show this again'
-        checkbox, and a 'Got it' close button. Shown on first run and
-        reopenable from Help → How to Play; the goal itself lives in the status
-        bar. One source of truth — it supersedes the old goal banner and
-        collapsible pane (feature-spec §3.5 onboarding)."""
-        panel: wx.Panel = wx.Panel(self, style=wx.BORDER_SIMPLE)
-        heading: wx.StaticText = wx.StaticText(panel, label="How to Play")
+    def _maybe_show_howto(self) -> None:
+        """Show the How-to-Play dialog on launch unless the user chose 'don't
+        show again'. Called via `wx.CallAfter` from `__init__`."""
+        if self._config.ReadBool(CONFIG_SHOW_HOWTO, True):
+            self._show_howto_dialog()
+
+    def _show_howto_dialog(self) -> None:
+        """Show the 'How to Play' onboarding as a centered modal dialog: a
+        heading, the rules text, a small legal/illegal-move diagram, a 'Don't
+        show this again' checkbox, and a 'Got it' button. Shown once on first
+        run and reopenable from Help → How to Play; the goal itself lives in the
+        status bar (feature-spec §3.5 onboarding; ui-design-principles ruling 4
+        — a centered dialog, not an inline panel)."""
+        dlg: wx.Dialog = wx.Dialog(
+            self, title="How to Play", style=wx.DEFAULT_DIALOG_STYLE
+        )
+        heading: wx.StaticText = wx.StaticText(dlg, label="How to Play")
         heading_font: wx.Font = heading.GetFont()
         heading_font.MakeBold()
         heading_font.SetPointSize(heading_font.GetPointSize() + 2)
         heading.SetFont(heading_font)
 
-        body: wx.StaticText = wx.StaticText(panel, label=HOWTO_TEXT)
-        diagram: _LegalMoveDiagram = _LegalMoveDiagram(panel)
+        body: wx.StaticText = wx.StaticText(dlg, label=HOWTO_TEXT)
+        diagram: _LegalMoveDiagram = _LegalMoveDiagram(dlg)
 
-        self._howto_dont_show = wx.CheckBox(
-            panel, label="Don't show this again"
-        )
-        self._howto_dont_show.SetValue(
-            not self._config.ReadBool(CONFIG_SHOW_HOWTO, True)
-        )
-        self._howto_dont_show.Bind(wx.EVT_CHECKBOX, self._on_howto_dont_show)
-        got_it: wx.Button = wx.Button(panel, label="Got it")
-        got_it.Bind(wx.EVT_BUTTON, lambda _e: self._dismiss_howto())
+        dont_show: wx.CheckBox = wx.CheckBox(dlg, label="Don't show this again")
+        dont_show.SetValue(not self._config.ReadBool(CONFIG_SHOW_HOWTO, True))
+        # 'Got it' uses wx.ID_OK so it closes the modal.
+        got_it: wx.Button = wx.Button(dlg, wx.ID_OK, "Got it")
 
         text_col: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
         text_col.Add(heading, proportion=0, flag=wx.BOTTOM, border=6)
@@ -458,26 +452,25 @@ class HanoiFrame(wx.Frame):
         top_row.Add(diagram, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
 
         foot_row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
-        foot_row.Add(
-            self._howto_dont_show,
-            proportion=0,
-            flag=wx.ALIGN_CENTER_VERTICAL,
-        )
+        foot_row.Add(dont_show, proportion=0, flag=wx.ALIGN_CENTER_VERTICAL)
         foot_row.AddStretchSpacer()
         foot_row.Add(got_it, proportion=0)
 
-        panel_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
-        panel_sizer.Add(
-            top_row, proportion=0, flag=wx.EXPAND | wx.ALL, border=8
-        )
-        panel_sizer.Add(
+        dlg_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        dlg_sizer.Add(top_row, proportion=0, flag=wx.EXPAND | wx.ALL, border=12)
+        dlg_sizer.Add(
             foot_row,
             proportion=0,
             flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
-            border=8,
+            border=12,
         )
-        panel.SetSizer(panel_sizer)
-        return panel
+        dlg.SetSizerAndFit(dlg_sizer)
+        dlg.Center()
+        dlg.ShowModal()
+        # Persist the 'don't show again' choice after the dialog closes.
+        self._config.WriteBool(CONFIG_SHOW_HOWTO, not dont_show.GetValue())
+        self._config.Flush()
+        dlg.Destroy()
 
     def _build_history_panel(self) -> wx.Panel:
         """Tier-1 always-visible move history: every move this game in the
@@ -887,32 +880,9 @@ class HanoiFrame(wx.Frame):
             self._history_panel.Show(self._history_toggle.IsChecked())
             self.Layout()
 
-    def _show_howto(self, show: bool) -> None:
-        """Show or hide the How-to-Play panel, keeping the panel, the View
-        check item, and the frame layout in sync."""
-        if self._howto_panel is None:
-            return
-        self._howto_panel.Show(show)
-        self._howto_toggle.Check(show)
-        self.Layout()
-
-    def _on_toggle_howto(self, _evt: wx.CommandEvent) -> None:
-        """View → How to play: show/hide the panel per the check item."""
-        self._show_howto(self._howto_toggle.IsChecked())
-
     def _on_help_howto(self, _evt: wx.CommandEvent) -> None:
-        """Help → How to Play: reopen the onboarding panel at any time."""
-        self._show_howto(True)
-
-    def _dismiss_howto(self) -> None:
-        """Close the panel from its 'Got it' button."""
-        self._show_howto(False)
-
-    def _on_howto_dont_show(self, evt: wx.CommandEvent) -> None:
-        """Persist the 'Don't show this again' choice for the next launch
-        (the panel stays open now; 'Got it' closes it)."""
-        self._config.WriteBool(CONFIG_SHOW_HOWTO, not evt.IsChecked())
-        self._config.Flush()
+        """Help → How to Play: reopen the onboarding dialog at any time."""
+        self._show_howto_dialog()
 
     def _update_history(self) -> None:
         """Repopulate the always-visible move-history panel from the recorder.
