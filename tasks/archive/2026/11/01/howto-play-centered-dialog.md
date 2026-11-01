@@ -1,13 +1,11 @@
 # Make "How to Play" a centered modal dialog in the wx GUIs + fix the ImGui one
 
-**Status:** IMPLEMENTED — awaiting the maintainer's on-display sign-off + merge (branch
-`howto-centered-dialog`; gpg off → restored). The wx trio (wxPython oracle + C++ wx + Rust wxDragon)
-now shows How-to-Play as a centered modal dialog (built in `*_show_howto_dialog`, Centre'd +
-ShowModal, "don't show again" pref persisted, shown on first run + from Help; the inline panel + View
-toggle are gone), and the C++ ImGui popup is centered on the viewport with a ~520px width. egui/Tauri
-were already centered (unchanged). Ruling 4 updated. Machine-verified: Python ty + ruff + `gui_smoke`
-(SMOKE OK); C++ `make build` + Xvfb smoke; Rust `cargo build` + Xvfb smoke — the drag *feel* and the
-centered-modal look are the maintainer's on-display check. Archive after sign-off.
+**Status:** DONE — merged + on-display-verified by the maintainer (2026-11-01). The wx trio (wxPython
+oracle + C++ wx + Rust wxDragon) now shows How-to-Play as a centered modal dialog (built in
+`*_show_howto_dialog`, Centre'd + ShowModal, "don't show again" pref persisted, shown on first run +
+from Help; the inline panel + View toggle are gone), and the C++ ImGui popup is centered on the
+viewport with a ~520px width. egui/Tauri were already centered (unchanged). `ui-design-principles.md`
+ruling 4 records the centered-dialog decision.
 **Priority:** 4 **Difficulty:** 3 (small per UI; four files across two languages + one geometry fix)
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>, from an on-display review of the
 graphical front-ends after the learning-flow + drag-drop fan-outs).
