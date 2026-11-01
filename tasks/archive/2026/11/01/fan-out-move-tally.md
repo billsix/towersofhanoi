@@ -1,6 +1,14 @@
 # Fan out the inspectable move tally (§4.11) to every non-Python UI
 
-**Status:** proposed — needs go-ahead.
+**Status:** DONE — by absorption into the learning-flow fan-out (merged 2026-11-01), not a separate
+pass. That fan-out brought the §4.11 move tally to **every** front-end: the text UIs (Python CLI +
+ncurses, Rust CLI + ratatui) via a `history` command through the shared engine's `handle_history`
+(using `format_move_tally`); the GUIs (C++ ImGui/wx, Rust wxDragon/egui, Tauri) via an always-visible
+Tier-1 history panel. All numbered default-1-2-3-space, live count, moves-only, reset per game — and the
+GUIs ended up *always-visible* (exceeding this task's on-demand option; see
+`tasks/reference/ui-design-principles.md` ruling 1). The one note left: C++ formats the tally line
+inline (`"%zu. %d -> %d"`) rather than via a shared C++ helper — output-identical to §4.11, not worth
+refactoring. Verified on display. The live contract is `feature-spec.md` §4.11 / §7 row 15.
 **Priority:** 5 **Difficulty:** 5 (spread across UIs/languages; each UI is small, the breadth is the cost)
 **Created:** 2026-10-26 (William Emerison Six <billsix@gmail.com>). Phase 3 of
 `tasks/archive/2026/10/26/wxpython-running-move-tally.md` (Phase 1 wx oracle + Phase 2 spec done 2026-10-26); split out
