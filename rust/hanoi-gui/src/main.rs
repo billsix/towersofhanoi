@@ -994,28 +994,30 @@ fn main() {
             })
             .collect();
 
-        // Tier 3: destroy the XRC recipe sidebar (list + Save/Apply/Show) — recipes
-        // move to the Recipe menu. wxDragon has no sizer hide/detach to collapse a
-        // freed slot, so we destroy the widgets (and the enclosing static box, when
-        // it is a distinct parent window) and re-lay-out. The shared XRC still
-        // defines these controls for the other wx front-ends.
+        // Tier 3: HIDE the XRC recipe sidebar (list + Save/Apply/Show + its static
+        // box) -- recipes move to the Recipe menu. wxDragon has no sizer
+        // hide/detach, but wxWidgets reclaims a hidden window's sizer space on the
+        // next Layout (no wxRESERVE_SPACE_EVEN_IF_HIDDEN on these XRC items), so
+        // hiding every window in the Recipes box collapses the slot. We hide
+        // rather than destroy: destroying left the StaticBoxSizer holding freed
+        // pointers, which GTK then dereferenced in its idle size-allocate -> a
+        // segfault at launch. The shared XRC still defines these controls for the
+        // other wx front-ends.
         {
             let recipe_list: ListBox = panel
                 .find_child_by_xrc_name("recipe_list")
                 .expect("recipe_list in hanoi.xrc");
-            let box_parent: Option<Window> = recipe_list.get_parent();
-            recipe_list.destroy();
-            for name in ["recipe_save", "recipe_apply", "recipe_show"] {
-                if let Some(b) = panel.find_child_by_xrc_name::<Button>(name) {
-                    b.destroy();
+            // The wxStaticBox is the items' parent on modern wxWidgets; hiding it
+            // removes the box frame/label. Guard against ever hiding the panel.
+            if let Some(bp) = recipe_list.get_parent() {
+                if bp.handle_ptr() != panel.handle_ptr() {
+                    bp.hide();
                 }
             }
-            // The wxStaticBox is the items' parent on modern wxWidgets; destroying
-            // it collapses the empty "Recipes" box. Guard against ever destroying
-            // the panel itself.
-            if let Some(bp) = box_parent {
-                if bp.handle_ptr() != panel.handle_ptr() {
-                    bp.destroy();
+            recipe_list.hide();
+            for name in ["recipe_save", "recipe_apply", "recipe_show"] {
+                if let Some(b) = panel.find_child_by_xrc_name::<Button>(name) {
+                    b.hide();
                 }
             }
             panel.layout();
