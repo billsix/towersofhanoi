@@ -166,12 +166,15 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
 ### 4.9 Win detection + celebration (the teaching hinge)
 - **Does:** detects the win (all disks on the goal peg) and surfaces it with the move count vs. the
   optimal `2^N − 1`, **as an explicit celebration + recipe-discovery moment** — not merely by enabling the
-  Tier-2 menus. **On every win** the UI congratulates, reports the result (optimal, or how many over the
-  minimum), and **offers to save the solution as a recipe** (prefilled `solve-<N>`, §4.5). **On the
-  player's first win of the session** it additionally **teaches what recipes are** ("solve small, relabel,
-  replay"), so a novice discovers the method instead of missing the quietly unlocked menu. The wording is
-  a **single shared core helper** per implementation (Python `presenter.format_win_celebration`); only the
-  presentation is per-UI (a GUI modal; a printed block in CLI/TUI).
+  Tier-2 menus. **On every win** the UI congratulates and reports the result (optimal, or how many over
+  the minimum); **on the player's first win of the session** it additionally **teaches what recipes are**
+  ("solve small, relabel, replay"), so a novice discovers the method instead of missing the quietly
+  unlocked menu. The player is **offered the chance to save the solution as a recipe** (prefilled
+  `solve-<N>`, §4.5) — **where** that offer appears is per UI category: a **text UI** shows it inline at
+  the win; a **GUI** defers it to the **new-game / discard boundary** ("save before starting over?") so it
+  does not compete with the rebinding view (§4.8) on a relabelled winning move/apply. The wording is a
+  **single shared core helper** per implementation (Python `presenter.format_win_celebration`). Full UX
+  rationale + the shared mechanism: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
 - **See:** that the game is won + the counts; the save affordance; on a first win, the recipe teaching.
 - **Why:** the **win is the teaching hinge** (§3.5) — where recipes/relabelling first become meaningful;
   surfacing it is how the learner discovers the program's core method, rather than a silent menu-enable.
@@ -288,8 +291,10 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
     secondary tab/panel (TUI), not in the first-solve workspace.
 19. **Onboarding for the non-knower** (§3.5): an always-present goal line + a dismissible "How to play".
 20. **Win celebration + recipe discovery** (§4.9): every win surfaces an explicit congratulation +
-    result + a save-as-recipe offer (prefilled `solve-<N>`); the first win of the session additionally
-    teaches what recipes are. Shared wording via a core helper; presentation per-UI.
+    result; the first win of the session additionally teaches what recipes are; the player is offered the
+    save-as-recipe (prefilled `solve-<N>`) — a **text UI** inline at the win, a **GUI** at the new-game /
+    discard boundary (so it doesn't compete with the §4.8 rebinding view). Shared wording via a core
+    helper. UX rationale: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 
