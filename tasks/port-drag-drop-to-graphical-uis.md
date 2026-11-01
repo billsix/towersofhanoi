@@ -1,8 +1,9 @@
 # Port drag-and-drop discs to the other graphical front-ends
 
-**Status:** proposed — needs go-ahead (the wxPython spike is approved; this carries it to the rest).
-Do each UI **together with** its learning-flow fan-out (`tasks/fan-out-ui-learning-flow.md`) — same
-files, same "Tier-1 move affordance" decision.
+**Status:** IN PROGRESS (branch `drag-drop-fanout`; gpg off → restored). All five graphical
+front-ends now carry the drag gesture. **C++ ImGui on-display-verified by the maintainer**; the other
+four (egui, C++ wx, Rust wxDragon, Tauri) are compile- and headless-smoke-verified (Tauri via the deno
+type-check) and **await the maintainer's on-display sign-off** per UI.
 **Priority:** 3
 **Difficulty:** 6
 
@@ -32,21 +33,24 @@ commit boundary and can spin into its own task if it turns out large).
 
 ## Targets (each its own commit; check off as done)
 
-- [ ] **C++ Dear ImGui** — `cpp/main.cpp` `draw_board`. Immediate-mode: track the drag across frames
-  (mouse down/pos/released), hit-test the top disc on press, draw the dragged disc at the cursor, and
-  on release pick the nearest peg reusing the existing peg-centre math. **Native + wasm share the code**
-  — verify wasm pointer coords line up (the canvas-size sync in `main_loop`). Read
-  `tasks/reference/imgui-cpp-native-and-wasm.md` first.
-- [ ] **C++ wxWidgets** — `cpp/hanoiwx.cpp`. Retained-mode wx like the Python oracle: mouse capture on
-  the board panel + `wxGraphicsContext` hit-test/draw. Shares `ui/hanoi.xrc`.
-- [ ] **Rust wxDragon** — `rust/hanoi-gui/src/main.rs` (the Rust port of the wxPython GUI). **Constraint:
-  wxDragon draws with a plain DC, not `wxGraphicsContext`** — render the dragged disc with the DC; wire
-  mouse events through the wxDragon bindings. Shares `ui/hanoi.xrc`.
-- [ ] **Rust egui** — `rust/hanoi-egui/src/main.rs`. Immediate-mode like ImGui: use the board
-  `Response` drag state + pointer position (`interact`/`dragged`/`hover_pos`). Native + web.
-- [ ] **Rust Tauri** — `rust/tauri` (web frontend over the Rust core). Pointer events / HTML5 drag on
-  the board canvas/DOM in the frontend; the resolved move crosses the `#[tauri::command]` IPC boundary
-  to the core. The thinnest layer — the gesture is JS/DOM, the rule stays in Rust.
+- [x] **C++ Dear ImGui** — `cpp/main.cpp` `draw_board`. An invisible button over the board owns the
+  gesture (`IsItemActivated`/`IsItemActive`/`IsItemDeactivated` + `GetMousePos`); press picks up the
+  top disc of the nearest peg, the disc follows the cursor (omitted from its stack), release drops on
+  the nearest peg. Drop + buttons share a new `do_board_move`. Native + wasm compile; on-display-verified.
+- [x] **C++ wxWidgets** — `cpp/hanoiwx.cpp`. `BoardView` captures the mouse (EVT_LEFT_DOWN/MOTION/
+  LEFT_UP/CAPTURE_LOST), caches peg centres each paint for hit-testing, draws the dragged disc via
+  `wxGraphicsContext`; `on_board_drop` validates (a drop can be illegal, unlike a button) then calls
+  `on_move`. Shares `ui/hanoi.xrc`. Compile + headless smoke; **on-display pending**.
+- [x] **Rust wxDragon** — `rust/hanoi-gui/src/main.rs`. Plain-DC drag: `on_mouse_left_down/motion/
+  left_up` matched on `WindowEventData`, a shared `board_peg_centres`/`nearest_board_peg` hit-test,
+  the dragged disc drawn with the DC; drop → `on_move` (validating). **No mouse capture** — wxDragon
+  exposes no capture-lost handler, and the board panel fills the drag area. Compile + smoke; **on-display pending**.
+- [x] **Rust egui** — `rust/hanoi-egui/src/main.rs`. `Sense::click_and_drag()` on the board painter;
+  `drag_started/dragged/drag_stopped` + `interact_pointer_pos`; a shared `board_geometry` for drawing
+  and hit-test. Compile + smoke; **on-display pending**.
+- [x] **Rust Tauri** — `rust/tauri/frontend/main.js`. Canvas pointer events (`pointerdown/move/up/
+  cancel`) with `setPointerCapture`; nearest-peg hit-test; the resolved move crosses the existing
+  `do_move` IPC command (which validates), so the rule stays in Rust. deno type-check; **on-display pending**.
 
 ## Plan (per target, refine on go-ahead)
 
