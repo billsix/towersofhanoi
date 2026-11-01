@@ -12,6 +12,7 @@
 #include <array>
 #include <optional>
 #include <string> // for the labelling_name doctest
+#include <vector> // for format_win_celebration
 
 // Tests live beside the code (doctest), each right after the function it tests;
 // -DDOCTEST_CONFIG_DISABLE compiles them out of the GUI/wasm binaries. Mirrors
@@ -136,6 +137,59 @@ TEST_CASE("labels_to_towers maps a label pair to physical pegs, else nullopt") {
   REQUIRE(ok.has_value());
   CHECK(*ok == std::array<int, 2>{0, 1});
   CHECK_FALSE(labels_to_towers(Labelling::OneThreeTwo, 1, 9).has_value());
+}
+
+// --- Win celebration / recipe discovery ------------------------------------
+
+// The default name offered when saving a just-won solution ("solve-<N>"), the
+// prefill every front-end uses (feature-spec §4.5). Mirrors the Python oracle's
+// presenter.default_recipe_name.
+inline std::string default_recipe_name(int num_disks) {
+  return "solve-" + std::to_string(num_disks);
+}
+
+TEST_CASE("default_recipe_name is solve-<N>") {
+  CHECK(default_recipe_name(3) == "solve-3");
+}
+
+// The win celebration + recipe-discovery lines shown on winning (feature-spec
+// §3.5/§4.9, "the win is the teaching hinge"): a congratulation + the result on
+// every win, plus the recipe teaching on the first win of the session. The save
+// control is each GUI's to present (prefilled with default_recipe_name); this
+// is the shared wording, mirroring the Python oracle's format_win_celebration
+// string-for-string (the doctest asserts the exact lines).
+inline std::vector<std::string> format_win_celebration(int num_disks, int moves,
+                                                       int min_moves,
+                                                       bool first_win) {
+  const char *noun = moves == 1 ? "move" : "moves";
+  std::vector<std::string> lines;
+  lines.push_back("Congratulations — you solved it in " +
+                  std::to_string(moves) + " " + noun + "!");
+  if (moves == min_moves) {
+    lines.push_back("Optimal — the fewest possible for " +
+                    std::to_string(num_disks) + " discs.");
+  } else {
+    lines.push_back("That is " + std::to_string(moves - min_moves) +
+                    " more than the optimal " + std::to_string(min_moves) +
+                    " for " + std::to_string(num_disks) + " discs.");
+  }
+  if (first_win) {
+    lines.push_back(
+        "You can save this solution as a recipe and replay it on a new game —");
+    lines.push_back("even a bigger stack — by relabelling the pegs.");
+    lines.push_back("That is the method: \"solve small, relabel, replay\".");
+  }
+  return lines;
+}
+
+TEST_CASE("format_win_celebration mirrors the Python oracle's wording") {
+  const std::vector<std::string> first = format_win_celebration(3, 7, 7, true);
+  REQUIRE(first.size() == 5);
+  CHECK(first[0] == "Congratulations — you solved it in 7 moves!");
+  CHECK(first[1] == "Optimal — the fewest possible for 3 discs.");
+  const std::vector<std::string> later = format_win_celebration(3, 9, 7, false);
+  REQUIRE(later.size() == 2);
+  CHECK(later[1] == "That is 2 more than the optimal 7 for 3 discs.");
 }
 
 } // namespace hanoi

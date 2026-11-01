@@ -77,6 +77,8 @@ struct App {
   bool want_quit = false;    // native: exit the loop
   bool won_once = false;     // Tier-2 unlock: latched at the first win, kept
   bool help_shown = false;   // first-run "How to Play" shown once
+  bool open_win = false;     // request to open the win-celebration modal
+  std::vector<std::string> win_lines; // shared celebration lines (per win)
   // Disc drag-drop (spike, mirrored across the GUIs): the physical peg whose
   // top disc is being dragged (-1 = none), its size, and the cursor position.
   int drag_src = -1;
@@ -89,6 +91,8 @@ struct App {
     recorder.reset();
     status.clear();
     view.active = false;
+    open_win = false;
+    win_lines.clear();
   }
 
   // Apply a physical move and record it in default-label space (from_peg+1,
@@ -101,6 +105,22 @@ struct App {
 
   [[nodiscard]] bool won() const { return game.check_win_condition(); }
 };
+
+// On a win, capture the shared celebration lines and request the modal (shown
+// once per win by draw_win_modal). The recipe teaching (first_win) keys off the
+// won_once latch, read before the frame's draw latches it. No-op when not won.
+void trigger_win(App &app) {
+  if (!app.won()) {
+    return;
+  }
+  app.win_lines = hanoi::format_win_celebration(
+      app.game.num_disks(), app.game.current_moves(),
+      optimal_moves(app.game.num_disks()), !app.won_once);
+  if (!app.win_lines.empty()) {
+    app.status = app.win_lines.front();
+  }
+  app.open_win = true;
+}
 
 // The reason a physical move is illegal, in the player's labels -- mirrors the
 // Python engine._handle_move messages (empty source / larger-on-smaller).
@@ -348,16 +368,7 @@ void do_board_move(App &app, int fp, int tp) {
     open_view(app, "Rebinding for your move", "Your move",
               {{{from_label, to_label}}});
   }
-  if (app.won()) {
-    const int mm = optimal_moves(app.game.num_disks());
-    const int mv = app.game.current_moves();
-    const std::string verdict = mv == mm ? "Optimal!"
-                                         : std::to_string(mv - mm) +
-                                               " more than the minimum (" +
-                                               std::to_string(mm) + ").";
-    app.status = "Solved in " + std::to_string(mv) + " moves - " + verdict +
-                 "  Save it as a recipe to keep it.";
-  }
+  trigger_win(app);
 }
 
 // View a saved recipe (Recipe menu -> <name> -> View): under a relabelling the
@@ -399,13 +410,7 @@ void apply_recipe(App &app, const std::string &name) {
     open_view(app, "Rebinding for '" + name + "'", "Recipe moves",
               r->default_moves);
   }
-  if (app.won()) {
-    const int mm = optimal_moves(app.game.num_disks());
-    const int mv = app.game.current_moves();
-    app.status += (mv == mm) ? "  Solved - optimal!"
-                             : "  Solved in " + std::to_string(mv) +
-                                   " moves (min " + std::to_string(mm) + ").";
-  }
+  trigger_win(app);
 }
 
 void draw_menubar(App &app) {
@@ -521,6 +526,35 @@ void draw_save_modal(App &app) {
     }
     ImGui::SameLine();
     if (ImGui::Button("Cancel")) {
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+}
+
+// The win-celebration modal (the teaching hinge, feature-spec §4.9): the shared
+// lines (congrats + result, plus the recipe teaching on the first win), with a
+// "Save as recipe" button (-> the prefilled save modal) and a "Not now"
+// dismiss. Shown once per win; requested by trigger_win().
+void draw_win_modal(App &app) {
+  if (app.open_win) {
+    ImGui::OpenPopup("You solved it!");
+    app.open_win = false;
+  }
+  ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  if (ImGui::BeginPopupModal("You solved it!", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    for (const std::string &line : app.win_lines) {
+      ImGui::TextUnformatted(line.c_str());
+    }
+    ImGui::Separator();
+    if (ImGui::Button("Save as recipe")) {
+      app.open_save = true; // -> the prefilled solve-<N> save modal
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Not now")) {
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -665,6 +699,7 @@ void draw_frame(App &app) {
 
   draw_menubar(app);
   draw_save_modal(app);
+  draw_win_modal(app);
   draw_help_modal(app);
   draw_illegal_modal(app);
 

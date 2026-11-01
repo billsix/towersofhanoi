@@ -1,6 +1,15 @@
 # Win celebration + recipe discovery — C++
 
-**Status:** proposed — needs go-ahead.
+**Status:** implemented 2026-11-01 — the header-only core helper
+(`presenter::format_win_celebration` + `default_recipe_name`, with a parity `TEST_CASE` asserting the
+oracle strings) and both GUIs surface the win celebration: `main.cpp` (ImGui) pops a `BeginPopupModal`
+once per win with a "Save as recipe" button (→ the prefilled save modal); `hanoiwx.cpp` (wx) shows a
+`wxMessageDialog` (Save as recipe / Not now), sharing a `save_recipe_prompt` with the Recipe-menu Save.
+Gate green on the **host native toolchain** (clang/SDL2/wx from the same Fedora base): all three targets
+(`hanoi-cpp`, `hanoi-wx`, `hanoi-tests`) compile, doctests pass, clang-format clean. **Pending:** the
+maintainer's `make test`/`make gui`/`make wx` + display run, and `make webassembly` (the wasm build was
+not compiled here — the popup path uses only core ImGui calls, so it should build, but confirm) — then
+this archives.
 **Priority:** 5 **Difficulty:** 5
 **Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
 open questions that **block implementation**).

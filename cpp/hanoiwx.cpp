@@ -961,10 +961,14 @@ private:
     dlg->Show();
   }
 
-  void on_save(wxCommandEvent &) {
-    // Enabled only when won.
-    wxTextEntryDialog dlg(this, "Recipe name:", "Save Recipe",
-                          wxString::Format("solve-%d", game_.num_disks()));
+  void on_save(wxCommandEvent &) { save_recipe_prompt(); }
+
+  // The prefilled solve-<N> name prompt (feature-spec §4.5), shared by the
+  // Recipe-menu Save and the win celebration's "Save as recipe".
+  void save_recipe_prompt() {
+    wxTextEntryDialog dlg(
+        this, "Recipe name:", "Save Recipe",
+        wxString::FromUTF8(hanoi::default_recipe_name(game_.num_disks())));
     if (dlg.ShowModal() != wxID_OK) {
       return;
     }
@@ -982,20 +986,31 @@ private:
   }
 
   void on_win() {
-    // Tier 2 unlocks at the first win and stays unlocked for the session
-    // (feature-spec §3.5); refresh() reads the latch to enable the menus.
+    // The teaching hinge (feature-spec §4.9): unlock Tier 2 (refresh() reads
+    // the latch to enable the menus), then show the celebration popup -- the
+    // recipe teaching on the first win, a "Save as recipe" offer on every win.
+    const bool first_win = !won_once_;
     won_once_ = true;
     refresh();
-    const int mm = optimal_moves(game_.num_disks());
-    const int mv = game_.current_moves();
-    const wxString verdict =
-        mv == mm
-            ? "Optimal!"
-            : wxString::Format("%d more than the minimum (%d).", mv - mm, mm);
-    set_status(wxString::Format("Solved in %d moves - %s  Relabel pegs and "
-                                "Recipe are now unlocked: save this solve, "
-                                "start a bigger stack, and reuse it.",
-                                mv, verdict));
+    const std::vector<std::string> lines = hanoi::format_win_celebration(
+        game_.num_disks(), game_.current_moves(),
+        optimal_moves(game_.num_disks()), first_win);
+    if (!lines.empty()) {
+      set_status(wxString::FromUTF8(lines.front()));
+    }
+    std::string body;
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+      body += lines[i];
+      if (i + 1 < lines.size()) {
+        body += "\n";
+      }
+    }
+    wxMessageDialog dlg(this, wxString::FromUTF8(body), "You solved it!",
+                        wxYES_NO | wxICON_INFORMATION);
+    dlg.SetYesNoLabels("Save as recipe", "Not now");
+    if (dlg.ShowModal() == wxID_YES) {
+      save_recipe_prompt();
+    }
   }
 
   // --- Three-panel rebinding dialog (RebindingDialog in the XRC) -------
