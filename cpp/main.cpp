@@ -28,6 +28,7 @@
 
 #include <array>
 #include <cfloat>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -76,6 +77,12 @@ struct App {
   bool want_quit = false;    // native: exit the loop
   bool won_once = false;     // Tier-2 unlock: latched at the first win, kept
   bool help_shown = false;   // first-run "How to Play" shown once
+  // Disc drag-drop (spike, mirrored across the GUIs): the physical peg whose
+  // top disc is being dragged (-1 = none), its size, and the cursor position.
+  int drag_src = -1;
+  int drag_size = 0;
+  float drag_x = 0.0f;
+  float drag_y = 0.0f;
 
   void new_game(int n) {
     game = hanoi::Game(n);
@@ -115,9 +122,13 @@ std::string illegal_reason(const hanoi::Game &g, int fp, int tp, int from_label,
   return "Invalid move.";
 }
 
+// Dispatch a physical from->to move (shared by the move buttons and disc
+// drag-drop). Defined after open_view; forward-declared here for draw_board.
+void do_board_move(App &app, int fp, int tp);
+
 // Draw the three pegs (coloured by label) + disks; when relabelled, a second
 // label row shows the physical 1,2,3 reference under the active labels.
-void draw_board(const App &app) {
+void draw_board(App &app) {
   const hanoi::Game &game = app.game;
   ImDrawList *dl = ImGui::GetWindowDrawList();
   const ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -137,28 +148,83 @@ void draw_board(const App &app) {
   const float max_disk_w = peg_gap * 0.9f;
   const int n = game.num_disks() > 0 ? game.num_disks() : 1;
   const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
+  const float extra = relabelled ? 46.0f : 32.0f;
+
+  std::array<float, 3> cx{};
+  for (int peg = 0; peg < 3; ++peg) {
+    cx[static_cast<std::size_t>(peg)] =
+        origin.x + margin + peg_gap * (static_cast<float>(peg) + 0.5f);
+  }
+
+  // Disc drag-drop (spike, mirrored across the GUIs): an invisible button over
+  // the board owns the gesture while the draw list paints over it. Press picks
+  // up the top disc of the nearest peg; the disc follows the cursor; release
+  // drops onto the nearest peg (forgiving) and dispatches through the same
+  // do_board_move the buttons use. Dragging is off once the game is won. The
+  // move buttons stay as the keyboard/accessible path. Mirrors the wxPython
+  // GraphicsBoardRenderer spike.
+  ImGui::InvisibleButton("##board", ImVec2(board_w, board_h + extra));
+  const auto nearest_peg = [&](float x) -> int {
+    int best = 0;
+    for (int i = 1; i < 3; ++i) {
+      if (std::fabs(x - cx[static_cast<std::size_t>(i)]) <
+          std::fabs(x - cx[static_cast<std::size_t>(best)])) {
+        best = i;
+      }
+    }
+    return best;
+  };
+  if (app.won()) {
+    app.drag_src = -1; // dragging is disabled once solved
+  } else {
+    const ImVec2 mp = ImGui::GetMousePos();
+    if (ImGui::IsItemActivated()) {
+      const int peg = nearest_peg(mp.x);
+      const std::vector<int> &stack =
+          game.towers()[static_cast<std::size_t>(peg)];
+      if (!stack.empty()) {
+        app.drag_src = peg;
+        app.drag_size = stack.back();
+      }
+    }
+    if (ImGui::IsItemActive() && app.drag_src >= 0) {
+      app.drag_x = mp.x;
+      app.drag_y = mp.y;
+    }
+    if (ImGui::IsItemDeactivated() && app.drag_src >= 0) {
+      const int src = app.drag_src;
+      const int target = nearest_peg(mp.x);
+      app.drag_src = -1;
+      if (target != src) {
+        do_board_move(app, src, target);
+      }
+    }
+  }
 
   for (int peg = 0; peg < 3; ++peg) {
-    const float cx =
-        origin.x + margin + peg_gap * (static_cast<float>(peg) + 0.5f);
+    const float pcx = cx[static_cast<std::size_t>(peg)];
     const int label = hanoi::change_labels_on_pegs(app.labelling, peg);
     const ImU32 peg_col = kLabelColors[static_cast<std::size_t>(label)];
-    dl->AddLine(ImVec2(cx, base_y), ImVec2(cx, origin.y + 12.0f), peg_col,
+    dl->AddLine(ImVec2(pcx, base_y), ImVec2(pcx, origin.y + 12.0f), peg_col,
                 5.0f);
     const std::vector<int> &stack =
         game.towers()[static_cast<std::size_t>(peg)];
     for (std::size_t level = 0; level < stack.size(); ++level) {
+      // Omit the disc currently being dragged from its home peg.
+      if (app.drag_src == peg && level == stack.size() - 1) {
+        continue;
+      }
       const int size = stack[level];
       const float w =
           max_disk_w * (static_cast<float>(size) / static_cast<float>(n));
       const float y = base_y - disk_h * (static_cast<float>(level) + 1.0f);
-      const ImVec2 a(cx - w / 2.0f, y);
-      const ImVec2 b(cx + w / 2.0f, y + disk_h - 3.0f);
+      const ImVec2 a(pcx - w / 2.0f, y);
+      const ImVec2 b(pcx + w / 2.0f, y + disk_h - 3.0f);
       dl->AddRectFilled(a, b, IM_COL32(210, 210, 215, 255), 4.0f);
       dl->AddRect(a, b, IM_COL32(30, 30, 40, 255), 4.0f);
     }
     // Active label under the peg, in the label's colour.
-    const float lx = cx - 4.0f;
+    const float lx = pcx - 4.0f;
     char lbl[2] = {static_cast<char>('1' + label), '\0'};
     dl->AddText(ImVec2(lx, base_y + 6.0f), peg_col, lbl);
     // Physical 1,2,3 reference row, only when relabelled (muted), so the
@@ -169,7 +235,17 @@ void draw_board(const App &app) {
                   phys);
     }
   }
-  ImGui::Dummy(ImVec2(board_w, board_h + (relabelled ? 46.0f : 32.0f)));
+
+  // The dragged disc follows the cursor, drawn on top (a gold tint signals the
+  // picked-up disc).
+  if (app.drag_src >= 0) {
+    const float w = max_disk_w *
+                    (static_cast<float>(app.drag_size) / static_cast<float>(n));
+    const ImVec2 a(app.drag_x - w / 2.0f, app.drag_y - disk_h / 2.0f);
+    const ImVec2 b(app.drag_x + w / 2.0f, app.drag_y + disk_h / 2.0f - 3.0f);
+    dl->AddRectFilled(a, b, IM_COL32(235, 225, 150, 255), 4.0f);
+    dl->AddRect(a, b, IM_COL32(60, 55, 30, 255), 4.0f);
+  }
 }
 
 // The three-panel rebinding view: recipe/move labels (left) | label->peg key
@@ -237,6 +313,51 @@ void open_view(App &app, const std::string &title,
   app.view.left_header = left_header;
   app.view.moves = moves;
   app.view.labelling = app.labelling;
+}
+
+// Dispatch a physical from->to move -- shared by the move buttons and a disc
+// drag-drop so a dragged move and a clicked move take one path (mirrors the
+// wxPython _on_move). Illegal -> the distinct rejection reason in a popup;
+// legal -> apply + record + status, the single-move rebinding under a
+// relabelling, and the win verdict.
+void do_board_move(App &app, int fp, int tp) {
+  const int from_label = hanoi::change_labels_on_pegs(app.labelling, fp) + 1;
+  const int to_label = hanoi::change_labels_on_pegs(app.labelling, tp) + 1;
+  if (app.won()) {
+    app.illegal_msg = "The game is already solved - start a new game.";
+    app.open_illegal = true;
+    return;
+  }
+  bool legal = false;
+  for (const hanoi::Move &m : app.game.move_options()) {
+    if (m.from_peg == fp && m.to_peg == tp) {
+      legal = true;
+      break;
+    }
+  }
+  if (!legal) {
+    app.illegal_msg = illegal_reason(app.game, fp, tp, from_label, to_label);
+    app.open_illegal = true;
+    return;
+  }
+  const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
+  app.do_move(hanoi::Move{fp, tp});
+  app.status = "Moved " + std::to_string(from_label) + " -> " +
+               std::to_string(to_label) + ".";
+  if (relabelled) {
+    open_view(app, "Rebinding for your move", "Your move",
+              {{{from_label, to_label}}});
+  }
+  if (app.won()) {
+    const int mm = optimal_moves(app.game.num_disks());
+    const int mv = app.game.current_moves();
+    const std::string verdict = mv == mm ? "Optimal!"
+                                         : std::to_string(mv - mm) +
+                                               " more than the minimum (" +
+                                               std::to_string(mm) + ").";
+    app.status = "Solved in " + std::to_string(mv) + " moves - " + verdict +
+                 "  Save it as a recipe to keep it.";
+  }
 }
 
 // View a saved recipe (Recipe menu -> <name> -> View): under a relabelling the
@@ -487,34 +608,7 @@ void draw_moves(App &app) {
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.60f, 0.60f, 0.63f, 1.0f));
     }
     if (ImGui::Button(btn)) {
-      if (won) {
-        app.illegal_msg = "The game is already solved - start a new game.";
-        app.open_illegal = true;
-      } else if (legal[static_cast<std::size_t>(fp * 3 + tp)]) {
-        const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
-        app.do_move(hanoi::Move{fp, tp});
-        app.status = "Moved " + std::to_string(from_label) + " -> " +
-                     std::to_string(to_label) + ".";
-        // Teaching step: under a relabelling, show the single move's rebinding.
-        if (relabelled) {
-          open_view(app, "Rebinding for your move", "Your move",
-                    {{{from_label, to_label}}});
-        }
-        if (app.won()) {
-          const int mm = optimal_moves(app.game.num_disks());
-          const int mv = app.game.current_moves();
-          const std::string verdict =
-              mv == mm ? "Optimal!"
-                       : std::to_string(mv - mm) + " more than the minimum (" +
-                             std::to_string(mm) + ").";
-          app.status = "Solved in " + std::to_string(mv) + " moves - " +
-                       verdict + "  Save it as a recipe to keep it.";
-        }
-      } else {
-        app.illegal_msg =
-            illegal_reason(app.game, fp, tp, from_label, to_label);
-        app.open_illegal = true;
-      }
+      do_board_move(app, fp, tp); // same dispatch path as a disc drag-drop
     }
     if (!is_legal) {
       ImGui::PopStyleColor(4);
