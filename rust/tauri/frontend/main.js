@@ -79,6 +79,44 @@ let wonOnce = false;
 /** @type {Snapshot|null} */
 let latest = null;
 
+// Disc drag-drop (spike, mirrored across the GUIs): the physical peg (0,1,2)
+// whose top disc is being dragged (null = none), its size, and the pointer
+// position on the canvas.
+/** @type {number|null} */
+let dragSrc = null;
+let dragSize = 0;
+let dragX = 0;
+let dragY = 0;
+
+/**
+ * The three peg-centre x-coordinates on a `w`-wide canvas. Shared by the board
+ * drawing and the drag hit-test so they agree on where the pegs are.
+ * @param {number} w
+ * @returns {number[]}
+ */
+function boardPegCentres(w) {
+  const margin = 20;
+  const availW = Math.max(w - 2 * margin, 80);
+  const pegZoneW = availW / 3;
+  return [0, 1, 2].map((i) => margin + pegZoneW * (i + 0.5));
+}
+
+/**
+ * The physical peg (0,1,2) whose centre is nearest `x` on a `w`-wide canvas --
+ * forgiving drop targeting.
+ * @param {number} x
+ * @param {number} w
+ * @returns {number}
+ */
+function nearestPeg(x, w) {
+  const c = boardPegCentres(w);
+  let best = 0;
+  for (let i = 1; i < 3; i++) {
+    if (Math.abs(x - c[i]) < Math.abs(x - c[best])) best = i;
+  }
+  return best;
+}
+
 // --- Graphics board (a <canvas> mirror of the wxDragon DC board; same palettes,
 // disc-width curve and layout as rust/hanoi-gui/src/main.rs::draw_board_dc) -----
 
@@ -177,8 +215,7 @@ function drawBoard(s) {
   const pegH = availH * 0.95;
   const baseY = h - margin - labelBandH - baseH;
   const pegTopY = baseY - pegH;
-  /** @type {number[]} */
-  const pegCentres = [0, 1, 2].map((i) => margin + pegZoneW * (i + 0.5));
+  const pegCentres = boardPegCentres(w);
 
   ctx.lineWidth = 1;
 
@@ -198,6 +235,8 @@ function drawBoard(s) {
   s.towers.forEach((stack, p) => {
     const cx = pegCentres[p];
     stack.forEach((size, idx) => {
+      // Omit the disc currently being dragged from its home peg.
+      if (p === dragSrc && idx === stack.length - 1) return;
       const dw = discWidth(size, n, maxDiscW);
       const y = baseY - (idx + 1) * discH * 1.04;
       const colour = DISC_RGB[(size - 1) % DISC_RGB.length];
@@ -231,6 +270,15 @@ function drawBoard(s) {
     pegCentres.forEach((cx, p) =>
       ctx.fillText(String(p + 1), cx, activeLabelY + 26)
     );
+  }
+
+  // The dragged disc follows the pointer, drawn on top in its size colour.
+  if (dragSrc !== null) {
+    const dw = discWidth(dragSize, n, maxDiscW);
+    const colour = DISC_RGB[(dragSize - 1) % DISC_RGB.length];
+    ctx.strokeStyle = darken(colour, 0.45);
+    ctx.fillStyle = rgb(colour);
+    roundRect(ctx, dragX - dw / 2, dragY - discH / 2, dw, discH, discH / 3);
   }
 }
 
@@ -405,8 +453,69 @@ function initMenuBar() {
  * Wire every control to its backend command and paint the initial snapshot.
  * @returns {Promise<void>}
  */
+/**
+ * Wire disc drag-drop on the <canvas> board (spike, mirrored across the GUIs):
+ * press picks up the top disc of the nearest peg, pointer moves it, release
+ * drops on the nearest peg and dispatches `do_move` (which validates + reports
+ * an illegal drop). Pointer capture keeps the drag alive outside the canvas;
+ * dragging is off once won. The move buttons stay as the accessible path.
+ * @returns {void}
+ */
+function initBoardDrag() {
+  const canvas =
+    /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+  /**
+   * @param {PointerEvent} e
+   * @returns {{ x: number; y: number }}
+   */
+  const canvasPos = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!latest || latest.won) return;
+    const { x, y } = canvasPos(e);
+    const peg = nearestPeg(x, canvas.width);
+    const stack = latest.towers[peg];
+    if (!stack || stack.length === 0) return;
+    dragSrc = peg;
+    dragSize = stack[stack.length - 1];
+    dragX = x;
+    dragY = y;
+    canvas.setPointerCapture(e.pointerId);
+    drawBoard(latest);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (dragSrc === null || !latest) return;
+    const p = canvasPos(e);
+    dragX = p.x;
+    dragY = p.y;
+    drawBoard(latest);
+  });
+  canvas.addEventListener("pointerup", async (e) => {
+    if (dragSrc === null || !latest) return;
+    const src = dragSrc;
+    const target = nearestPeg(canvasPos(e).x, canvas.width);
+    dragSrc = null;
+    drawBoard(latest); // snap back to the true board state
+    if (target !== src) {
+      const from = latest.labels[src];
+      const to = latest.labels[target];
+      render(/** @type {Snapshot} */ (await invoke("do_move", { from, to })));
+    }
+  });
+  canvas.addEventListener("pointercancel", () => {
+    dragSrc = null;
+    if (latest) drawBoard(latest);
+  });
+}
+
 async function init() {
   initMenuBar();
+  initBoardDrag();
 
   for (const [f, t] of MOVE_PAIRS) {
     el(`move-${f}-${t}`).addEventListener("click", async () => {
