@@ -48,8 +48,12 @@ WAYLAND_FLAGS_FOR_CONTAINER = -e "XDG_SESSION_TYPE=wayland" \
 			      -v "$(XDG_RUNTIME_DIR):$(XDG_RUNTIME_DIR)" \
 			      $(DRI_DEVICE)
 
+# Mount only the vendored elpa/ subdir (not the whole .emacs.d) so `make shell` uses the
+# committed packages while the image's baked init.el/preferences.el stay the config -- like
+# modelviewprojection/geometricalgebra. Refresh the packages with `make update-emacs-packages`.
+# (:U chowns to the container user, :z relabels for SELinux.)
 ifeq ($(USE_EMACS), 1)
-  ELPA_MOUNT = -v $(CURDIR)/entrypoint/dotfiles/.emacs.d/:/root/.emacs.d/:U,z
+  ELPA_MOUNT = -v $(CURDIR)/entrypoint/dotfiles/.emacs.d/elpa:/root/.emacs.d/elpa:U,z
 else
   ELPA_MOUNT =
 endif

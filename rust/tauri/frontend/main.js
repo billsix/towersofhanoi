@@ -5,6 +5,12 @@
 // global Tauri API (`app.withGlobalTauri` in tauri.conf.json). Every backend
 // command returns the same Snapshot, which render() paints. The game logic
 // lives entirely in the Rust `hanoigame` crate behind the commands.
+//
+// The UI follows the three-tier learning flow (feature-spec.md §3.5, realized in
+// the wxPython oracle): Tier 1 is always visible (board, goal line, move history,
+// feedback, How-to-Play); Tier 2 (relabelling, saving/recipes) unlocks at the
+// first win; Tier 3 keeps relabelling and recipes on the menu bar, out of the
+// always-visible workspace.
 // @ts-check
 
 // --- IPC view-models: the serde shapes the Rust `#[tauri::command]`s return
@@ -57,6 +63,7 @@
  * @property {boolean} won
  * @property {[number, number][]} rebinding
  * @property {RecipeInfo[]} recipes
+ * @property {[number, number][]} history
  * @property {string} message
  * @property {ApplyView|null} apply
  */
@@ -77,18 +84,12 @@ const RELABEL_PERMS = [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [
   1,
 ]];
 
-/** @type {string} */
-const HELP_TEXT = [
-  "Towers of Hanoi — move every disc to the third peg, never a larger disc onto a smaller one.",
-  "",
-  "Move: click a 'from → to' button (in the current labels); illegal moves are disabled.",
-  "Relabel: rename the physical pegs (a permutation of 1,2,3). Discs don't move, and colours track",
-  "  the label — so a solved sub-problem can be replayed under a new name.",
-  "Recipes: after you win, Save the solution (default name solve-N). Apply replays a saved recipe",
-  "  under the current labelling and, when relabelled, shows the three-panel rebinding (the recipe's",
-  "  labels | label → peg | the rebound moves on the physical pegs). Show lists a recipe's moves.",
-  "New Game: pick a disc count (1–10).",
-].join("\n");
+// Tier-2 latch: once the player has won at least once this session, the Relabel
+// and Recipe menus stay unlocked (dim-don't-remove; feature-spec §3.5).
+let wonOnce = false;
+// The latest snapshot, so menu actions (Save) can read e.g. the disc count.
+/** @type {Snapshot|null} */
+let latest = null;
 
 // --- Graphics board (a <canvas> mirror of the wxDragon DC board; same palettes,
 // disc-width curve and layout as rust/hanoi-gui/src/main.rs::draw_board_dc) -----
@@ -118,6 +119,11 @@ const darken = ([r, g, b], amt) =>
   `rgb(${Math.floor(r * (1 - amt))},${Math.floor(g * (1 - amt))},${
     Math.floor(b * (1 - amt))
   })`;
+
+/** @param {string} id @returns {HTMLElement} */
+function el(id) {
+  return /** @type {HTMLElement} */ (document.getElementById(id));
+}
 
 /**
  * Width of a disc of `size` in an `n`-disc game, up to `maxW` (smallest is 1/3 the
@@ -241,18 +247,64 @@ function drawBoard(s) {
 }
 
 /**
- * Paint the whole UI from a snapshot: board, status, message, rebinding line, the
- * move buttons' enabled state, the recipe list, the save control, and the apply view.
+ * Fill the Relabel menu: one item per permutation, the active labelling marked,
+ * all disabled while the current game is already solved.
+ * @param {Snapshot} s
+ * @returns {void}
+ */
+function renderRelabelMenu(s) {
+  /** @type {(perm: number[]) => boolean} */
+  const isActive = (perm) =>
+    perm[0] === s.labels[0] && perm[1] === s.labels[1] &&
+    perm[2] === s.labels[2];
+  el("relabel-panel").innerHTML = RELABEL_PERMS.map((perm) =>
+    `<button class="menu-item" data-perm="${perm.join("")}"${
+      s.won ? " disabled" : ""
+    }>${isActive(perm) ? "● " : "○ "}${perm.join(" ")}</button>`
+  ).join("");
+}
+
+/**
+ * Fill the Recipe menu: Save current solution (enabled only at a win), then each
+ * saved recipe as a row with View / Apply (Apply disabled once the game is solved).
+ * @param {Snapshot} s
+ * @returns {void}
+ */
+function renderRecipeMenu(s) {
+  const save = `<button class="menu-item" data-act="save"${
+    s.won ? "" : " disabled"
+  }>Save current solution</button><hr />`;
+  const body = s.recipes.length === 0
+    ? `<span class="menu-empty">(no saved recipes yet)</span>`
+    : s.recipes.map((r) =>
+      `<div class="recipe-row"><span>${r.name} (${r.disks} discs, ${r.moves} moves)</span>` +
+      `<button class="menu-item" data-act="view" data-name="${r.name}">View</button>` +
+      `<button class="menu-item" data-act="apply" data-name="${r.name}"${
+        s.won ? " disabled" : ""
+      }>Apply</button></div>`
+    ).join("");
+  el("recipe-panel").innerHTML = save + body;
+}
+
+/**
+ * Paint the whole UI from a snapshot: board, goal line, message, history, the
+ * move buttons' enabled state, the Tier-2 menu gating, the menus, and the apply view.
  * @param {Snapshot} s
  * @returns {void}
  */
 function render(s) {
+  latest = s;
+  wonOnce = wonOnce || s.won;
+
   drawBoard(s);
-  /** @type {HTMLElement} */ (document.getElementById("board")).textContent = s
-    .board.join("\n");
-  /** @type {HTMLElement} */ (document.getElementById("status")).textContent =
-    `Discs: ${s.num_disks}    Labelling: ${s.labels.join(" ")}    ` +
-    `Moves: ${s.moves}    Recipes: ${s.recipes.length}`;
+  el("board").textContent = s.board.join("\n");
+
+  // Tier-1 goal line (always visible).
+  el("status").textContent =
+    `Goal: move all ${s.num_disks} discs to peg 3    ` +
+    `Moves: ${s.moves} / optimal ${s.min_moves}    Labelling: ${
+      s.labels.join(" ")
+    }`;
 
   let message = s.message || "";
   if (s.won && !message) {
@@ -260,41 +312,34 @@ function render(s) {
       ? "Optimal!"
       : `${s.moves - s.min_moves} more than the minimum (${s.min_moves}).`;
     message =
-      `Solved in ${s.moves} moves — ${verdict}  Save it below to keep it.`;
+      `Solved in ${s.moves} moves — ${verdict}  Save it from the Recipe menu to keep it.`;
   }
-  /** @type {HTMLElement} */ (document.getElementById("message")).textContent =
-    message;
+  el("message").textContent = message;
 
-  /** @type {HTMLElement} */ (document.getElementById("rebinding"))
-    .textContent = s.rebinding.length
-      ? "Rebinding: " +
-        s.rebinding.map(([l, p]) => `label ${l} → peg ${p}`).join(",   ")
-      : "";
+  el("rebinding").textContent = s.rebinding.length
+    ? "Rebinding: " +
+      s.rebinding.map(([l, p]) => `label ${l} → peg ${p}`).join(",   ")
+    : "";
+
+  // Tier-1 move history (always visible): the running default-label tally.
+  const hist = el("history");
+  hist.classList.toggle("empty", s.history.length === 0);
+  hist.innerHTML = s.history.length === 0
+    ? `<li class="muted">(no moves yet)</li>`
+    : s.history.map(([a, b]) => `<li>${a} -&gt; ${b}</li>`).join("");
 
   /** @type {Set<string>} */
   const legal = new Set(s.legal.map(([f, t]) => `${f}-${t}`));
   for (const [f, t] of MOVE_PAIRS) {
-    /** @type {HTMLButtonElement} */ (document.getElementById(`move-${f}-${t}`))
-      .disabled = s.won || !legal.has(`${f}-${t}`);
+    /** @type {HTMLButtonElement} */ (el(`move-${f}-${t}`)).disabled = s.won ||
+      !legal.has(`${f}-${t}`);
   }
 
-  const sel =
-    /** @type {HTMLSelectElement} */ (document.getElementById("recipes"));
-  const previous = sel.value;
-  sel.innerHTML = "";
-  for (const r of s.recipes) {
-    const opt = document.createElement("option");
-    opt.value = r.name;
-    opt.textContent = `${r.name}  (${r.disks} discs, ${r.moves} moves)`;
-    sel.appendChild(opt);
-  }
-  if (previous) sel.value = previous;
-
-  /** @type {HTMLButtonElement} */ (document.getElementById("save")).disabled =
-    !s.won;
-  const sn =
-    /** @type {HTMLInputElement} */ (document.getElementById("savename"));
-  if (!sn.value) sn.value = `solve-${s.num_disks}`; // prefill the default name (feature-spec §4.5)
+  // Tier-2 gating: the Relabel and Recipe menus unlock at the first win.
+  /** @type {HTMLButtonElement} */ (el("relabel-btn")).disabled = !wonOnce;
+  /** @type {HTMLButtonElement} */ (el("recipe-btn")).disabled = !wonOnce;
+  renderRelabelMenu(s);
+  renderRecipeMenu(s);
 
   renderApplyView(s.apply);
 }
@@ -307,10 +352,10 @@ function render(s) {
  * @returns {void}
  */
 function renderApplyView(apply) {
-  const el = /** @type {HTMLElement} */ (document.getElementById("apply-view"));
+  const panel = el("apply-view");
   if (!apply || !apply.relabelled) {
-    el.classList.add("hidden");
-    el.innerHTML = "";
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
     return;
   }
   /** @type {(title: string, rows: string[]) => string} */
@@ -330,7 +375,7 @@ function renderApplyView(apply) {
       ? `step ${i + 1}: stopped — ${st.error}`
       : `step ${i + 1}: ${st.from_label} → ${st.to_label}`
   );
-  el.innerHTML =
+  panel.innerHTML =
     `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
     `<div class="apply-cols">` +
     col("Recipe (its labels)", recipeCol) +
@@ -340,7 +385,40 @@ function renderApplyView(apply) {
     `<div class="apply-steps"><h4>Steps</h4>${
       steps.map((r) => `<div>${r}</div>`).join("")
     }</div>`;
-  el.classList.remove("hidden");
+  panel.classList.remove("hidden");
+}
+
+/** Close every open menu-bar dropdown. @returns {void} */
+function closeMenus() {
+  document.querySelectorAll(".menu.open").forEach((m) =>
+    m.classList.remove("open")
+  );
+}
+
+/**
+ * Wire the menu bar: a click on an (enabled) menu button toggles its dropdown and
+ * closes the others; a click anywhere else closes them; clicks inside a panel stay
+ * open unless an action closes the menu explicitly.
+ * @returns {void}
+ */
+function initMenuBar() {
+  document.querySelectorAll(".menu-btn").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
+      if (btn.disabled) return;
+      const menu = /** @type {HTMLElement} */ (btn.parentElement);
+      const willOpen = !menu.classList.contains("open");
+      closeMenus();
+      if (willOpen) menu.classList.add("open");
+      e.stopPropagation();
+    })
+  );
+  // Clicks inside a panel do not bubble to the document closer; actions close
+  // the menu themselves.
+  document.querySelectorAll(".menu-panel").forEach((p) =>
+    p.addEventListener("click", (e) => e.stopPropagation())
+  );
+  document.addEventListener("click", closeMenus);
 }
 
 /**
@@ -348,88 +426,81 @@ function renderApplyView(apply) {
  * @returns {Promise<void>}
  */
 async function init() {
+  initMenuBar();
+
   for (const [f, t] of MOVE_PAIRS) {
-    /** @type {HTMLElement} */ (document.getElementById(`move-${f}-${t}`))
-      .addEventListener("click", async () => {
-        render(
-          /** @type {Snapshot} */ (await invoke("do_move", { from: f, to: t })),
-        );
-      });
-  }
-  for (const perm of RELABEL_PERMS) {
-    /** @type {HTMLElement} */ (document.getElementById(
-      `relabel-${perm.join("")}`,
-    )).addEventListener("click", async () => {
+    el(`move-${f}-${t}`).addEventListener("click", async () => {
       render(
-        /** @type {Snapshot} */ (await invoke("relabel", { labels: perm })),
+        /** @type {Snapshot} */ (await invoke("do_move", { from: f, to: t })),
       );
     });
   }
-  /** @type {HTMLElement} */ (document.getElementById("newgame"))
-    .addEventListener("click", async () => {
-      const discs = parseInt(
-        /** @type {HTMLInputElement} */ (document.getElementById("discs"))
-          .value,
-        10,
-      ) || 3;
-      render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
-    });
-  /** @type {HTMLElement} */ (document.getElementById("save")).addEventListener(
-    "click",
-    async () => {
-      const sn =
-        /** @type {HTMLInputElement} */ (document.getElementById("savename"));
-      const s = /** @type {Snapshot} */ (await invoke("save_recipe", {
-        name: sn.value.trim(),
+
+  // Relabel menu (delegated: the items are re-rendered each snapshot).
+  el("relabel-panel").addEventListener("click", async (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    const raw = target.dataset ? target.dataset.perm : undefined;
+    if (!raw) return;
+    /** @type {[number, number, number]} */
+    const labels = [Number(raw[0]), Number(raw[1]), Number(raw[2])];
+    closeMenus();
+    render(/** @type {Snapshot} */ (await invoke("relabel", { labels })));
+  });
+
+  // Recipe menu (delegated): Save current solution / per-recipe View / Apply.
+  el("recipe-panel").addEventListener("click", async (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    const act = target.dataset ? target.dataset.act : undefined;
+    if (!act) return;
+    const name = target.dataset.name;
+    closeMenus();
+    if (act === "save") {
+      const discs = latest ? latest.num_disks : 3;
+      render(
+        /** @type {Snapshot} */ (await invoke("save_recipe", {
+          name: `solve-${discs}`,
+        })),
+      );
+    } else if (act === "view" && name) {
+      const steps = /** @type {string[]} */ (await invoke("show_recipe", {
+        name,
       }));
-      render(s);
-      sn.value = `solve-${s.num_disks}`; // reset to the default name for the next recipe
-    },
-  );
-  /** @type {HTMLElement} */ (document.getElementById("help")).addEventListener(
-    "click",
-    () => alert(HELP_TEXT),
-  );
-  /** @type {HTMLElement} */ (document.getElementById("apply"))
-    .addEventListener("click", async () => {
-      const name =
-        /** @type {HTMLSelectElement} */ (document.getElementById("recipes"))
-          .value;
-      if (name) {
-        render(
-          /** @type {Snapshot} */ (await invoke("apply_recipe", { name })),
-        );
-      }
-    });
-  /** @type {HTMLElement} */ (document.getElementById("show")).addEventListener(
-    "click",
-    async () => {
-      const name =
-        /** @type {HTMLSelectElement} */ (document.getElementById("recipes"))
-          .value;
-      if (name) {
-        const steps =
-          /** @type {string[]} */ (await invoke("show_recipe", { name }));
-        alert(steps.join("\n"));
-      }
-    },
-  );
+      alert(steps.join("\n"));
+    } else if (act === "apply" && name) {
+      render(/** @type {Snapshot} */ (await invoke("apply_recipe", { name })));
+    }
+  });
+
+  el("newgame").addEventListener("click", async () => {
+    const discs = parseInt(
+      /** @type {HTMLInputElement} */ (el("discs")).value,
+      10,
+    ) || 3;
+    closeMenus();
+    render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
+  });
+
+  // How-to-Play dialog: opens from the Help menu, and once automatically on first run.
+  const dialog = /** @type {HTMLDialogElement} */ (el("howto-dialog"));
+  el("howto").addEventListener("click", () => {
+    closeMenus();
+    dialog.showModal();
+  });
 
   // Text / Graphics board toggle (the graphics canvas is the default view, as in
   // the wxDragon GUI; the monospace text board is one click away).
-  /** @type {HTMLElement} */ (document.getElementById("toggle-view"))
-    .addEventListener("click", (e) => {
-      const canvas =
-        /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
-      const text =
-        /** @type {HTMLElement} */ (document.getElementById("board"));
-      const btn = /** @type {HTMLElement} */ (e.target);
-      const showText = canvas.classList.toggle("hidden");
-      text.classList.toggle("hidden", !showText);
-      btn.textContent = showText ? "Graphics view" : "Text view";
-    });
+  el("toggle-view").addEventListener("click", (e) => {
+    const canvas =
+      /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+    const text = el("board");
+    const btn = /** @type {HTMLElement} */ (e.target);
+    const showText = canvas.classList.toggle("hidden");
+    text.classList.toggle("hidden", !showText);
+    btn.textContent = showText ? "Graphics view" : "Text view";
+  });
 
   render(/** @type {Snapshot} */ (await invoke("snapshot")));
+  dialog.showModal();
 }
 
 globalThis.addEventListener("DOMContentLoaded", init);

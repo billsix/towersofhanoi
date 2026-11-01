@@ -1,10 +1,11 @@
 # Fan out the learning-flow UI to every other front-end
 
 **Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged],
-`ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui`; gpg off → restored). All
-**text UIs done** + the **C++ ImGui GUI** (the reference GUI) + the **Rust egui GUI**; **3 GUIs
-remain** (C++ wx + Rust wxDragon via the shared `ui/hanoi.xrc`; Rust Tauri) + **drag-drop** per
-graphical UI — all need on-display sign-off.
+`ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui` [merged],
+`ui-egui-relabel-glyph` [merged], and an overnight branch carrying the emacs-Dockerfile fix + this
+Tauri GUI; gpg off → restored). All **text UIs done** + the **C++ ImGui GUI** (the reference GUI) +
+the **Rust egui GUI** + the **Rust Tauri GUI**; **2 GUIs remain** (C++ wx + Rust wxDragon via the
+shared `ui/hanoi.xrc`) + **drag-drop** per graphical UI — all need on-display sign-off.
 **Priority:** 3
 **Difficulty:** 6
 
@@ -52,11 +53,22 @@ graphical UI — all need on-display sign-off.
   `cargo check` clean (own workspace, excluded from `make check`); a headless Xvfb + software-GL launch
   ran 6 s with no panic (EXIT=137 from `timeout -s KILL`, empty log). **On-display `make egui` is the
   visual check.** Drag-drop for egui is still pending (below).
+- **Rust Tauri GUI (`rust/tauri`) — learning-flow DONE** (overnight branch), the webview front-end:
+  Tier-1 goal line in the status bar + an always-visible **History** `<ol>` fed by a new `history`
+  field on the backend `Snapshot` (the recorder's default-label move pairs); Tier-2 gating is a
+  frontend `wonOnce` latch that disables the **Relabel** and **Recipe** menu-bar buttons until the
+  first win; Tier-3 moves relabelling and recipes onto a **menu bar** (Game / Relabel / Recipe / Help)
+  — Relabel menu = one radio-marked item per permutation (dimmed while solved); Recipe menu = Save
+  current solution (auto-named `solve-N`, enabled at a win) + each saved recipe a row with View / Apply
+  (Apply dimmed while solved); the first-run **How to Play** `<dialog>` auto-opens once and reopens from
+  the Help menu. Move/history text uses ASCII `->`. The backend stays a thin view-model over the
+  `hanoigame` crate (one new `history` field; no logic added). Verified: frontend `deno check`/`lint`/
+  `fmt` clean (`make type-check`), backend `cargo check` clean. **On-display `make tauri` is the visual
+  check.** Drag-drop for Tauri is still pending (below).
 - **Remaining, per UI (needs on-display sign-off):**
   - **C++ wx (`cpp/hanoiwx.cpp`) + Rust wxDragon (`rust/hanoi-gui`)** via the **shared `ui/hanoi.xrc`
     decision** — the coupled trio; settle whether the tier structure moves into the shared XRC (the
     wxPython oracle did it programmatically, XRC untouched). Do these together.
-  - **Rust Tauri** (`rust/tauri`): the web frontend.
   - Fold in **drag-drop** per graphical UI incl. ImGui (`tasks/port-drag-drop-to-graphical-uis.md`).
 
 ## BLUF
@@ -85,24 +97,64 @@ each **saved recipe is a submenu → View / Apply**, with **Save** as the menu's
 - **Read first:** `tasks/reference/ui-design-principles.md` (the tiers + rationale),
   `tasks/reference/feature-spec.md` §3.5 + rows 16–19, and the oracle implementation in
   `python/src/hanoigame/hanoigui.py` (the reference for what each tier looks like).
-- **The shared-XRC decision is the crux.** The wxPython oracle was done *programmatically* so
-  `ui/hanoi.xrc` stayed untouched (it is loaded by the C++ wx and Rust wxDragon front-ends too). The
-  fan-out must decide whether to (a) move the tier structure into the shared XRC (recipe sidebar out,
-  history panel in, etc.) so all three wx UIs share it, or (b) keep each wx UI's tier wiring in its
-  own code. Recommend (a) — the shared XRC is the consistency guarantee — but it means changing all
-  three wx front-ends together; sequence and verify them as one unit.
+- **The shared-XRC decision is SETTLED: option (b) — each wx front-end does the tier wiring
+  programmatically; `ui/hanoi.xrc` is NOT restructured.** (Decided William Emerison Six
+  <billsix@gmail.com>, delegated to the agent 2026-11-01; confirmed by the oracle itself.) The
+  wxPython oracle (`python/src/hanoigame/hanoigui.py`) already does exactly this, and its own comments
+  state why (lines ~39, ~358, ~408): it *hides* the XRC recipe sidebar and *builds the Recipe menu +
+  the history/goal/how-to panels in code* **specifically so the shared XRC stays as-is "for the other
+  wx front-ends."** So C++ wx and Rust wxDragon each replicate that programmatic surgery in their own
+  code; the XRC is left alone. Rationale for (b) over (a) [baking the tier structure into the XRC]:
+  the oracle is already merged and working on the unchanged XRC, so restructuring the XRC now would
+  force reworking the merged oracle and risk regressing all three wx UIs at once — (b) keeps each
+  front-end independent and the shared XRC stable. The two are therefore NOT a coupled unit anymore;
+  do C++ wx and Rust wxDragon independently.
+- **NOT done in the overnight batch (needs on-display sign-off), deliberately:** the wx trio
+  (C++ `cpp/hanoiwx.cpp` + Rust `rust/hanoi-gui`) is ~500 lines of programmatic UI surgery mirrored
+  across C++ wxWidgets and Rust wxDragon (whose build compiles wxWidgets from source); a
+  compile + headless-smoke cannot confirm it *looks* right, which is exactly what these need. Left for
+  a session where the maintainer can watch `make wx` (C++) / `make wx` (Rust) live. Plan below.
 - **Per-UI notes:** the Rust Tauri app and ratatui TUI already had parity gaps (no three-panel view;
   no valid-moves line) per `feature-spec.md` §"Other implementations"; fold those fixes in here. A
   plain CLI states Tier-2 gating in text rather than disabling a control (§6.1).
 
-## Plan (sketch — refine per UI on go-ahead)
+## Plan — the remaining wx trio (C++ `cpp/hanoiwx.cpp` + Rust `rust/hanoi-gui`)
 
-1. Settle the shared `ui/hanoi.xrc` form (decision above), updating the Python/C++/Rust wx front-ends
-   together; re-verify each wx GUI.
-2. Per non-wx UI (Python curses/CLI, Rust cli/TUI/Tauri/egui, C++ ImGui): add the goal + always-visible
-   history + Tier-2 gating + Tier-3 placement appropriate to the medium.
-3. Verify each subproject's gates (`make format`/`check`/`type-check`/`test` as applicable) + a
-   headless/on-display run; update the §7 compliance rows per UI.
+Everything else is DONE (text UIs, C++ ImGui, Rust egui, Rust Tauri). Only the two wx front-ends
+remain. **Template = the merged wxPython oracle `python/src/hanoigame/hanoigui.py`** — port its
+programmatic learning-flow surgery into each, leaving `ui/hanoi.xrc` unchanged (decision above). Both
+currently sit at the PRE-learning-flow layout the XRC defines: recipe sidebar panel, Relabel already a
+menu, status bar (C++: field 0 status + field 1 moves), About-only Help, and Tier-2 gated per
+*current* game (`!won`) rather than a first-win latch. Per front-end, mirror the oracle's methods:
+
+1. **Hide the recipe sidebar** (don't remove it from the XRC): the C++ `build_ui`/Rust equivalent
+   collapses the `recipe_list` + Save/Apply/Show box (oracle `_hide_recipe_sidebar`).
+2. **Recipe menu** inserted after Relabel (Game, Relabel, Recipe, View, Help): "Save current solution"
+   first (enabled only at a win, auto-name `solve-N`), then each saved recipe → View / Apply
+   (oracle `_build_recipe_menu`/`_rebuild_recipe_menu`; the existing `on_save`/`on_apply`/`on_show`
+   handlers move onto it). Keep the existing three-panel RebindingDialog + RecipeDialog from the XRC.
+3. **Always-visible Tier-1 history panel** built in code to the right of the board (a `wxListBox` of
+   the default-label tally with a header `N moves (optimal 2^N-1)`), fed from `recorder.default_moves`
+   via `format_move_tally` (oracle `_build_history_panel`/`_update_history`); add a **View → Move
+   history** check toggle.
+4. **Goal line** in the status bar: lead with `Goal: move all N discs to peg 3` (oracle put the goal
+   in the status area, not a banner). C++ already has a 2-field status bar — add the goal (a 3rd field
+   or fold into field 0) + keep `Moves: N`.
+5. **How to Play**: a first-run dismissible panel/dialog (the goal + the one rule + a legal/illegal
+   `✓/✗` diagram + "don't show again" via the platform config store), reopenable from **Help → How to
+   Play** (oracle `_build_howto_panel`, `HOWTO_TEXT`; C++ Help currently has only About).
+6. **Tier-2 `won_once` latch**: replace the `!won` (current-game) gating of the Relabel + Recipe menus
+   with a session latch set on the first win (dim-don't-remove) — the Relabel menu items already dim
+   via `refresh()`; switch the predicate to `won_once`.
+
+**Caveats for the implementer:** wxDragon (Rust) is limited to `wxDC` (no `wxGraphicsContext`) and has a
+narrower API than C++ wxWidgets — the oracle's panels may need simpler equivalents (see
+`tasks/reference/rust-gui-tui-and-ecosystem.md`); its first build compiles wxWidgets from source (slow).
+Verify: C++ `cd cpp && make -o image build` + a headless Xvfb launch smoke; Rust `cd rust && make check`
+(wxDragon compiles under `--all-targets`) + `make wx` on a display. **Both need the maintainer's
+on-display `make wx` sign-off** before merge. When the trio lands, harvest this settled XRC decision
+into `tasks/reference/ui-design-principles.md` (ruling #? — "wx front-ends carry the learning flow in
+code, XRC stays shared and structural").
 
 ## Related
 
