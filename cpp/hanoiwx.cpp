@@ -494,6 +494,10 @@ public:
     build_ui();
     new_game(kDefaultDisks);
     Centre();
+    // Show the first-run How-to-Play dialog after the frame is up and the event
+    // loop is running (CallAfter defers past Show()), so the modal is centered
+    // over a painted window.
+    CallAfter([this]() { maybe_show_howto(); });
   }
 
 private:
@@ -545,8 +549,9 @@ private:
     Bind(wxEVT_MENU, &HanoiFrame::on_save, this, recipe_save_item_->GetId());
     rebuild_recipe_menu();
 
-    // View menu: the always-visible move-history toggle and the How-to-Play
-    // toggle, appended to the existing (XRC) View menu.
+    // View menu: the always-visible move-history toggle, appended to the
+    // existing (XRC) View menu. (How-to-Play is a dialog now, not a toggled
+    // panel, so it lives only on the Help menu below.)
     const int view_pos = mb->FindMenu("View");
     wxMenu *view_menu = mb->GetMenu(static_cast<std::size_t>(view_pos));
     view_menu->AppendSeparator();
@@ -554,13 +559,8 @@ private:
         wxID_ANY, "Move &history\tCtrl+H",
         "Show the running list of moves in default 1-2-3 labels");
     history_toggle_->Check(true);
-    howto_toggle_ = view_menu->AppendCheckItem(wxID_ANY, "How to &play",
-                                               "Show the How-to-Play panel");
-    howto_toggle_->Check(config_->ReadBool(kConfigShowHowto, true));
     Bind(wxEVT_MENU, &HanoiFrame::on_toggle_history, this,
          history_toggle_->GetId());
-    Bind(wxEVT_MENU, &HanoiFrame::on_toggle_howto, this,
-         howto_toggle_->GetId());
 
     // Help -> How to Play: reopen the Tier-1 onboarding at any time
     // (recognition over recall). Added programmatically so the shared XRC Help
@@ -568,11 +568,11 @@ private:
     const int help_pos = mb->FindMenu("Help");
     if (help_pos >= 0) {
       wxMenu *help_menu = mb->GetMenu(static_cast<std::size_t>(help_pos));
-      help_howto_item_ = help_menu->Insert(0, wxID_ANY, "How to &Play",
-                                           "Show the goal and the rules");
+      wxMenuItem *help_howto_item = help_menu->Insert(
+          0, wxID_ANY, "How to &Play", "Show the goal and the rules");
       help_menu->InsertSeparator(1);
       Bind(wxEVT_MENU, &HanoiFrame::on_help_howto, this,
-           help_howto_item_->GetId());
+           help_howto_item->GetId());
     }
   }
 
@@ -641,20 +641,17 @@ private:
           xid);
     }
 
-    // Frame layout: the How-to-Play panel on top (hidden if the user chose
-    // "don't show again"), then [board panel | always-visible history panel].
-    // The onboarding/history panels are frame children so they sit outside the
-    // shared XRC panel.
-    howto_panel_ = build_howto_panel();
+    // Frame layout: [board panel | always-visible history panel]. (How-to-Play
+    // is a centered modal dialog now, shown on first run from the constructor
+    // and reopenable from Help -- not an inline panel above the board.) The
+    // history panel is a frame child so it sits outside the shared XRC panel.
     history_panel_ = build_history_panel();
     wxBoxSizer *row = new wxBoxSizer(wxHORIZONTAL);
     row->Add(panel_, 1, wxEXPAND);
     row->Add(history_panel_, 0, wxEXPAND | wxTOP | wxBOTTOM | wxRIGHT, 6);
     wxBoxSizer *frame_sizer = new wxBoxSizer(wxVERTICAL);
-    frame_sizer->Add(howto_panel_, 0, wxEXPAND | wxALL, 6);
     frame_sizer->Add(row, 1, wxEXPAND);
     SetSizer(frame_sizer);
-    howto_panel_->Show(config_->ReadBool(kConfigShowHowto, true));
   }
 
   // --- Programmatic Tier-1/Tier-3 panels (shared XRC left untouched) ---
@@ -682,28 +679,36 @@ private:
     panel_->Layout();
   }
 
-  // The dismissible "How to Play" panel: a heading, the rules text, a small
-  // legal/illegal-move diagram, a "Don't show this again" checkbox, and a
-  // "Got it" close button. Shown on first run and reopenable from Help; the
-  // goal itself lives in the status bar (hanoigui.py _build_howto_panel).
-  wxPanel *build_howto_panel() {
-    wxPanel *panel = new wxPanel(this, wxID_ANY, wxDefaultPosition,
-                                 wxDefaultSize, wxBORDER_SIMPLE);
-    wxStaticText *heading = new wxStaticText(panel, wxID_ANY, "How to Play");
+  // Show the "How to Play" onboarding on launch unless the user chose "don't
+  // show again". Called via CallAfter from the constructor, so the modal is
+  // centered over a painted window.
+  void maybe_show_howto() {
+    if (config_->ReadBool(kConfigShowHowto, true)) {
+      show_howto_dialog();
+    }
+  }
+
+  // Show "How to Play" as a centered modal dialog: a heading, the rules text, a
+  // small legal/illegal-move diagram, a "Don't show this again" checkbox, and a
+  // "Got it" button (wxID_OK, closes the modal). Shown once on first run and
+  // reopenable from Help; the goal itself lives in the status bar
+  // (ui-design-principles ruling 4 -- a centered dialog, not an inline panel).
+  void show_howto_dialog() {
+    wxDialog dlg(this, wxID_ANY, "How to Play", wxDefaultPosition,
+                 wxDefaultSize, wxDEFAULT_DIALOG_STYLE);
+    wxStaticText *heading = new wxStaticText(&dlg, wxID_ANY, "How to Play");
     wxFont heading_font = heading->GetFont();
     heading_font.MakeBold();
     heading_font.SetPointSize(heading_font.GetPointSize() + 2);
     heading->SetFont(heading_font);
 
-    wxStaticText *body = new wxStaticText(panel, wxID_ANY, kHowtoText);
-    LegalMoveDiagram *diagram = new LegalMoveDiagram(panel);
+    wxStaticText *body = new wxStaticText(&dlg, wxID_ANY, kHowtoText);
+    LegalMoveDiagram *diagram = new LegalMoveDiagram(&dlg);
 
-    howto_dont_show_ = new wxCheckBox(panel, wxID_ANY, "Don't show this again");
-    howto_dont_show_->SetValue(!config_->ReadBool(kConfigShowHowto, true));
-    howto_dont_show_->Bind(wxEVT_CHECKBOX, &HanoiFrame::on_howto_dont_show,
-                           this);
-    wxButton *got_it = new wxButton(panel, wxID_ANY, "Got it");
-    got_it->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { show_howto(false); });
+    wxCheckBox *dont_show =
+        new wxCheckBox(&dlg, wxID_ANY, "Don't show this again");
+    dont_show->SetValue(!config_->ReadBool(kConfigShowHowto, true));
+    wxButton *got_it = new wxButton(&dlg, wxID_OK, "Got it");
 
     wxBoxSizer *text_col = new wxBoxSizer(wxVERTICAL);
     text_col->Add(heading, 0, wxBOTTOM, 6);
@@ -713,15 +718,19 @@ private:
     top_row->Add(diagram, 0, wxALIGN_CENTER_VERTICAL);
 
     wxBoxSizer *foot_row = new wxBoxSizer(wxHORIZONTAL);
-    foot_row->Add(howto_dont_show_, 0, wxALIGN_CENTER_VERTICAL);
+    foot_row->Add(dont_show, 0, wxALIGN_CENTER_VERTICAL);
     foot_row->AddStretchSpacer();
     foot_row->Add(got_it, 0);
 
-    wxBoxSizer *panel_sizer = new wxBoxSizer(wxVERTICAL);
-    panel_sizer->Add(top_row, 0, wxEXPAND | wxALL, 8);
-    panel_sizer->Add(foot_row, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
-    panel->SetSizer(panel_sizer);
-    return panel;
+    wxBoxSizer *dlg_sizer = new wxBoxSizer(wxVERTICAL);
+    dlg_sizer->Add(top_row, 0, wxEXPAND | wxALL, 12);
+    dlg_sizer->Add(foot_row, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+    dlg.SetSizerAndFit(dlg_sizer);
+    dlg.Centre();
+    dlg.ShowModal();
+    // Persist the "don't show again" choice after the dialog closes.
+    config_->Write(kConfigShowHowto, !dont_show->GetValue());
+    config_->Flush();
   }
 
   // Tier-1 always-visible move history: every move this game in the default
@@ -1180,15 +1189,6 @@ private:
 
   // --- How-to-Play panel show/hide + persistence ----------------------
 
-  void show_howto(bool show) {
-    if (howto_panel_ == nullptr) {
-      return;
-    }
-    howto_panel_->Show(show);
-    howto_toggle_->Check(show);
-    Layout();
-  }
-
   void on_toggle_history(wxCommandEvent &) {
     if (history_panel_ != nullptr) {
       history_panel_->Show(history_toggle_->IsChecked());
@@ -1196,18 +1196,7 @@ private:
     }
   }
 
-  void on_toggle_howto(wxCommandEvent &) {
-    show_howto(howto_toggle_->IsChecked());
-  }
-
-  void on_help_howto(wxCommandEvent &) { show_howto(true); }
-
-  void on_howto_dont_show(wxCommandEvent &evt) {
-    // Persist the choice for the next launch (the panel stays open now; "Got
-    // it" closes it).
-    config_->Write(kConfigShowHowto, !evt.IsChecked());
-    config_->Flush();
-  }
+  void on_help_howto(wxCommandEvent &) { show_howto_dialog(); }
 
   void set_status(const wxString &text) { SetStatusText(text, 1); }
 
@@ -1248,12 +1237,8 @@ private:
   int recipe_menu_pos_ = -1;
   std::vector<std::string> recipe_menu_names_; // names reflected in the menu
 
-  // Tier-1 onboarding + always-visible history, built in code.
+  // Tier-1 onboarding (a modal dialog) + always-visible history, built in code.
   wxMenuItem *history_toggle_ = nullptr;
-  wxMenuItem *howto_toggle_ = nullptr;
-  wxMenuItem *help_howto_item_ = nullptr;
-  wxPanel *howto_panel_ = nullptr;
-  wxCheckBox *howto_dont_show_ = nullptr;
   wxPanel *history_panel_ = nullptr;
   wxStaticText *history_header_ = nullptr;
   wxListBox *history_list_ = nullptr;

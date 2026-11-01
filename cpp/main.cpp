@@ -530,8 +530,13 @@ void draw_help_modal(App &app) {
     ImGui::OpenPopup("How to Play");
     app.open_help = false;
   }
-  if (ImGui::BeginPopupModal("How to Play", nullptr,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
+  // Center the popup on the viewport and give it a comfortable fixed width (the
+  // wrapped text then fills it); without this it opened off-center and too
+  // narrow. Height stays auto. Matches the egui/Tauri centered How-to-Play.
+  ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  ImGui::SetNextWindowSize(ImVec2(520.0f, 0.0f), ImGuiCond_Appearing);
+  if (ImGui::BeginPopupModal("How to Play", nullptr, ImGuiWindowFlags_None)) {
     ImGui::TextUnformatted("How to Play -- Towers of Hanoi");
     ImGui::Separator();
     ImGui::TextWrapped(

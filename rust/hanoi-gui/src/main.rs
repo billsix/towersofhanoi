@@ -86,7 +86,6 @@ const ID_NEW_SAME: i32 = 6002;
 const ID_STYLE_TEXT: i32 = 6003;
 const ID_STYLE_GRAPHICS: i32 = 6004;
 const ID_HISTORY_TOGGLE: i32 = 6005;
-const ID_HOWTO_TOGGLE: i32 = 6006;
 const ID_HELP_HOWTO: i32 = 6007;
 const ID_SAVE: i32 = 6008;
 /// First of the six Relabel items (one per permutation): `ID_RELABEL_BASE + i`.
@@ -388,10 +387,7 @@ struct GuiState {
     history_panel: Panel,
     history_header: StaticText,
     history_list: ListBox,
-    howto_panel: Panel,
-    howto_toggle: MenuItem,
     history_toggle: MenuItem,
-    howto_dont_show: CheckBox,
     // Disc drag-drop (spike): the physical peg (0,1,2) whose top disc is being
     // dragged, its size, and the cursor position on the board panel.
     drag_src: Option<usize>,
@@ -870,13 +866,77 @@ fn toggle_history(state: &Rc<RefCell<GuiState>>) {
     st.frame.layout();
 }
 
-/// Show or hide the How-to-Play panel, keeping the panel, the View check item,
-/// and the frame layout in sync.
-fn show_howto(state: &Rc<RefCell<GuiState>>, show: bool) {
+/// Show the "How to Play" onboarding as a centered modal dialog: a heading, the
+/// rules text, a flat-DC legal/illegal diagram, a "Don't show this again"
+/// checkbox, and a "Got it" button. Shown once on first run (via `call_after`
+/// from `main`) and reopenable from Help; the goal itself lives in the status
+/// bar (ui-design-principles ruling 4 — a centered dialog, not an inline panel).
+fn show_howto_dialog(state: &Rc<RefCell<GuiState>>) {
+    let (frame, initial): (Frame, bool) = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
+        (
+            st.frame.clone(),
+            st.config.read_bool(CONFIG_SHOW_HOWTO, true),
+        )
+    };
+    let dlg: Dialog = Dialog::builder(&frame, "How to Play").build();
+    let heading: StaticText = StaticText::builder(&dlg).with_label("How to Play").build();
+    if let Some(head_font) = Font::builder()
+        .with_point_size(13)
+        .with_weight(FontWeight::Bold)
+        .build()
+    {
+        heading.set_font(&head_font);
+    }
+    let body: StaticText = StaticText::builder(&dlg).with_label(HOWTO_TEXT).build();
+    let diagram: Panel = Panel::builder(&dlg).build();
+    diagram.set_background_style(BackgroundStyle::Paint);
+    diagram.set_min_size(Size::new(300, 108));
+    {
+        let d: Panel = diagram.clone();
+        diagram.on_paint(move |_| {
+            let dc: AutoBufferedPaintDC = AutoBufferedPaintDC::new(&d);
+            let (w, h): (i32, i32) = dc.get_size();
+            draw_legal_diagram(&dc, w, h);
+        });
+    }
+    let dont_show: CheckBox = CheckBox::builder(&dlg)
+        .with_label("Don't show this again")
+        .build();
+    dont_show.set_value(!initial);
+    let got_it: Button = Button::builder(&dlg).with_label("Got it").build();
+
+    let text_col: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    text_col.add(&heading, 0, SizerFlag::Bottom, 6);
+    text_col.add(&body, 0, SizerFlag::AlignLeft, 0);
+    let top_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
+    top_row.add_sizer(&text_col, 1, SizerFlag::Expand | SizerFlag::Right, 12);
+    top_row.add(&diagram, 0, SizerFlag::AlignCenterVertical, 0);
+    let foot_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
+    foot_row.add(&dont_show, 0, SizerFlag::AlignCenterVertical, 0);
+    foot_row.add_stretch_spacer(1);
+    foot_row.add(&got_it, 0, SizerFlag::AlignCenterVertical, 0);
+    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    sizer.add_sizer(&top_row, 0, SizerFlag::Expand | SizerFlag::All, 12);
+    sizer.add_sizer(
+        &foot_row,
+        0,
+        SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+        12,
+    );
+    dlg.set_sizer(sizer, true);
+    dlg.fit();
+    dlg.centre();
+    {
+        let d: Dialog = dlg.clone();
+        got_it.on_click(move |_| d.end_modal(ID_OK));
+    }
+    dlg.show_modal();
+    // Persist the "don't show again" choice after the dialog closes.
     let st: std::cell::Ref<'_, GuiState> = state.borrow();
-    st.howto_panel.show(show);
-    st.howto_toggle.check(show);
-    st.frame.layout();
+    st.config
+        .write_bool(CONFIG_SHOW_HOWTO, !dont_show.get_value());
+    st.config.flush(false);
 }
 
 fn main() {
@@ -977,14 +1037,7 @@ fn main() {
                 ItemKind::Check,
             )
             .expect("history toggle");
-        let howto_toggle: MenuItem = view_menu
-            .append(
-                ID_HOWTO_TOGGLE,
-                "How to &play",
-                "Show the How-to-Play panel",
-                ItemKind::Check,
-            )
-            .expect("howto toggle");
+        // How-to-Play is a dialog now (Help menu), not a toggled View item.
 
         let help_menu: Menu = Menu::builder().build();
         help_menu.append(
@@ -1013,7 +1066,6 @@ fn main() {
             mb.check_item(ID_STYLE_GRAPHICS, true); // graphics is the default board
         }
         history_toggle.check(true);
-        howto_toggle.check(show_howto_on_start);
 
         let status_bar: StatusBar = frame.create_status_bar(3, 0, ID_ANY as i32, "");
         // Field 0 = goal line; field 1 = action feedback; field 2 = moves counter.
@@ -1112,59 +1164,9 @@ fn main() {
         );
         history_panel.set_sizer(history_sizer, true);
 
-        // --- Tier-1 first-run "How to Play" panel (frame child) ---
-        let howto_panel: Panel = Panel::builder(&frame).build();
-        let howto_heading: StaticText = StaticText::builder(&howto_panel)
-            .with_label("How to Play")
-            .build();
-        if let Some(head_font) = Font::builder()
-            .with_point_size(13)
-            .with_weight(FontWeight::Bold)
-            .build()
-        {
-            howto_heading.set_font(&head_font);
-        }
-        let howto_body: StaticText = StaticText::builder(&howto_panel)
-            .with_label(HOWTO_TEXT)
-            .build();
-        let howto_diagram: Panel = Panel::builder(&howto_panel).build();
-        howto_diagram.set_background_style(BackgroundStyle::Paint);
-        howto_diagram.set_min_size(Size::new(300, 108));
-        {
-            let d: Panel = howto_diagram.clone();
-            howto_diagram.on_paint(move |_| {
-                let dc: AutoBufferedPaintDC = AutoBufferedPaintDC::new(&d);
-                let (w, h): (i32, i32) = dc.get_size();
-                draw_legal_diagram(&dc, w, h);
-            });
-        }
-        let howto_dont_show: CheckBox = CheckBox::builder(&howto_panel)
-            .with_label("Don't show this again")
-            .build();
-        howto_dont_show.set_value(!show_howto_on_start);
-        let howto_got_it: Button = Button::builder(&howto_panel).with_label("Got it").build();
-
-        let howto_text_col: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-        howto_text_col.add(&howto_heading, 0, SizerFlag::Bottom, 6);
-        howto_text_col.add(&howto_body, 0, SizerFlag::AlignLeft, 0);
-        let howto_top_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
-        howto_top_row.add_sizer(&howto_text_col, 1, SizerFlag::Expand | SizerFlag::Right, 12);
-        howto_top_row.add(&howto_diagram, 0, SizerFlag::AlignCenterVertical, 0);
-        let howto_foot_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
-        howto_foot_row.add(&howto_dont_show, 0, SizerFlag::AlignCenterVertical, 0);
-        howto_foot_row.add_stretch_spacer(1);
-        howto_foot_row.add(&howto_got_it, 0, SizerFlag::AlignCenterVertical, 0);
-        let howto_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-        howto_sizer.add_sizer(&howto_top_row, 0, SizerFlag::Expand | SizerFlag::All, 8);
-        howto_sizer.add_sizer(
-            &howto_foot_row,
-            0,
-            SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
-            8,
-        );
-        howto_panel.set_sizer(howto_sizer, true);
-
-        // --- Frame layout: [How to Play] on top, then [board panel | history] ---
+        // --- Frame layout: [board panel | history]. (How-to-Play is a centered
+        // modal dialog now, shown on first run via call_after below and
+        // reopenable from Help -- not an inline panel above the board.) ---
         let row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
         row.add(&panel, 1, SizerFlag::Expand, 0);
         row.add(
@@ -1174,10 +1176,8 @@ fn main() {
             6,
         );
         let frame_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-        frame_sizer.add(&howto_panel, 0, SizerFlag::Expand | SizerFlag::All, 6);
         frame_sizer.add_sizer(&row, 1, SizerFlag::Expand, 0);
         frame.set_sizer(frame_sizer, true);
-        howto_panel.show(show_howto_on_start);
 
         let state: Rc<RefCell<GuiState>> = Rc::new(RefCell::new(GuiState {
             registry: RecipeRegistry::new(),
@@ -1198,10 +1198,7 @@ fn main() {
             history_panel: history_panel.clone(),
             history_header: history_header.clone(),
             history_list: history_list.clone(),
-            howto_panel: howto_panel.clone(),
-            howto_toggle,
             history_toggle,
-            howto_dont_show: howto_dont_show.clone(),
             drag_src: None,
             drag_size: 0,
             drag_x: 0,
@@ -1332,12 +1329,7 @@ fn main() {
                     ID_STYLE_TEXT => set_board_mode(&st, false),
                     ID_STYLE_GRAPHICS => set_board_mode(&st, true),
                     ID_HISTORY_TOGGLE => toggle_history(&st),
-                    ID_HOWTO_TOGGLE => {
-                        // The check item has already toggled; mirror its state.
-                        let checked: bool = st.borrow().howto_toggle.is_checked();
-                        show_howto(&st, checked);
-                    }
-                    ID_HELP_HOWTO => show_howto(&st, true),
+                    ID_HELP_HOWTO => show_howto_dialog(&st),
                     ID_SAVE => on_save(&st),
                     _ if (ID_RELABEL_BASE..ID_RELABEL_BASE + RELABEL_PERMS.len() as i32)
                         .contains(&id) =>
@@ -1364,25 +1356,19 @@ fn main() {
             });
         }
 
-        // How-to-Play panel controls (real parent windows, so on_click fires).
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            howto_got_it.on_click(move |_| show_howto(&st, false));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            howto_dont_show.on_toggled(move |_| {
-                let s: std::cell::Ref<'_, GuiState> = st.borrow();
-                // "Don't show again" checked ⇒ do NOT show on next launch.
-                s.config
-                    .write_bool(CONFIG_SHOW_HOWTO, !s.howto_dont_show.get_value());
-                s.config.flush(false);
-            });
-        }
+        // How-to-Play is a dialog now (built in show_howto_dialog), so there are
+        // no inline-panel controls to wire here.
 
         rebuild_recipe_menu(&state);
         state.borrow().refresh();
         frame.show(true);
         frame.centre();
+        // First-run How-to-Play: the frame is up, so show the centered modal now
+        // (show_modal runs a nested loop, then the main loop starts). Reopen from
+        // Help. (wxDragon's call_after requires Send, which the Rc state is not,
+        // so this is shown directly rather than deferred like the C++/Python wx.)
+        if show_howto_on_start {
+            show_howto_dialog(&state);
+        }
     });
 }
