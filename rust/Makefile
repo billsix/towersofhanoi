@@ -128,6 +128,18 @@ type-check: image ## Type-check + lint + fmt-check the Tauri frontend web files 
 		    deno fmt --check || s=1; \
 		    exit $$s'
 
+.PHONY: check-egui
+check-egui: image ## (CI) compile-check the egui crate -- its own workspace, which `make check` (--workspace) does not reach
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c '$(EGUI_SETUP) && cargo check --all-targets'
+
+.PHONY: check-tauri
+check-tauri: image ## (CI) compile-check the Tauri backend crate -- its own workspace, which `make check` (--workspace) does not reach
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
+		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
+		-c '$(TAURI_SETUP) && cargo check --all-targets'
+
 # --- Run a front-end. Two cargo caches on the bind-mount (both gitignored) make repeat
 # runs fast and avoid re-doing the heavy wxDragon wxWidgets build every run.
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \

@@ -55,6 +55,11 @@ four languages (Python, Rust, C++, and the Tauri JavaScript). Mapped onto the su
 - **`rust-test`** — `make test-lib USE_EMACS=0 USE_WASM=0` (`cargo test -p hanoigame`): the shared
   crate's unit tests + doctests, without rebuilding wxWidgets (GUI compilation is covered by
   `rust-check`).
+- **`rust-check-egui`** — `make check-egui USE_EMACS=0 USE_WASM=0` (`cargo check --all-targets` in the
+  `hanoi-egui` workspace). Separate workspace, so `rust-check`'s `--workspace` doesn't reach it.
+- **`rust-check-tauri`** — `make check-tauri USE_EMACS=0 USE_WASM=0` (`cargo check --all-targets` in the
+  `tauri/src-tauri` workspace). Separate workspace too; the Tauri *frontend* JS is gated by
+  `rust-type-check`, this gates the Tauri *backend* crate.
 
 ### C++ (`cpp/`) — two GUIs over the header-only engine
 - **`cpp-check-format`** — `make check-format USE_EMACS=0 USE_WASM=0 USE_WX=0` (clang-format, fail on
@@ -70,7 +75,7 @@ four languages (Python, Rust, C++, and the Tauri JavaScript). Mapped onto the su
 | Language          | format check            | test                         | type-check                         |
 |-------------------|-------------------------|------------------------------|------------------------------------|
 | Python            | `python-check-format`   | `python-test` (pytest+dt)    | `python-type-check` (ty)           |
-| Rust              | `rust-check-format`     | `rust-test` (`test-lib`) + `rust-check` (compile all) | — (compiler, via `rust-check`) |
+| Rust              | `rust-check-format`     | `rust-test` (`test-lib`) + `rust-check`/`-egui`/`-tauri` (compile all 3 workspaces) | — (compiler, via the check jobs) |
 | C++               | `cpp-check-format`      | `cpp-test` (ctest/doctest)   | — (compiler, via `cpp-build`)      |
 | JavaScript (Tauri)| in `rust-type-check` (`deno fmt --check`) | — (no JS test suite; see gaps) | in `rust-type-check` (`deno check --check-js`) |
 
@@ -78,9 +83,8 @@ four languages (Python, Rust, C++, and the Tauri JavaScript). Mapped onto the su
 
 - **No JavaScript `test` job** — the Tauri frontend has no JS test suite, only `deno check`/`lint`/`fmt`
   (all run by `rust-type-check`). Adding a JS "test" stage would require first writing JS tests.
-- **`hanoi-egui` and `tauri/` (both separate Cargo workspaces) are not compile-gated** — `rust-check`'s
-  `--workspace` does not reach them. The Tauri *frontend* JS is gated (deno); the Tauri *backend* crate
-  and the egui crate are not built in CI.
+  Left as-is deliberately (maintainer's call, 2026-11-01): the game logic lives in Rust (tested by
+  `rust-test`); the frontend is a thin view-model.
 
 ## Related
 
