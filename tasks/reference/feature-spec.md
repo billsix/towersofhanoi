@@ -228,7 +228,8 @@ These are recommendations for *how* a category of UI presents the features above
   prompt). A plain CLI can state the gating in text rather than disabling a control.
 
 ### 6.2 GUI (windowed)
-- Group actions on a **menubar**: a Game menu (new game / disk count, quit), a Relabel menu (the six
+- Group actions on a **menubar**: a Game menu (**New Game** at a chosen disc count + **New Game (Same
+  Size)** to restart at the current count, quit — the same shape in every GUI), a Relabel menu (the six
   labellings), a Recipe menu (**Save** first, then each saved recipe as a **submenu → View / Apply** —
   the realized shape, see `ui-design-principles.md` ruling #2; not separate Apply/Show/List choosers).
   Keep action controls **stable** — e.g. show

@@ -13,7 +13,7 @@ the behaviour oracle; if it changes, this port must be updated to match, not lef
   the canonical Python. The GUI drives these directly; the text-interface pieces (commands / engine
   dispatch / solvers) are only needed for a C++ CLI/TUI (not built — the GUI is at parity without them).
 - **GUI:** `main.cpp` — one Dear ImGui app (native SDL2+OpenGL3; wasm OpenGL3→WebGL) at **feature
-  parity with the wx GUI**: a menubar (Game → disk count 1–8 / Restart; Relabel → the 6 labellings;
+  parity with the wx GUI**: a menubar (Game → New Game 1–10 / New Game (Same Size); Relabel → the 6 labellings;
   Recipe → save/reset/replay), the board coloured by label, moves in current labels, and the
   label→peg rebinding shown when relabelled. Target-specific code is only the main loop
   (`emscripten_set_main_loop_arg` vs native `while`), the no-ini/filesystem on web, and matching the SDL
