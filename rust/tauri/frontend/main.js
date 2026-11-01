@@ -573,6 +573,14 @@ async function init() {
     render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
   });
 
+  // New Game (Same Size): restart at the current disc count (no new command --
+  // "same size" is just the live num_disks), matching the wx front-ends.
+  el("newgame-same").addEventListener("click", async () => {
+    const discs = latest ? latest.num_disks : 3;
+    closeMenus();
+    render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
+  });
+
   // How-to-Play dialog: opens from the Help menu, and once automatically on first run.
   const dialog = /** @type {HTMLDialogElement} */ (el("howto-dialog"));
   el("howto").addEventListener("click", () => {
