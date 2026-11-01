@@ -16,6 +16,7 @@
 #include "presenter.hpp"
 #include "recipe.hpp"
 
+#include <wx/config.h>
 #include <wx/dcbuffer.h>
 #include <wx/graphics.h>
 #include <wx/numdlg.h>
@@ -24,7 +25,6 @@
 #include <wx/xrc/xmlres.h>
 
 #include <array>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -57,6 +57,30 @@ const wxColour kBaseFill(150, 110, 70);
 const wxColour kBaseEdge(90, 64, 38);
 const wxColour kShadow(0, 0, 0, 90);
 const wxColour kReferenceGrey(170, 178, 195);
+
+// Tier-1 onboarding text (How to Play), mirroring hanoigui.py HOWTO_TEXT. The
+// goal itself lives in the status bar; this teaches the one rule and the
+// method the game exists to show (solve small, relabel, replay).
+const char *kHowtoText =
+    "Move the whole stack of discs from peg 1 to peg 3.\n"
+    "- Move one disc at a time -- always the top disc of a peg.\n"
+    "- Never place a larger disc on a smaller one.\n"
+    "\n"
+    "The method this teaches: solve a SMALL stack, then RELABEL the pegs to\n"
+    "reuse that solution for a bigger stack -- \"solve small, relabel, "
+    "replay.\"\n"
+    "Relabelling and saved recipes unlock after your first win.";
+
+// wx.Config key: show the How-to-Play panel on launch. Cleared by the panel's
+// "Don't show this again" checkbox; re-shown any time from Help / View.
+const char *kConfigShowHowto = "show_howto_on_start";
+
+// Legal-move diagram palette (hanoigui.py _LegalMoveDiagram): the two example
+// discs, and the green/red accents for the allowed/forbidden captions.
+const wxColour kDiagDiscFill(210, 210, 215);
+const wxColour kDiagDiscEdge(30, 30, 40);
+const wxColour kDiagOk(40, 150, 60);
+const wxColour kDiagNo(200, 55, 55);
 
 // Blend c toward white / black by amount (0..1) -- the disc top/edge shading.
 wxColour lighten(const wxColour &c, double a) {
@@ -278,15 +302,88 @@ private:
   bool graphics_ = true;
 };
 
+// A small figure teaching the one rule: a smaller disc may rest on a larger
+// one (left, allowed); a larger disc may never rest on a smaller one (right,
+// forbidden). It illustrates the RULE, not a screenshot -- the live board is
+// the app's own best picture. Ported from hanoigui.py _LegalMoveDiagram.
+class LegalMoveDiagram : public wxPanel {
+public:
+  explicit LegalMoveDiagram(wxWindow *parent)
+      : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(300, 108)) {
+    SetMinSize(wxSize(300, 108));
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
+    Bind(wxEVT_PAINT, &LegalMoveDiagram::on_paint, this);
+  }
+
+private:
+  void on_paint(wxPaintEvent &) {
+    wxPaintDC dc(this);
+    dc.SetBackground(wxBrush(GetBackgroundColour()));
+    dc.Clear();
+    const std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::Create(dc));
+    if (!gc) {
+      return;
+    }
+    const double width = GetClientSize().GetWidth();
+    const double half = width / 2.0;
+    draw_example(*gc, 0.0, half, true);
+    draw_example(*gc, half, half, false);
+  }
+
+  // One two-disc stack centred in [x0, x0+width]: wide-under-narrow when legal,
+  // else narrow-under-wide struck through, with a caption.
+  void draw_example(wxGraphicsContext &gc, double x0, double width,
+                    bool legal) {
+    const double cx = x0 + width / 2.0;
+    const double disc_h = 16.0;
+    const double top_y = 42.0;
+    const double big_w = 78.0;
+    const double small_w = 42.0;
+    const double bottom_w = legal ? big_w : small_w;
+    const double upper_w = legal ? small_w : big_w;
+    const wxColour accent = legal ? kDiagOk : kDiagNo;
+
+    gc.SetPen(wxPen(kDiagDiscEdge, 1));
+    gc.SetBrush(wxBrush(kDiagDiscFill));
+    const std::array<std::array<double, 2>, 2> discs{
+        {{bottom_w, top_y + disc_h}, {upper_w, top_y}}};
+    for (const std::array<double, 2> &d : discs) {
+      wxGraphicsPath path = gc.CreatePath();
+      path.AddRoundedRectangle(cx - d[0] / 2.0, d[1], d[0], disc_h, 4.0);
+      gc.DrawPath(path);
+    }
+
+    if (!legal) {
+      gc.SetPen(wxPen(accent, 3));
+      gc.StrokeLine(cx - big_w / 2.0, top_y - 4.0, cx + big_w / 2.0,
+                    top_y + disc_h + 4.0);
+    }
+
+    const wxString caption =
+        legal ? wxString::FromUTF8("\xe2\x9c\x93  smaller on larger")
+              : wxString::FromUTF8("\xe2\x9c\x97  larger on smaller");
+    gc.SetFont(GetFont(), accent);
+    wxDouble tw = 0;
+    wxDouble th = 0;
+    wxDouble td = 0;
+    wxDouble te = 0;
+    gc.GetTextExtent(caption, &tw, &th, &td, &te);
+    gc.DrawText(caption, cx - tw / 2.0, 84.0);
+  }
+};
+
 class HanoiFrame : public wxFrame {
 public:
   HanoiFrame()
       : wxFrame(nullptr, wxID_ANY, "Towers of Hanoi", wxDefaultPosition,
                 wxSize(1100, 650)) {
+    config_ = wxConfigBase::Get();
     build_menu_bar();
-    CreateStatusBar(2);
-    const int status_widths[] = {-1, 140};
-    SetStatusWidths(2, status_widths);
+    CreateStatusBar(3);
+    // Field 0 = the persistent goal line; field 1 stretches for action
+    // feedback; field 2 is fixed-width for the moves counter at the right.
+    const int status_widths[] = {-1, -2, 140};
+    SetStatusWidths(3, status_widths);
     build_ui();
     new_game(kDefaultDisks);
     Centre();
@@ -322,19 +419,66 @@ private:
           wxEVT_MENU, [this, labels](wxCommandEvent &) { on_relabel(labels); },
           item_id);
     }
+
+    // Recipe menu (Tier 3, feature-spec §3.5) -- recipes live here, not in the
+    // workspace. "Save Current Solution" (Ctrl+S) is the fixed head; below a
+    // separator, rebuild_recipe_menu lists each saved recipe as a submenu
+    // expanding to View / Apply, so the user points at the recipe itself.
+    // Built programmatically so the shared ui/hanoi.xrc stays untouched, as
+    // the wxPython oracle does.
+    recipe_menu_ = new wxMenu();
+    recipe_save_item_ =
+        recipe_menu_->Append(wxID_ANY, "&Save Current Solution\tCtrl+S",
+                             "Save the just-won solution as a reusable recipe");
+    recipe_menu_->AppendSeparator();
+    relabel_menu_pos_ = mb->FindMenu("Relabel pegs");
+    recipe_menu_pos_ = relabel_menu_pos_ + 1;
+    mb->Insert(static_cast<std::size_t>(recipe_menu_pos_), recipe_menu_,
+               "&Recipe");
+    Bind(wxEVT_MENU, &HanoiFrame::on_save, this, recipe_save_item_->GetId());
+    rebuild_recipe_menu();
+
+    // View menu: the always-visible move-history toggle and the How-to-Play
+    // toggle, appended to the existing (XRC) View menu.
+    const int view_pos = mb->FindMenu("View");
+    wxMenu *view_menu = mb->GetMenu(static_cast<std::size_t>(view_pos));
+    view_menu->AppendSeparator();
+    history_toggle_ = view_menu->AppendCheckItem(
+        wxID_ANY, "Move &history\tCtrl+H",
+        "Show the running list of moves in default 1-2-3 labels");
+    history_toggle_->Check(true);
+    howto_toggle_ = view_menu->AppendCheckItem(wxID_ANY, "How to &play",
+                                               "Show the How-to-Play panel");
+    howto_toggle_->Check(config_->ReadBool(kConfigShowHowto, true));
+    Bind(wxEVT_MENU, &HanoiFrame::on_toggle_history, this,
+         history_toggle_->GetId());
+    Bind(wxEVT_MENU, &HanoiFrame::on_toggle_howto, this,
+         howto_toggle_->GetId());
+
+    // Help -> How to Play: reopen the Tier-1 onboarding at any time
+    // (recognition over recall). Added programmatically so the shared XRC Help
+    // menu is untouched here.
+    const int help_pos = mb->FindMenu("Help");
+    if (help_pos >= 0) {
+      wxMenu *help_menu = mb->GetMenu(static_cast<std::size_t>(help_pos));
+      help_howto_item_ = help_menu->Insert(0, wxID_ANY, "How to &Play",
+                                           "Show the goal and the rules");
+      help_menu->InsertSeparator(1);
+      Bind(wxEVT_MENU, &HanoiFrame::on_help_howto, this,
+           help_howto_item_->GetId());
+    }
   }
 
   void build_ui() {
-    wxPanel *panel = xrc()->LoadPanel(this, "HanoiPanel");
-    wxBoxSizer *sizer = new wxBoxSizer(wxVERTICAL);
-    sizer->Add(panel, 1, wxEXPAND);
-    SetSizer(sizer);
+    panel_ = xrc()->LoadPanel(this, "HanoiPanel");
 
     board_slot_ = XRCCTRL(*this, "board_slot", wxPanel);
     recipe_list_ = XRCCTRL(*this, "recipe_list", wxListBox);
-    save_btn_ = XRCCTRL(*this, "recipe_save", wxButton);
-    apply_btn_ = XRCCTRL(*this, "recipe_apply", wxButton);
-    show_btn_ = XRCCTRL(*this, "recipe_show", wxButton);
+
+    // Tier 3: hide the in-panel recipe sidebar -- recipes move to the Recipe
+    // menu (feature-spec §3.5). The shared XRC still defines these controls
+    // for the other wx front-ends, so we only hide them here.
+    hide_recipe_sidebar();
 
     board_.attach(board_slot_);
     board_slot_->SetBackgroundStyle(wxBG_STYLE_PAINT);
@@ -374,11 +518,111 @@ private:
           xid);
     }
 
-    Bind(wxEVT_BUTTON, &HanoiFrame::on_save, this, XRCID("recipe_save"));
-    Bind(wxEVT_BUTTON, &HanoiFrame::on_apply, this, XRCID("recipe_apply"));
-    Bind(wxEVT_BUTTON, &HanoiFrame::on_show, this, XRCID("recipe_show"));
-    recipe_list_->Bind(wxEVT_LISTBOX_DCLICK,
-                       [this](wxCommandEvent &) { on_show_selected(); });
+    // Frame layout: the How-to-Play panel on top (hidden if the user chose
+    // "don't show again"), then [board panel | always-visible history panel].
+    // The onboarding/history panels are frame children so they sit outside the
+    // shared XRC panel.
+    howto_panel_ = build_howto_panel();
+    history_panel_ = build_history_panel();
+    wxBoxSizer *row = new wxBoxSizer(wxHORIZONTAL);
+    row->Add(panel_, 1, wxEXPAND);
+    row->Add(history_panel_, 0, wxEXPAND | wxTOP | wxBOTTOM | wxRIGHT, 6);
+    wxBoxSizer *frame_sizer = new wxBoxSizer(wxVERTICAL);
+    frame_sizer->Add(howto_panel_, 0, wxEXPAND | wxALL, 6);
+    frame_sizer->Add(row, 1, wxEXPAND);
+    SetSizer(frame_sizer);
+    howto_panel_->Show(config_->ReadBool(kConfigShowHowto, true));
+  }
+
+  // --- Programmatic Tier-1/Tier-3 panels (shared XRC left untouched) ---
+
+  // Collapse the XRC panel's right-hand recipe sidebar (list + buttons);
+  // recipes move to the Recipe menu. The widgets stay defined in the shared
+  // XRC for the other wx UIs, so here we only hide the whole Recipes box.
+  void hide_recipe_sidebar() {
+    wxSizer *box = recipe_list_->GetContainingSizer();
+    if (box == nullptr) {
+      return;
+    }
+    if (auto *sb = dynamic_cast<wxStaticBoxSizer *>(box)) {
+      sb->GetStaticBox()->Hide();
+    }
+    wxSizer *top = panel_->GetSizer();
+    if (top == nullptr) {
+      return;
+    }
+    wxSizerItem *row_item = top->GetItem(static_cast<std::size_t>(0));
+    wxSizer *row = (row_item != nullptr) ? row_item->GetSizer() : nullptr;
+    if (row != nullptr) {
+      row->Hide(box, true);
+    }
+    panel_->Layout();
+  }
+
+  // The dismissible "How to Play" panel: a heading, the rules text, a small
+  // legal/illegal-move diagram, a "Don't show this again" checkbox, and a
+  // "Got it" close button. Shown on first run and reopenable from Help; the
+  // goal itself lives in the status bar (hanoigui.py _build_howto_panel).
+  wxPanel *build_howto_panel() {
+    wxPanel *panel = new wxPanel(this, wxID_ANY, wxDefaultPosition,
+                                 wxDefaultSize, wxBORDER_SIMPLE);
+    wxStaticText *heading = new wxStaticText(panel, wxID_ANY, "How to Play");
+    wxFont heading_font = heading->GetFont();
+    heading_font.MakeBold();
+    heading_font.SetPointSize(heading_font.GetPointSize() + 2);
+    heading->SetFont(heading_font);
+
+    wxStaticText *body = new wxStaticText(panel, wxID_ANY, kHowtoText);
+    LegalMoveDiagram *diagram = new LegalMoveDiagram(panel);
+
+    howto_dont_show_ = new wxCheckBox(panel, wxID_ANY, "Don't show this again");
+    howto_dont_show_->SetValue(!config_->ReadBool(kConfigShowHowto, true));
+    howto_dont_show_->Bind(wxEVT_CHECKBOX, &HanoiFrame::on_howto_dont_show,
+                           this);
+    wxButton *got_it = new wxButton(panel, wxID_ANY, "Got it");
+    got_it->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { show_howto(false); });
+
+    wxBoxSizer *text_col = new wxBoxSizer(wxVERTICAL);
+    text_col->Add(heading, 0, wxBOTTOM, 6);
+    text_col->Add(body, 0);
+    wxBoxSizer *top_row = new wxBoxSizer(wxHORIZONTAL);
+    top_row->Add(text_col, 1, wxEXPAND | wxRIGHT, 12);
+    top_row->Add(diagram, 0, wxALIGN_CENTER_VERTICAL);
+
+    wxBoxSizer *foot_row = new wxBoxSizer(wxHORIZONTAL);
+    foot_row->Add(howto_dont_show_, 0, wxALIGN_CENTER_VERTICAL);
+    foot_row->AddStretchSpacer();
+    foot_row->Add(got_it, 0);
+
+    wxBoxSizer *panel_sizer = new wxBoxSizer(wxVERTICAL);
+    panel_sizer->Add(top_row, 0, wxEXPAND | wxALL, 8);
+    panel_sizer->Add(foot_row, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
+    panel->SetSizer(panel_sizer);
+    return panel;
+  }
+
+  // Tier-1 always-visible move history: every move this game in the default
+  // 1-2-3 (physical) labels, with a live count vs the optimal 2^N-1. Populated
+  // by update_history from recorder_.moves() (hanoigui.py
+  // _build_history_panel).
+  wxPanel *build_history_panel() {
+    wxPanel *panel = new wxPanel(this);
+    const wxFont mono(wxFontInfo(12).Family(wxFONTFAMILY_TELETYPE));
+    wxStaticText *title = new wxStaticText(panel, wxID_ANY, "Move history");
+    wxFont title_font = title->GetFont();
+    title_font.MakeBold();
+    title->SetFont(title_font);
+    history_header_ = new wxStaticText(panel, wxID_ANY, "");
+    history_list_ = new wxListBox(panel, wxID_ANY);
+    history_list_->SetFont(mono);
+    const int row_h = std::max(1, history_list_->GetCharHeight());
+    history_list_->SetMinSize(wxSize(240, row_h * 12 + 8));
+    wxBoxSizer *sizer = new wxBoxSizer(wxVERTICAL);
+    sizer->Add(title, 0, wxALL, 6);
+    sizer->Add(history_header_, 0, wxLEFT | wxRIGHT | wxBOTTOM, 6);
+    sizer->Add(history_list_, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
+    panel->SetSizer(sizer);
+    return panel;
   }
 
   // --- Engine helpers --------------------------------------------------
@@ -471,13 +715,11 @@ private:
     refresh();
   }
 
-  void on_apply(wxCommandEvent &) {
-    const std::optional<std::string> name = selected_recipe();
-    if (!name) {
-      set_status("Select a recipe first.");
-      return;
-    }
-    const hanoi::Recipe *r = registry_.get(*name);
+  // Recipe menu -> <name> -> Apply: replay the recipe under the current
+  // labelling; under a relabelling, pop the three-panel rebinding teaching
+  // view (hanoigui.py _apply_recipe_by_name).
+  void apply_recipe_by_name(const std::string &name) {
+    const hanoi::Recipe *r = registry_.get(name);
     if (r == nullptr) {
       return;
     }
@@ -494,12 +736,12 @@ private:
         err = *s.error;
       }
     }
-    set_status(wxString::Format("Applied '%s' - %d/%zu moves%s", name->c_str(),
+    set_status(wxString::Format("Applied '%s' - %d/%zu moves%s", name.c_str(),
                                 applied, r->default_moves.size(),
                                 err.empty() ? "." : (" - stopped: " + err)));
     if (relabelled) {
       show_rebinding(
-          wxString::Format("Rebinding for '%s'", name->c_str()),
+          wxString::Format("Rebinding for '%s'", name.c_str()),
           "This recipe is written in labels 1, 2, 3. Because you relabelled, "
           "each move is rebound to a physical peg -- the same solution, new "
           "labels.",
@@ -511,25 +753,30 @@ private:
     }
   }
 
-  void on_show(wxCommandEvent &) { on_show_selected(); }
-
-  void on_show_selected() {
-    const std::optional<std::string> name = selected_recipe();
-    if (!name) {
-      set_status("Select a recipe first.");
-      return;
-    }
-    const hanoi::Recipe *r = registry_.get(*name);
+  // Recipe menu -> <name> -> View: show a saved recipe's steps; under a
+  // relabelling, the three-panel rebinding view instead (hanoigui.py
+  // _view_recipe).
+  void view_recipe(const std::string &name) {
+    const hanoi::Recipe *r = registry_.get(name);
     if (r == nullptr) {
       return;
     }
+    if (labelling_ != hanoi::Labelling::OneTwoThree) {
+      show_rebinding(
+          wxString::Format("Recipe '%s' - rebinding", name.c_str()),
+          "This recipe is written in labels 1, 2, 3. Under your relabelling, "
+          "each move rebinds to a physical peg -- the same solution, new "
+          "labels.",
+          "Recipe moves", r->default_moves);
+      return;
+    }
     wxDialog *dlg = xrc()->LoadDialog(this, "RecipeDialog");
-    dlg->SetTitle(wxString::Format("Recipe '%s'", name->c_str()));
+    dlg->SetTitle(wxString::Format("Recipe '%s'", name.c_str()));
     wxListBox *steps = XRCCTRL(*dlg, "recipe_steps", wxListBox);
     steps->SetFont(wxFont(wxFontInfo(12).Family(wxFONTFAMILY_TELETYPE)));
     const std::size_t n = r->default_moves.size();
     steps->Append(wxString::Format(
-        "Recipe '%s' (%d discs, %zu moves):", name->c_str(), r->disk_count, n));
+        "Recipe '%s' (%d discs, %zu moves):", name.c_str(), r->disk_count, n));
     for (std::size_t i = 0; i < n; ++i) {
       steps->Append(wxString::Format("  step %zu: %d -> %d", i + 1,
                                      r->default_moves[i][0],
@@ -558,18 +805,24 @@ private:
     registry_.save(recorder_.to_recipe(key, game_.num_disks()));
     set_status((overwrote ? "Overwrote recipe '" : "Saved recipe '") + name +
                "'.");
-    refresh_recipes(key);
+    rebuild_recipe_menu();
+    refresh();
   }
 
   void on_win() {
+    // Tier 2 unlocks at the first win and stays unlocked for the session
+    // (feature-spec §3.5); refresh() reads the latch to enable the menus.
+    won_once_ = true;
+    refresh();
     const int mm = optimal_moves(game_.num_disks());
     const int mv = game_.current_moves();
     const wxString verdict =
         mv == mm
             ? "Optimal!"
             : wxString::Format("%d more than the minimum (%d).", mv - mm, mm);
-    set_status(wxString::Format("Solved in %d moves - %s  Click 'Save Current "
-                                "Solution' to keep it as a recipe.",
+    set_status(wxString::Format("Solved in %d moves - %s  Relabel pegs and "
+                                "Recipe are now unlocked: save this solve, "
+                                "start a bigger stack, and reuse it.",
                                 mv, verdict));
   }
 
@@ -631,27 +884,65 @@ private:
 
   // --- State sync ------------------------------------------------------
 
-  std::optional<std::string> selected_recipe() {
-    const int idx = recipe_list_->GetSelection();
-    if (idx == wxNOT_FOUND) {
-      return std::nullopt;
-    }
-    const auto it = list_index_to_name_.find(idx);
-    if (it == list_index_to_name_.end()) {
-      return std::nullopt;
-    }
-    return it->second;
-  }
-
   void set_graphics(bool graphics) {
     board_.set_graphics(graphics);
     board_.set_state(&game_, labelling_);
   }
 
+  // Rebuild the Recipe menu's tail: one submenu per saved recipe (View /
+  // Apply), or a disabled placeholder when none are saved. The head (Save +
+  // separator, items 0-1) is kept; everything after is deleted and re-appended.
+  // Mirrors hanoigui.py _rebuild_recipe_menu -- point at the recipe, not a
+  // chooser verb.
+  void rebuild_recipe_menu() {
+    const wxMenuItemList &items = recipe_menu_->GetMenuItems();
+    std::vector<wxMenuItem *> stale;
+    std::size_t idx = 0;
+    for (wxMenuItemList::const_iterator it = items.begin(); it != items.end();
+         ++it, ++idx) {
+      if (idx >= 2) {
+        stale.push_back(*it);
+      }
+    }
+    for (wxMenuItem *item : stale) {
+      recipe_menu_->Delete(item);
+    }
+    const std::vector<std::string> names = registry_.names();
+    if (names.empty()) {
+      wxMenuItem *empty =
+          recipe_menu_->Append(wxID_ANY, "(no saved recipes yet)");
+      empty->Enable(false);
+      recipe_menu_names_.clear();
+      return;
+    }
+    for (const std::string &name : names) {
+      const hanoi::Recipe *r = registry_.get(name);
+      if (r == nullptr) {
+        continue;
+      }
+      wxMenu *submenu = new wxMenu();
+      wxMenuItem *view_item =
+          submenu->Append(wxID_ANY, "&View", "Show this recipe's steps");
+      wxMenuItem *apply_item = submenu->Append(
+          wxID_ANY, "&Apply", "Replay under the current labelling");
+      recipe_menu_->AppendSubMenu(
+          submenu, wxString::Format("%s  (%d discs, %zu moves)", name.c_str(),
+                                    r->disk_count, r->default_moves.size()));
+      Bind(
+          wxEVT_MENU, [this, name](wxCommandEvent &) { view_recipe(name); },
+          view_item->GetId());
+      Bind(
+          wxEVT_MENU,
+          [this, name](wxCommandEvent &) { apply_recipe_by_name(name); },
+          apply_item->GetId());
+    }
+    recipe_menu_names_ = names;
+  }
+
   void refresh() {
     board_.set_state(&game_, labelling_);
     const bool w = won();
-    SetStatusText(wxString::Format("Moves: %d", game_.current_moves()), 1);
+    SetStatusText(wxString::Format("Moves: %d", game_.current_moves()), 2);
 
     std::array<bool, 6> legal{};
     for (const hanoi::Move &m : game_.move_options()) {
@@ -669,44 +960,92 @@ private:
         hanoi::change_labels_on_pegs(labelling_, 0) + 1,
         hanoi::change_labels_on_pegs(labelling_, 1) + 1,
         hanoi::change_labels_on_pegs(labelling_, 2) + 1};
+    // Tier-2 gating (dim, don't remove): the relabel items -- and the Relabel
+    // and Recipe menus -- are disabled until the first win, then stay enabled.
     for (const RelabelItem &ri : relabel_items_) {
       const bool active = ri.labels[0] == cur[0] && ri.labels[1] == cur[1] &&
                           ri.labels[2] == cur[2];
       ri.item->SetItemLabel(
           (active ? wxString::FromUTF8("\xe2\x97\x8f  ") : wxString("     ")) +
           ri.base_label);
-      ri.item->Enable(!w);
+      ri.item->Enable(won_once_);
     }
-    apply_btn_->Enable(!w);
-    show_btn_->Enable(true);
-    save_btn_->Enable(w);
-    refresh_recipes(std::string());
+    wxMenuBar *mb = GetMenuBar();
+    if (relabel_menu_pos_ >= 0) {
+      mb->EnableTop(static_cast<std::size_t>(relabel_menu_pos_), won_once_);
+    }
+    if (recipe_menu_pos_ >= 0) {
+      mb->EnableTop(static_cast<std::size_t>(recipe_menu_pos_), won_once_);
+    }
+    recipe_save_item_->Enable(w); // can only save a won game
+    // Keep the Recipe menu's submenus in sync with the registry; recipes
+    // change only on save, so rebuild only when the set differs.
+    if (registry_.names() != recipe_menu_names_) {
+      rebuild_recipe_menu();
+    }
+
+    update_history();
+    update_goal();
   }
 
-  void refresh_recipes(const std::string &select) {
-    const std::optional<std::string> previous = selected_recipe();
-    recipe_list_->Clear();
-    list_index_to_name_.clear();
-    const std::vector<std::string> names = registry_.names();
-    for (std::size_t i = 0; i < names.size(); ++i) {
-      const hanoi::Recipe *r = registry_.get(names[i]);
-      recipe_list_->Append(
-          wxString::Format("%s  (%d discs, %zu moves)", names[i].c_str(),
-                           r != nullptr ? r->disk_count : 0,
-                           r != nullptr ? r->default_moves.size() : 0));
-      list_index_to_name_[static_cast<int>(i)] = names[i];
+  // Repopulate the always-visible move-history panel from the recorder: every
+  // move this game in the default 1-2-3 labels, with a live count vs 2^N-1.
+  void update_history() {
+    if (history_list_ == nullptr || history_header_ == nullptr) {
+      return;
     }
-    const std::string chosen =
-        !select.empty() ? select : (previous ? *previous : std::string());
-    for (std::size_t i = 0; i < names.size(); ++i) {
-      if (names[i] == chosen) {
-        recipe_list_->SetSelection(static_cast<int>(i));
-        break;
-      }
+    const std::vector<std::array<int, 2>> &moves = recorder_.moves();
+    history_list_->Clear();
+    for (std::size_t i = 0; i < moves.size(); ++i) {
+      history_list_->Append(
+          wxString::Format("%zu. %d -> %d", i + 1, moves[i][0], moves[i][1]));
+    }
+    const std::size_t count = moves.size();
+    history_header_->SetLabel(wxString::Format(
+        "%zu %s  optimal %d (default 1-2-3 labels)", count,
+        count == 1 ? "move" : "moves", optimal_moves(game_.num_disks())));
+  }
+
+  // The persistent goal line in the status bar (field 0) for the current disc
+  // count; the full rules live in the How-to-Play panel, so this stays terse.
+  void update_goal() {
+    SetStatusText(
+        wxString::Format("Goal: move all %d discs to peg 3", game_.num_disks()),
+        0);
+  }
+
+  // --- How-to-Play panel show/hide + persistence ----------------------
+
+  void show_howto(bool show) {
+    if (howto_panel_ == nullptr) {
+      return;
+    }
+    howto_panel_->Show(show);
+    howto_toggle_->Check(show);
+    Layout();
+  }
+
+  void on_toggle_history(wxCommandEvent &) {
+    if (history_panel_ != nullptr) {
+      history_panel_->Show(history_toggle_->IsChecked());
+      Layout();
     }
   }
 
-  void set_status(const wxString &text) { SetStatusText(text, 0); }
+  void on_toggle_howto(wxCommandEvent &) {
+    show_howto(howto_toggle_->IsChecked());
+  }
+
+  void on_help_howto(wxCommandEvent &) { show_howto(true); }
+
+  void on_howto_dont_show(wxCommandEvent &evt) {
+    // Persist the choice for the next launch (the panel stays open now; "Got
+    // it" closes it).
+    config_->Write(kConfigShowHowto, !evt.IsChecked());
+    config_->Flush();
+  }
+
+  void set_status(const wxString &text) { SetStatusText(text, 1); }
 
   // --- Data ------------------------------------------------------------
 
@@ -724,16 +1063,36 @@ private:
   hanoi::RecipeRegistry registry_;
   int disk_count_ = kDefaultDisks;
 
+  // Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the first
+  // win and stay unlocked for the rest of the session.
+  bool won_once_ = false;
+
+  wxConfigBase *config_ = nullptr;
+
   BoardView board_;
+  wxPanel *panel_ = nullptr; // the shared XRC panel
   wxPanel *board_slot_ = nullptr;
-  wxListBox *recipe_list_ = nullptr;
-  wxButton *save_btn_ = nullptr;
-  wxButton *apply_btn_ = nullptr;
-  wxButton *show_btn_ = nullptr;
+  wxListBox *recipe_list_ = nullptr; // sidebar list, hidden (kept for the XRC)
   std::array<wxButton *, 6> move_buttons_{};
   std::vector<RelabelItem> relabel_items_;
-  std::map<int, std::string> list_index_to_name_;
   wxDialog *rebinding_dlg_ = nullptr;
+
+  // Recipe menu (Tier 3) built in code; the shared XRC has no Recipe menu.
+  wxMenu *recipe_menu_ = nullptr;
+  wxMenuItem *recipe_save_item_ = nullptr;
+  int relabel_menu_pos_ = -1;
+  int recipe_menu_pos_ = -1;
+  std::vector<std::string> recipe_menu_names_; // names reflected in the menu
+
+  // Tier-1 onboarding + always-visible history, built in code.
+  wxMenuItem *history_toggle_ = nullptr;
+  wxMenuItem *howto_toggle_ = nullptr;
+  wxMenuItem *help_howto_item_ = nullptr;
+  wxPanel *howto_panel_ = nullptr;
+  wxCheckBox *howto_dont_show_ = nullptr;
+  wxPanel *history_panel_ = nullptr;
+  wxStaticText *history_header_ = nullptr;
+  wxListBox *history_list_ = nullptr;
 };
 
 const std::array<std::array<int, 3>, 6> HanoiFrame::kRelabelPerms{
@@ -742,6 +1101,10 @@ const std::array<std::array<int, 3>, 6> HanoiFrame::kRelabelPerms{
 class HanoiApp : public wxApp {
 public:
   bool OnInit() override {
+    // Names the per-user wxConfig store (the "show How-to-Play on launch"
+    // preference) so it is stable across runs rather than keyed off argv[0].
+    SetVendorName("hanoi");
+    SetAppName("hanoi-wx");
     wxImage::AddHandler(new wxPNGHandler());
     wxXmlResource::Get()->InitAllHandlers();
     if (!wxXmlResource::Get()->Load(find_xrc())) {

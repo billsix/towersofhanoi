@@ -146,11 +146,6 @@ select {
 .apply-col {
   min-width: 10rem;
 }
-.apply-steps {
-  margin-top: 0.5rem;
-  font-family: ui-monospace, monospace;
-  font-size: 0.85rem;
-}
 
 /* --- Tier-3 menu bar (Game / Relabel / Recipe / Help). ---------------------- */
 .menubar {
@@ -238,6 +233,10 @@ select {
 .history {
   margin: 0;
   padding-left: 1.6rem;
+  /* Reserve a stable scrollbar gutter (plus a little right padding) so the
+     overflow scrollbar sits beside the move text, never on top of it. */
+  padding-right: 0.6rem;
+  scrollbar-gutter: stable;
   max-height: 10rem;
   overflow-y: auto;
   font-family: ui-monospace, monospace;

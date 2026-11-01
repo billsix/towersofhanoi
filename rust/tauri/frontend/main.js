@@ -26,27 +26,15 @@
  */
 
 /**
- * One replayed step of an applied recipe (Rust `ApplyStep`); `*_peg`/`error` are
- * `null` when unresolved / when the step applied.
- * @typedef {object} ApplyStep
- * @property {number} from_label
- * @property {number} to_label
- * @property {number|null} from_peg
- * @property {number|null} to_peg
- * @property {string|null} error
- */
-
-/**
  * The on-invoke three-panel rebinding view (Rust `ApplyView`, feature-spec §4.8):
- * the recipe's own moves | the label→peg rebinding | the rebound physical moves,
- * plus the per-step replay log. `relabelled` gates the panel.
+ * the recipe's own moves | the label→peg rebinding | the rebound physical moves.
+ * `relabelled` gates the panel.
  * @typedef {object} ApplyView
  * @property {string} name
  * @property {boolean} relabelled
  * @property {[number, number][]} recipe_moves
  * @property {[number, number][]} rebinding
  * @property {[number, number][]} rebound_moves
- * @property {ApplyStep[]} steps
  */
 
 /**
@@ -370,21 +358,13 @@ function renderApplyView(apply) {
   const reboundCol = apply.rebound_moves.map(([a, b], i) =>
     `${i + 1}: ${a} → ${b}`
   );
-  const steps = apply.steps.map((st, i) =>
-    st.error
-      ? `step ${i + 1}: stopped — ${st.error}`
-      : `step ${i + 1}: ${st.from_label} → ${st.to_label}`
-  );
   panel.innerHTML =
     `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
     `<div class="apply-cols">` +
     col("Recipe (its labels)", recipeCol) +
     col("Rebinding (label &rarr; peg)", rebindCol) +
     col("Rebound (physical pegs)", reboundCol) +
-    `</div>` +
-    `<div class="apply-steps"><h4>Steps</h4>${
-      steps.map((r) => `<div>${r}</div>`).join("")
-    }</div>`;
+    `</div>`;
   panel.classList.remove("hidden");
 }
 

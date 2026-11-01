@@ -2,10 +2,12 @@
 
 **Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged],
 `ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui` [merged],
-`ui-egui-relabel-glyph` [merged], and an overnight branch carrying the emacs-Dockerfile fix + this
-Tauri GUI; gpg off → restored). All **text UIs done** + the **C++ ImGui GUI** (the reference GUI) +
-the **Rust egui GUI** + the **Rust Tauri GUI**; **2 GUIs remain** (C++ wx + Rust wxDragon via the
-shared `ui/hanoi.xrc`) + **drag-drop** per graphical UI — all need on-display sign-off.
+`ui-egui-relabel-glyph` [merged], `emacs-packages-from-mount` [merged, carried the Tauri GUI], and
+`ui-fanout-wx-trio` [current — the C++ wx + Rust wxDragon learning flow + two Tauri UX fixes; gpg
+off → restored]). **Every front-end now carries the learning flow**: all text UIs + C++ ImGui + Rust
+egui + Rust Tauri + **C++ wx + Rust wxDragon**. The wx trio is compile- and headless-smoke-verified
+but **needs the maintainer's on-display `make wx` sign-off** before merge. Only **drag-drop** per
+graphical UI remains open (`tasks/port-drag-drop-to-graphical-uis.md`).
 **Priority:** 3
 **Difficulty:** 6
 
@@ -65,11 +67,28 @@ shared `ui/hanoi.xrc`) + **drag-drop** per graphical UI — all need on-display 
   `hanoigame` crate (one new `history` field; no logic added). Verified: frontend `deno check`/`lint`/
   `fmt` clean (`make type-check`), backend `cargo check` clean. **On-display `make tauri` is the visual
   check.** Drag-drop for Tauri is still pending (below).
-- **Remaining, per UI (needs on-display sign-off):**
-  - **C++ wx (`cpp/hanoiwx.cpp`) + Rust wxDragon (`rust/hanoi-gui`)** via the **shared `ui/hanoi.xrc`
-    decision** — the coupled trio; settle whether the tier structure moves into the shared XRC (the
-    wxPython oracle did it programmatically, XRC untouched). Do these together.
-  - Fold in **drag-drop** per graphical UI incl. ImGui (`tasks/port-drag-drop-to-graphical-uis.md`).
+- **C++ wx (`cpp/hanoiwx.cpp`) + Rust wxDragon (`rust/hanoi-gui/src/main.rs`) — learning-flow DONE**
+  (branch `ui-fanout-wx-trio`), each mirroring the wxPython oracle programmatically with the shared
+  `ui/hanoi.xrc` left untouched (decision below): Tier-1 goal line (3-field status bar) + an
+  always-visible move-history panel; Tier-2 `won_once` latch dimming the Relabel + Recipe menus until
+  the first win; Tier-3 recipes in a **Recipe menu** (Save + per-recipe View/Apply submenus), sidebar
+  gone; a first-run **How to Play** panel (goal + one rule + a legal/illegal diagram + "don't show
+  again" via `wxConfig`, reopen from Help). Two **wxDragon-forced** departures (both keep the XRC
+  intact): the Rust menu bar is built in code (wxDragon has no runtime menu-insert on an XRC-loaded
+  `MenuBar`) and the Rust sidebar is **hidden** (not destroyed). A first cut destroyed the sidebar
+  widgets, but that left the `StaticBoxSizer` holding freed pointers and GTK segfaulted in its idle
+  size-allocate at launch; hiding lets wxWidgets reclaim the slot on `Layout` with nothing freed (fix
+  commit `894581b`, gdb-confirmed). C++ verified via `make build` + a headless Xvfb smoke; Rust via
+  `make check` + a headless Xvfb launch (ran full duration, no segfault). **Both need the maintainer's
+  on-display `make wx` sign-off** (incl. whether the collapsed Rust sidebar leaves a residual gap).
+  When they land, harvest the settled XRC decision into `tasks/reference/ui-design-principles.md`.
+- **Tauri UX fixes folded in on this branch** (maintainer-reported on the merged Tauri GUI): the
+  always-visible history `<ol>` reserved a stable scrollbar gutter (the bar had overlapped the move
+  text); and the post-apply rebinding view dropped its redundant "Steps" list (the per-step replay log
+  duplicated the "Recipe (its labels)" column). Only Tauri showed the duplicate — the shared engine
+  already suppresses the per-step log under a relabelling (`rust/hanoigame/src/engine.rs` `handle_apply`),
+  and egui/CLI/TUI reuse that. Verified: `make type-check` (deno) + Tauri backend `cargo check`.
+- **Remaining:** fold in **drag-drop** per graphical UI incl. ImGui (`tasks/port-drag-drop-to-graphical-uis.md`).
 
 ## BLUF
 
