@@ -18,20 +18,32 @@ ARG USE_EMACS=0
 # groups run is decided here by the ARG `if` blocks. The dnf cache mount + keepcache stay
 # in the Dockerfile (build plumbing). 01-install-base.sh also does `dnf upgrade`.
 COPY entrypoint/01-install-base.sh entrypoint/03-install-xwindows.sh /usr/local/bin/
-COPY entrypoint/dotfiles/.emacs.d/install-melpa-packages.el /root/.emacs.d/install-melpa-packages.el
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
-     --mount=type=cache,target=/root/.npm \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      /usr/local/bin/01-install-base.sh && \
-     if [ "$USE_X_WINDOWS" = "1" ]; then /usr/local/bin/03-install-xwindows.sh; fi && \
+     echo "hanoi" >> ~/.bash_history
+
+# emacs BINARY + the lsp-pyright backend (nodejs/npm/pyright) only. The emacs dev PACKAGES are
+# NOT compiled into the image: like github.com/billsix/modelviewprojection and
+# github.com/billsix/geometricalgebra, they are vendored in the repo
+# (entrypoint/dotfiles/.emacs.d/elpa, source-only, refreshed by `make update-emacs-packages`)
+# and bind-mounted at `make shell` via the Makefile's ELPA_MOUNT -- so no slow MELPA
+# download+compile ever runs during an image build, and package/config edits are live without a
+# rebuild. emacs only runs under `make shell` (which always supplies that mount). Deliberate
+# exception to "bake every dependency into the image": emacs is a dev convenience, not shipped.
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     --mount=type=cache,target=/root/.npm \
      if [ "$USE_EMACS" = "1" ]; then \
        dnf install -y emacs nodejs npm && \
-       npm install -g pyright && \
-       emacs --batch --load /root/.emacs.d/install-melpa-packages.el ; \
-     fi && \
-     echo "hanoi" >> ~/.bash_history
+       npm install -g pyright ; \
+     fi
+
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     if [ "$USE_X_WINDOWS" = "1" ]; then /usr/local/bin/03-install-xwindows.sh; fi
 
 # Third-party Python deps: fetched + installed into a committed layer at build time
 # (offline-rebuildable). wxPython comes from dnf (python3-wxpython4), so strip it from
@@ -48,11 +60,11 @@ COPY entrypoint/shell.sh /usr/local/bin/shell.sh
 COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /format.sh
 COPY entrypoint/type-check.sh /type-check.sh
-# Bake the emacs config (init.el + preferences.el) into the image so emacs works from the
-# baked image even without the bind-mount (e.g. a pulled image). Placed AFTER the dnf +
-# MELPA layer so editing init.el doesn't bust the package-install cache; the packages are
-# installed by the RUN above via install-melpa-packages.el. (`make shell` still bind-mounts
-# the live .emacs.d over this, so edits remain live without a rebuild.)
+# Bake the emacs config (init.el + preferences.el) so the baked image has a usable config;
+# `make shell` bind-mounts the live .emacs.d over this (config AND the vendored elpa), so
+# edits stay live without a rebuild. The dev packages are mounted, not baked (see the emacs
+# RUN above), so a no-mount emacs would have config but no packages -- acceptable here since
+# emacs is only ever launched under `make shell`.
 COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
 
 # Bake the subproject's own source LATE (after the dep layer) at the SAME path the

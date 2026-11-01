@@ -30,19 +30,33 @@ ARG DENO_VERSION=v2.9.8
 COPY entrypoint/01-install-rust-base.sh /usr/local/bin/
 COPY entrypoint/02-install-deno.sh /usr/local/bin/
 COPY entrypoint/03-install-wasm.sh /usr/local/bin/
-COPY entrypoint/dotfiles/.emacs.d/install-melpa-packages.el /root/.emacs.d/install-melpa-packages.el
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
      echo "keepcache=True" >> /etc/dnf/dnf.conf && \
      dnf upgrade -y && \
      /usr/local/bin/01-install-rust-base.sh && \
-     if [ "$USE_WASM" = "1" ]; then WASM_BINDGEN_VERSION="$WASM_BINDGEN_VERSION" /usr/local/bin/03-install-wasm.sh ; fi && \
-     if [ "$USE_EMACS" = "1" ]; then \
-       dnf install -y emacs && \
-       emacs --batch --load /root/.emacs.d/install-melpa-packages.el ; \
-     fi && \
      echo "cargo run -q -p hanoi-cli" >> ~/.bash_history
+
+# emacs BINARY only (USE_EMACS). The dev PACKAGES are NOT compiled into the image: like
+# github.com/billsix/modelviewprojection and github.com/billsix/geometricalgebra, they are
+# vendored in the repo (entrypoint/dotfiles/.emacs.d/elpa, source-only, refreshed by
+# `make update-emacs-packages`) and bind-mounted at `make shell` via the Makefile's ELPA_MOUNT
+# -- so no slow MELPA download+compile ever runs during an image build, and package/config
+# edits are live without a rebuild. emacs only runs under `make shell` (which always supplies
+# that mount); the front-end run targets never start it. Deliberate exception to "bake every
+# dependency into the image": emacs is a dev convenience, not the product, and this image is
+# not pushed for standalone pull. The rust-analyzer LSP backend is in 01-install-rust-base.sh.
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     if [ "$USE_EMACS" = "1" ]; then dnf install -y emacs; fi
+
+# WASM toolchain LAST of the dnf layers: its cache key includes WASM_BINDGEN_VERSION (read
+# from hanoi-egui/Cargo.lock), so a bump rebuilds only this layer, not emacs or the base.
+# See entrypoint/03-install-wasm.sh.
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     if [ "$USE_WASM" = "1" ]; then WASM_BINDGEN_VERSION="$WASM_BINDGEN_VERSION" /usr/local/bin/03-install-wasm.sh ; fi
 
 # Deno for the JS type-check gate (own RUN, source-independent, so it caches across
 # frontend edits). See entrypoint/02-install-deno.sh.
@@ -52,11 +66,11 @@ COPY entrypoint/.bashrc /root/
 COPY entrypoint/shell.sh /usr/local/bin/shell.sh
 COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /format.sh
-# Bake the emacs config (init.el + preferences.el) into the image so emacs works from the
-# baked image even without the bind-mount (e.g. a pulled image). Placed AFTER the dnf +
-# MELPA layer so editing init.el doesn't bust the package-install cache; the packages
-# themselves are installed by the RUN above via install-melpa-packages.el. (`make shell`
-# still bind-mounts the live .emacs.d over this, so edits remain live without a rebuild.)
+# Bake the emacs config (init.el + preferences.el) so the baked image has a usable config;
+# `make shell` bind-mounts the live .emacs.d over this (config AND the vendored elpa), so
+# edits stay live without a rebuild. The dev packages are mounted, not baked (see the emacs
+# RUN above), so a no-mount emacs would have config but no packages -- acceptable here since
+# emacs is only ever launched under `make shell`.
 COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
 
 # Bake the subproject's own source LATE, at the SAME path the bind-mount uses, so a
