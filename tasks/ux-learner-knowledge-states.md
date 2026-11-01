@@ -1,6 +1,6 @@
 # Document the learner's knowledge state at each step of the UX
 
-**Status:** proposed — needs go-ahead.
+**Status:** in progress 2026-11-01 — decisions below; implementing on branch `learner-knowledge-states`.
 **Priority:** 6 **Difficulty:** 4
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). Follows the win-celebration work
 (archived `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`) and its UX write-up.
@@ -47,17 +47,14 @@ stated, and any ordering gap it surfaces is either fixed or logged as its own ta
 5. **Keep it honest to the implementation** — where the model says "the user now knows X", confirm a UI
    step actually taught X (don't assume implicit teaching suffices for a non-knower, per §3.5).
 
-## Open questions
+## Open questions — resolved 2026-11-01 (William Emerison Six <billsix@gmail.com>)
 
-1. **Where should the progression live?** (a) a new section in
-   `tasks/reference/win-celebration-and-recipe-discovery-ux.md`; (b) a new dedicated reference doc
-   `tasks/reference/learner-knowledge-states.md` cross-linked from `ui-design-principles.md`; or (c) a
-   section inside `ui-design-principles.md` itself (it already owns the three-tier flow). **Recommend
-   (b)** — a dedicated doc: the progression is a distinct, reusable lens (and could grow a per-step
-   table), and keeping `ui-design-principles.md` lean is the house preference. Your call.
-2. **How formal?** A prose "assumes / teaches / knows-after" per step is enough to start; a fuller state
-   machine (with the branches — e.g. a player who never relabels) is optional. **Recommend** the prose
-   table first, note branches only where they change what must be taught.
+1. ~~Where should the progression live?~~ **A dedicated reference doc**,
+   `tasks/reference/learner-knowledge-states.md`, cross-linked from `ui-design-principles.md` and the
+   win-celebration UX doc ("whatever you recommend" → my recommendation (b)).
+2. ~~How formal?~~ **A state machine with the branches** — states = what the learner knows, transitions =
+   UI events that teach/unlock, plus the optional paths (e.g. a player who never relabels, apply-without-
+   relabel). Not just a prose table.
 
 ## Related
 
