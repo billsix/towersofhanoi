@@ -1,10 +1,95 @@
 /* Copyright (c) 2025-2026 William Emerison Six
    SPDX-License-Identifier: GPL-2.0-or-later */
 
+/* ---------------------------------------------------------------------------
+   Design-token layer (tasks/desktop-native-look-css-tokens.md, step 1).
+
+   Goal: look native on Linux/GTK, macOS, and Windows with NO dependency and no
+   network -- pure CSS. Colours are semantic custom properties; the default set
+   is a light theme, overridden to dark under the OS dark setting. `color-scheme`
+   makes native scrollbars, form controls, and the <dialog> backdrop follow too.
+
+   Font stack is per-platform native: San Francisco on macOS (-apple-system /
+   BlinkMacSystemFont, intercepted by WKWebView), Segoe UI Variable/Segoe UI on
+   Windows (WebView2 -- named explicitly, and BEFORE `system-ui`, which has a
+   Windows system-locale bug), and the GTK UI font on Linux/WebKitGTK (`system-ui`
+   -> Cantarell / the user's choice), matching the GTK wx GUIs.
+
+   The board (canvas + text <pre>) FOLLOWS the OS light/dark theme too (step 2):
+   main.js reads --board-surface / --fg-muted from this token layer at paint time,
+   so the "desk" surface and label text flip with the theme. The wooden pegs/base
+   and the vivid size-coloured discs are painted theme-independently in main.js --
+   a physical toy's materials don't change with room lighting.
+   --------------------------------------------------------------------------- */
 :root {
-  font-family: system-ui, sans-serif;
-  color: #e8ecf3;
-  background: #1e2432;
+  color-scheme: light dark;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI",
+    system-ui, "Cantarell", "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Consolas", "Menlo",
+    "Source Code Pro", monospace;
+
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Light theme (default). */
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-sunken: #eceef2;
+  --fg: #1c2330;
+  --fg-muted: #586175;
+  --fg-subtle: #828ca0;
+  --border: #d3d8e0;
+  --border-subtle: #0000001c;
+  --control-bg: #ffffff;
+  --control-bg-hover: #eef1f6;
+  --control-border: #c3cad6;
+  --field-bg: #ffffff;
+  --accent: #2f6bd8;
+  --status: #8a5a00;
+  --shadow: 0 6px 18px #00000026;
+  --backdrop: #0000006b;
+
+  /* Board surface: follows the OS theme (light here, dark in the media query).
+     The "desk" the pegs sit on + the text-board colours; main.js reads
+     --board-surface for the canvas and --fg-muted for the reference row. */
+  --board-bg: #e6eaf1;
+  --board-surface: #e9edf3;
+  --board-fg: #0f6b78;
+  --board-border: #cdd4df;
+
+  font-family: var(--font-ui);
+  color: var(--fg);
+  background: var(--bg);
+  accent-color: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e2432;
+    --surface: #2a3348;
+    --surface-sunken: #141a28;
+    --fg: #e8ecf3;
+    --fg-muted: #aab2c5;
+    --fg-subtle: #8891a6;
+    --border: #39425a;
+    --border-subtle: #ffffff14;
+    --control-bg: #2f3a52;
+    --control-bg-hover: #3b4867;
+    --control-border: #44507080;
+    --field-bg: #141a28;
+    --accent: #6ea8fe;
+    --status: #e5c84b;
+    --shadow: 0 6px 18px #0006;
+    --backdrop: #0008;
+
+    /* Board surface, dark theme (the original dark "screen"). */
+    --board-bg: #141a28;
+    --board-surface: #1e2432;
+    --board-fg: #6fd3e0;
+    --board-border: #39425a;
+  }
 }
 
 body {
@@ -18,8 +103,8 @@ h1 {
 }
 
 .status {
-  font-family: ui-monospace, monospace;
-  color: #e5c84b;
+  font-family: var(--font-mono);
+  color: var(--status);
   margin-bottom: 0.5rem;
 }
 
@@ -34,19 +119,19 @@ h1 {
   width: 100%;
   max-width: 860px;
   height: auto;
-  background: #1e2432;
-  border: 1px solid #39425a;
-  border-radius: 6px;
+  background: var(--board-surface);
+  border: 1px solid var(--board-border);
+  border-radius: var(--radius-md);
 }
 
 .board {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 1rem;
   line-height: 1.15;
-  background: #141a28;
-  color: #6fd3e0;
+  background: var(--board-bg);
+  color: var(--board-fg);
   padding: 0.75rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow-x: auto;
   margin: 0;
 }
@@ -62,8 +147,8 @@ h1 {
 
 .rebinding {
   min-height: 1.2em;
-  color: #aab2c5;
-  font-family: ui-monospace, monospace;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 
@@ -75,13 +160,13 @@ h1 {
 }
 
 fieldset {
-  border: 1px solid #39425a;
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 0.5rem 0.75rem;
 }
 
 legend {
-  color: #aab2c5;
+  color: var(--fg-muted);
   font-size: 0.85rem;
 }
 
@@ -93,16 +178,21 @@ legend {
 }
 
 button {
-  background: #2f3a52;
-  color: #e8ecf3;
-  border: 1px solid #44507040;
-  border-radius: 5px;
+  background: var(--control-bg);
+  color: var(--fg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
   padding: 0.35rem 0.7rem;
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
-  background: #3b4867;
+  background: var(--control-bg-hover);
+}
+
+button:active:not(:disabled) {
+  background: var(--control-bg-hover);
+  filter: brightness(0.96);
 }
 
 button:disabled {
@@ -110,12 +200,18 @@ button:disabled {
   cursor: default;
 }
 
+/* Visible keyboard focus -- native desktop apps always show it. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 input,
 select {
-  background: #141a28;
-  color: #e8ecf3;
-  border: 1px solid #39425a;
-  border-radius: 5px;
+  background: var(--field-bg);
+  color: var(--fg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
   padding: 0.3rem 0.5rem;
 }
 
@@ -123,9 +219,9 @@ select {
 .apply-view {
   margin: 0.5rem 0;
   padding: 0.5rem 0.75rem;
-  background: #141a28;
-  border: 1px solid #39425a;
-  border-radius: 6px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 .apply-view h3 {
   margin: 0 0 0.4rem;
@@ -134,13 +230,13 @@ select {
 .apply-view h4 {
   margin: 0 0 0.25rem;
   font-size: 0.85rem;
-  color: #aab3c5;
+  color: var(--fg-muted);
 }
 .apply-cols {
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 .apply-col {
@@ -152,7 +248,7 @@ select {
   display: flex;
   gap: 0.25rem;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid #39425a;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 0.35rem;
 }
 .menu {
@@ -163,11 +259,11 @@ select {
   border: 1px solid transparent;
 }
 .menu-btn:hover:not(:disabled) {
-  background: #3b4867;
+  background: var(--control-bg-hover);
 }
 .menu.open > .menu-btn {
-  background: #3b4867;
-  border-color: #44507080;
+  background: var(--control-bg-hover);
+  border-color: var(--control-border);
 }
 .menu-panel {
   display: none;
@@ -178,10 +274,10 @@ select {
   min-width: 13rem;
   margin-top: 0.2rem;
   padding: 0.3rem;
-  background: #2a3348;
-  border: 1px solid #44507080;
-  border-radius: 6px;
-  box-shadow: 0 6px 18px #0006;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
 }
 .menu.open > .menu-panel {
   display: block;
@@ -196,11 +292,11 @@ select {
   padding: 0.3rem 0.5rem;
 }
 .menu-panel .menu-item:hover:not(:disabled) {
-  background: #3b4867;
+  background: var(--control-bg-hover);
 }
 .menu-panel hr {
   border: none;
-  border-top: 1px solid #44507060;
+  border-top: 1px solid var(--border-subtle);
   margin: 0.3rem 0;
 }
 .menu-panel label {
@@ -211,7 +307,7 @@ select {
 .menu-empty {
   display: block;
   padding: 0.3rem 0.5rem;
-  color: #8891a6;
+  color: var(--fg-subtle);
   font-size: 0.85rem;
 }
 .recipe-row {
@@ -239,7 +335,7 @@ select {
   scrollbar-gutter: stable;
   max-height: 10rem;
   overflow-y: auto;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 .history.empty {
@@ -247,16 +343,16 @@ select {
   padding-left: 0.3rem;
 }
 .history .muted {
-  color: #8891a6;
+  color: var(--fg-subtle);
 }
 
 /* --- How-to-Play dialog. ---------------------------------------------------- */
 dialog.howto {
   max-width: 28rem;
-  background: #2a3348;
-  color: #e8ecf3;
-  border: 1px solid #44507080;
-  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
 }
 dialog.howto h2 {
@@ -272,5 +368,5 @@ dialog.howto form {
   text-align: right;
 }
 dialog.howto::backdrop {
-  background: #0008;
+  background: var(--backdrop);
 }

@@ -2,7 +2,8 @@
 
 **Status:** proposed — needs go-ahead.
 **Priority:** 6 **Difficulty:** 2
-**Parent:** `tasks/tauri-frontend-js-options.md` (investigation, COMPLETE 2026-11-01). This is the one
+**Parent:** `tasks/archive/2026/11/01/tauri-frontend-js-options.md` (investigation, COMPLETE + archived
+2026-11-01). This is the one
 concrete change that investigation recommended: everything else was "already done, stay the course."
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>).
 
@@ -87,8 +88,8 @@ in-script, with a reason):
 
 ## Related
 
-- Parent investigation: `tasks/tauri-frontend-js-options.md` (findings + why this is the only
-  recommended change).
+- Parent investigation: `tasks/archive/2026/11/01/tauri-frontend-js-options.md` (findings + why this is
+  the only recommended change).
 - Sibling gates (same pattern, other web targets): `tasks/cpp-wasm-no-network-static-gate.md`,
   `tasks/egui-web-no-network-static-gate.md`. This task is their template.
 - `tasks/reference/ci-github-actions.md` — where the CI line lands (the `rust-type-check` job).

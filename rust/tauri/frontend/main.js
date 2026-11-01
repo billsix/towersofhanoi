@@ -151,6 +151,31 @@ function el(id) {
   return /** @type {HTMLElement} */ (document.getElementById(id));
 }
 
+// Board colours that follow the OS light/dark theme. `prefers-color-scheme` in
+// the webview reflects the desktop's configured theme on all three OSes
+// (WKWebView / WebView2 / WebKitGTK), so reading the resolved CSS custom
+// properties (style.css's token layer) gives the active palette. The wood and
+// disc colours above stay theme-independent. refreshBoardTheme() re-reads these,
+// at startup and whenever the OS theme flips while the app is open.
+const boardTheme = {
+  surface: "rgb(30,36,50)",
+  muted: "rgb(170,178,195)",
+};
+
+/**
+ * Re-read the themeable board colours from the CSS custom properties, so the
+ * canvas board matches the current OS light/dark setting.
+ * @returns {void}
+ */
+function refreshBoardTheme() {
+  const style = getComputedStyle(document.documentElement);
+  /** @type {(name: string, fallback: string) => string} */
+  const read = (name, fallback) =>
+    style.getPropertyValue(name).trim() || fallback;
+  boardTheme.surface = read("--board-surface", boardTheme.surface);
+  boardTheme.muted = read("--fg-muted", boardTheme.muted);
+}
+
 /**
  * Width of a disc of `size` in an `n`-disc game, up to `maxW` (smallest is 1/3 the
  * largest — a visible difference without being tiny).
@@ -196,7 +221,7 @@ function drawBoard(s) {
   const w = canvas.width;
   const h = canvas.height;
 
-  ctx.fillStyle = "rgb(30,36,50)";
+  ctx.fillStyle = boardTheme.surface;
   ctx.fillRect(0, 0, w, h);
 
   const n = s.num_disks;
@@ -266,7 +291,7 @@ function drawBoard(s) {
 
   // Default 1-2-3 reference row when relabelled (the physical peg numbers).
   if (relabelled) {
-    ctx.fillStyle = "rgb(170,178,195)";
+    ctx.fillStyle = boardTheme.muted;
     pegCentres.forEach((cx, p) =>
       ctx.fillText(String(p + 1), cx, activeLabelY + 26)
     );
@@ -520,6 +545,16 @@ function initBoardDrag() {
 async function init() {
   initMenuBar();
   initBoardDrag();
+
+  refreshBoardTheme();
+  // Repaint the board when the OS flips light/dark while the app is open.
+  globalThis.matchMedia("(prefers-color-scheme: dark)").addEventListener(
+    "change",
+    () => {
+      refreshBoardTheme();
+      if (latest) drawBoard(latest);
+    },
+  );
 
   for (const [f, t] of MOVE_PAIRS) {
     el(`move-${f}-${t}`).addEventListener("click", async () => {
