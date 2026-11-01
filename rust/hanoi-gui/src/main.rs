@@ -76,6 +76,26 @@ const HOWTO_TEXT: &str = "Move the whole stack of discs from peg 1 to peg 3.\n\
 /// "Don't show this again" checkbox; re-shown any time from Help / View.
 const CONFIG_SHOW_HOWTO: &str = "show_howto_on_start";
 
+// Menu command ids. The menu bar is built in code and dispatched through
+// `frame.on_menu_selected` by id -- `MenuItem::on_click` does NOT fire for a
+// menu-bar item (it binds on the item's parent *window*, which is null for a
+// code-built menu). Custom ids sit above `wxID_HIGHEST` (5999) so they never
+// collide with the stock ids (ID_EXIT / ID_ABOUT, used for Quit / About).
+const ID_NEW: i32 = 6001;
+const ID_NEW_SAME: i32 = 6002;
+const ID_STYLE_TEXT: i32 = 6003;
+const ID_STYLE_GRAPHICS: i32 = 6004;
+const ID_HISTORY_TOGGLE: i32 = 6005;
+const ID_HOWTO_TOGGLE: i32 = 6006;
+const ID_HELP_HOWTO: i32 = 6007;
+const ID_SAVE: i32 = 6008;
+/// First of the six Relabel items (one per permutation): `ID_RELABEL_BASE + i`.
+const ID_RELABEL_BASE: i32 = 6010;
+/// Per-recipe submenu items: `ID_RECIPE_BASE + 2*i` = View, `+ 2*i + 1` = Apply,
+/// where `i` indexes `registry.names()` (sorted, so stable between rebuild and
+/// click). Must stay clear of the Relabel block above.
+const ID_RECIPE_BASE: i32 = 6100;
+
 // --- Colour palettes (from board_renderers.py) ------------------------------
 
 /// Disc colour by size (1-indexed); cycles past 10 discs.
@@ -726,17 +746,14 @@ fn view_recipe(state: &Rc<RefCell<GuiState>>, name: &str) {
 /// items 0-1) is kept; everything after is deleted and re-appended. Mirrors
 /// `hanoigui.py` _rebuild_recipe_menu — point at the recipe, not a chooser verb.
 fn rebuild_recipe_menu(state: &Rc<RefCell<GuiState>>) {
-    let names: Vec<String> = {
-        let st: std::cell::Ref<'_, GuiState> = state.borrow();
-        // Delete the stale tail (everything after Save + separator).
-        let items: Vec<MenuItem> = st.recipe_menu.get_menu_items();
-        for item in items.iter().skip(2) {
-            st.recipe_menu.delete_item(item);
-        }
-        st.registry.names()
-    };
+    let st: std::cell::Ref<'_, GuiState> = state.borrow();
+    // Delete the stale tail (everything after Save + separator).
+    let items: Vec<MenuItem> = st.recipe_menu.get_menu_items();
+    for item in items.iter().skip(2) {
+        st.recipe_menu.delete_item(item);
+    }
+    let names: Vec<String> = st.registry.names();
     if names.is_empty() {
-        let st: std::cell::Ref<'_, GuiState> = state.borrow();
         if let Some(empty) = st.recipe_menu.append(
             ID_ANY as i32,
             "(no saved recipes yet)",
@@ -747,49 +764,30 @@ fn rebuild_recipe_menu(state: &Rc<RefCell<GuiState>>) {
         }
         return;
     }
-    for name in &names {
-        let label: String = {
-            let st: std::cell::Ref<'_, GuiState> = state.borrow();
-            let Some(recipe) = st.registry.get(name) else {
-                continue;
-            };
-            format!(
-                "{name}  ({} discs, {} moves)",
-                recipe.disk_count,
-                recipe.default_moves.len()
-            )
+    // Each saved recipe (in registry.names() sorted order) gets a submenu with
+    // stable ids: View = ID_RECIPE_BASE + 2i, Apply = +2i+1. Dispatch is via
+    // frame.on_menu_selected by id -- MenuItem::on_click is a no-op for menu-bar
+    // items (its parent-window handle is null), so the handler decodes the id
+    // back to this same sorted index.
+    for (i, name) in names.iter().enumerate() {
+        let Some(recipe) = st.registry.get(name) else {
+            continue;
         };
+        let label: String = format!(
+            "{name}  ({} discs, {} moves)",
+            recipe.disk_count,
+            recipe.default_moves.len()
+        );
+        let base: i32 = ID_RECIPE_BASE + 2 * i as i32;
         let submenu: Menu = Menu::builder().build();
-        let view_item: MenuItem = submenu
-            .append(
-                ID_ANY as i32,
-                "&View",
-                "Show this recipe's steps",
-                ItemKind::Normal,
-            )
-            .expect("append View");
-        let apply_item: MenuItem = submenu
-            .append(
-                ID_ANY as i32,
-                "&Apply",
-                "Replay under the current labelling",
-                ItemKind::Normal,
-            )
-            .expect("append Apply");
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            let n: String = name.clone();
-            view_item.on_click(move |_| view_recipe(&st, &n));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            let n: String = name.clone();
-            apply_item.on_click(move |_| apply_recipe_by_name(&st, &n));
-        }
-        state
-            .borrow()
-            .recipe_menu
-            .append_submenu(submenu, &label, "");
+        submenu.append(base, "&View", "Show this recipe's steps", ItemKind::Normal);
+        submenu.append(
+            base + 1,
+            "&Apply",
+            "Replay under the current labelling",
+            ItemKind::Normal,
+        );
+        st.recipe_menu.append_submenu(submenu, &label, "");
     }
 }
 
@@ -842,35 +840,36 @@ fn main() {
             .build();
 
         // --- Menu bar, built in code (the shared XRC stays untouched) ---
+        // The menu bar is built in code and dispatched by id through
+        // frame.on_menu_selected (below) -- MenuItem::on_click is a no-op for
+        // menu-bar items. Only the handles refresh() needs are kept: the six
+        // Relabel items (active-bullet + Tier-2 enable), the Save item (enable),
+        // and the two View check items (checked state); everything else is
+        // dispatched purely by its id.
         let game_menu: Menu = Menu::builder().build();
-        let new_item: MenuItem = game_menu
-            .append(
-                ID_ANY as i32,
-                "&New Game…\tCtrl+N",
-                "Start a new game",
-                ItemKind::Normal,
-            )
-            .expect("New");
-        let new_same_item: MenuItem = game_menu
-            .append(
-                ID_ANY as i32,
-                "New Game (Same &Size)\tCtrl+Shift+N",
-                "Start a new game with the same disc count",
-                ItemKind::Normal,
-            )
-            .expect("New Same");
+        game_menu.append(
+            ID_NEW,
+            "&New Game…\tCtrl+N",
+            "Start a new game",
+            ItemKind::Normal,
+        );
+        game_menu.append(
+            ID_NEW_SAME,
+            "New Game (Same &Size)\tCtrl+Shift+N",
+            "Start a new game with the same disc count",
+            ItemKind::Normal,
+        );
         game_menu.append_separator();
-        let exit_item: MenuItem = game_menu
-            .append(ID_EXIT, "&Quit\tCtrl+Q", "Quit", ItemKind::Normal)
-            .expect("Quit");
+        game_menu.append(ID_EXIT, "&Quit\tCtrl+Q", "Quit", ItemKind::Normal);
 
         let relabel_menu: Menu = Menu::builder().build();
         let relabel_items: Vec<MenuItem> = RELABEL_PERMS
             .iter()
-            .map(|perm| {
+            .enumerate()
+            .map(|(i, perm)| {
                 relabel_menu
                     .append(
-                        ID_ANY as i32,
+                        ID_RELABEL_BASE + i as i32,
                         &format!("{} {} {}", perm[0], perm[1], perm[2]),
                         "Relabel the pegs to this order",
                         ItemKind::Normal,
@@ -882,7 +881,7 @@ fn main() {
         let recipe_menu_build: Menu = Menu::builder().build();
         let recipe_save_item: MenuItem = recipe_menu_build
             .append(
-                ID_ANY as i32,
+                ID_SAVE,
                 "&Save Current Solution\tCtrl+S",
                 "Save the just-won solution as a reusable recipe",
                 ItemKind::Normal,
@@ -894,27 +893,23 @@ fn main() {
 
         let view_menu: Menu = Menu::builder().build();
         let style_menu: Menu = Menu::builder().build();
-        let style_text_item: MenuItem = style_menu
-            .append(
-                ID_ANY as i32,
-                "&Text",
-                "Show the board as monospace text",
-                ItemKind::Radio,
-            )
-            .expect("Text");
-        let style_graphics_item: MenuItem = style_menu
-            .append(
-                ID_ANY as i32,
-                "&Graphics",
-                "Show the graphical board",
-                ItemKind::Radio,
-            )
-            .expect("Graphics");
+        style_menu.append(
+            ID_STYLE_TEXT,
+            "&Text",
+            "Show the board as monospace text",
+            ItemKind::Radio,
+        );
+        style_menu.append(
+            ID_STYLE_GRAPHICS,
+            "&Graphics",
+            "Show the graphical board",
+            ItemKind::Radio,
+        );
         view_menu.append_submenu(style_menu, "Board &Style", "");
         view_menu.append_separator();
         let history_toggle: MenuItem = view_menu
             .append(
-                ID_ANY as i32,
+                ID_HISTORY_TOGGLE,
                 "Move &history\tCtrl+H",
                 "Show the running list of moves in default 1-2-3 labels",
                 ItemKind::Check,
@@ -922,7 +917,7 @@ fn main() {
             .expect("history toggle");
         let howto_toggle: MenuItem = view_menu
             .append(
-                ID_ANY as i32,
+                ID_HOWTO_TOGGLE,
                 "How to &play",
                 "Show the How-to-Play panel",
                 ItemKind::Check,
@@ -930,18 +925,14 @@ fn main() {
             .expect("howto toggle");
 
         let help_menu: Menu = Menu::builder().build();
-        let help_howto_item: MenuItem = help_menu
-            .append(
-                ID_ANY as i32,
-                "How to &Play",
-                "Show the goal and the rules",
-                ItemKind::Normal,
-            )
-            .expect("Help howto");
+        help_menu.append(
+            ID_HELP_HOWTO,
+            "How to &Play",
+            "Show the goal and the rules",
+            ItemKind::Normal,
+        );
         help_menu.append_separator();
-        let about_item: MenuItem = help_menu
-            .append(ID_ABOUT, "&About", "About this program", ItemKind::Normal)
-            .expect("About");
+        help_menu.append(ID_ABOUT, "&About", "About this program", ItemKind::Normal);
 
         let menu_bar: MenuBar = MenuBar::builder()
             .append(game_menu, "&Game")
@@ -956,7 +947,9 @@ fn main() {
             .get_menu_bar()
             .and_then(|mb| mb.get_menu(2))
             .expect("Recipe menu");
-        style_graphics_item.check(true);
+        if let Some(mb) = frame.get_menu_bar() {
+            mb.check_item(ID_STYLE_GRAPHICS, true); // graphics is the default board
+        }
         history_toggle.check(true);
         howto_toggle.check(show_howto_on_start);
 
@@ -1168,72 +1161,66 @@ fn main() {
             btn.on_click(move |_| on_move(&st, f, t));
         }
 
-        // Menu items (wired by handle; the menu is code-built, so no id dispatch).
+        // Menu dispatch: ONE handler on the frame catches every menu command by
+        // id. MenuItem::on_click is a no-op for menu-bar items (it binds on the
+        // item's parent *window*, which is null for a code-built menu), so all
+        // menu actions -- static and the dynamic per-recipe items -- route here.
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            new_item.on_click(move |_| on_new_game(&st));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            new_same_item.on_click(move |_| on_new_game_same(&st));
-        }
-        {
-            let f: Frame = frame.clone();
-            exit_item.on_click(move |_| f.close(true));
-        }
-        {
-            let f: Frame = frame.clone();
-            about_item.on_click(move |_| {
-                MessageDialog::builder(
-                    &f,
-                    "Towers of Hanoi\n\nA teaching tool: solve small, relabel pegs, \
-                     replay. Shares its model and dispatcher with the CLI and TUI \
-                     front-ends.",
-                    "About Towers of Hanoi",
-                )
-                .build()
-                .show_modal();
-            });
-        }
-        for (item, perm) in relabel_items.iter().zip(RELABEL_PERMS.iter()) {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            let perm: [u32; 3] = *perm;
-            item.on_click(move |_| on_relabel(&st, perm));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            style_text_item.on_click(move |_| set_board_mode(&st, false));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            style_graphics_item.on_click(move |_| set_board_mode(&st, true));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            // MenuItem is Copy; the handle was moved into the state, so copy it
-            // back out for the closure.
-            let toggle: MenuItem = state.borrow().history_toggle;
-            toggle.on_click(move |_| toggle_history(&st));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            let save: MenuItem = state.borrow().recipe_save_item;
-            save.on_click(move |_| on_save(&st));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            help_howto_item.on_click(move |_| show_howto(&st, true));
-        }
-        {
-            let st: Rc<RefCell<GuiState>> = state.clone();
-            let toggle: MenuItem = state.borrow().howto_toggle;
-            toggle.on_click(move |_| {
-                let checked: bool = st.borrow().howto_toggle.is_checked();
-                show_howto(&st, checked);
+            let frame_for_menu: Frame = frame.clone();
+            frame.on_menu_selected(move |ev: MenuEventData| {
+                let id: i32 = ev.get_id();
+                match id {
+                    ID_NEW => on_new_game(&st),
+                    ID_NEW_SAME => on_new_game_same(&st),
+                    ID_EXIT => frame_for_menu.close(true),
+                    ID_ABOUT => {
+                        MessageDialog::builder(
+                            &frame_for_menu,
+                            "Towers of Hanoi\n\nA teaching tool: solve small, relabel pegs, \
+                             replay. Shares its model and dispatcher with the CLI and TUI \
+                             front-ends.",
+                            "About Towers of Hanoi",
+                        )
+                        .build()
+                        .show_modal();
+                    }
+                    ID_STYLE_TEXT => set_board_mode(&st, false),
+                    ID_STYLE_GRAPHICS => set_board_mode(&st, true),
+                    ID_HISTORY_TOGGLE => toggle_history(&st),
+                    ID_HOWTO_TOGGLE => {
+                        // The check item has already toggled; mirror its state.
+                        let checked: bool = st.borrow().howto_toggle.is_checked();
+                        show_howto(&st, checked);
+                    }
+                    ID_HELP_HOWTO => show_howto(&st, true),
+                    ID_SAVE => on_save(&st),
+                    _ if (ID_RELABEL_BASE..ID_RELABEL_BASE + RELABEL_PERMS.len() as i32)
+                        .contains(&id) =>
+                    {
+                        on_relabel(&st, RELABEL_PERMS[(id - ID_RELABEL_BASE) as usize]);
+                    }
+                    _ if id >= ID_RECIPE_BASE => {
+                        // ID_RECIPE_BASE + 2i = View, +2i+1 = Apply, i indexing
+                        // registry.names() (sorted, same order as rebuild).
+                        let offset: i32 = id - ID_RECIPE_BASE;
+                        let i: usize = (offset / 2) as usize;
+                        let is_apply: bool = offset % 2 == 1;
+                        let name: Option<String> = st.borrow().registry.names().into_iter().nth(i);
+                        if let Some(name) = name {
+                            if is_apply {
+                                apply_recipe_by_name(&st, &name);
+                            } else {
+                                view_recipe(&st, &name);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             });
         }
 
-        // How-to-Play panel controls.
+        // How-to-Play panel controls (real parent windows, so on_click fires).
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
             howto_got_it.on_click(move |_| show_howto(&st, false));
