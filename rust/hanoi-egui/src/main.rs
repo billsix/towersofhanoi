@@ -187,7 +187,7 @@ impl HanoiApp {
         if let Some(line) = result.lines.first() {
             self.status = line.clone();
         } else {
-            self.status = format!("Moved {from_label} \u{2192} {to_label}.");
+            self.status = format!("Moved {from_label} -> {to_label}.");
             if relabelled {
                 self.show_rebinding("Rebinding for your move", &[(from_label, to_label)]);
             }
@@ -221,7 +221,7 @@ impl HanoiApp {
         let move_count: usize = moves.as_ref().map_or(0, Vec::len);
         let result: DispatchResult = self.dispatch(&Command::Apply(name.to_string()));
         if move_count > 0 {
-            self.status = format!("Applied '{name}' \u{2014} {move_count} moves.");
+            self.status = format!("Applied '{name}' -- {move_count} moves.");
         } else if let Some(last) = result.lines.last() {
             self.status = last.clone();
         }
@@ -261,7 +261,7 @@ impl HanoiApp {
         } else {
             format!("{} more than the minimum ({min}).", moves - min)
         };
-        self.status = format!("Solved in {moves} moves \u{2014} {verdict}  Save to keep it.");
+        self.status = format!("Solved in {moves} moves -- {verdict}  Save to keep it.");
     }
 
     /// Paint the board (solid fills) into `rect` with `painter`.
@@ -428,6 +428,22 @@ impl eframe::App for HanoiApp {
                             }
                         }
                     });
+                    // Tier-2: relabelling is a menu too (one item per permutation,
+                    // the active labelling marked), dimmed until the first win and
+                    // while the current game is already solved.
+                    ui.menu_button("Relabel", |ui| {
+                        ui.add_enabled_ui(!won, |ui| {
+                            for perm in RELABEL_PERMS {
+                                let active: bool = perm == current;
+                                let text: String =
+                                    format!("{} {} {}", perm[0], perm[1], perm[2]);
+                                if ui.radio(active, text).clicked() {
+                                    self.do_relabel(perm);
+                                    ui.close_menu();
+                                }
+                            }
+                        });
+                    });
                 });
                 ui.menu_button("Help", |ui| {
                     if ui.button("How to Play").clicked() {
@@ -513,7 +529,7 @@ impl eframe::App for HanoiApp {
                             if ui
                                 .add_enabled(
                                     enabled,
-                                    egui::Button::new(format!("{f} \u{2192} {t}")),
+                                    egui::Button::new(format!("{f} -> {t}")),
                                 )
                                 .clicked()
                             {
@@ -522,25 +538,6 @@ impl eframe::App for HanoiApp {
                         }
                     });
                 }
-            });
-
-            ui.separator();
-
-            // Tier-2: relabelling is dimmed until the first win.
-            ui.add_enabled_ui(self.won_once, |ui| {
-                ui.label("Relabel pegs (physical 1 2 3 \u{2192}):");
-                ui.horizontal_wrapped(|ui| {
-                    for perm in RELABEL_PERMS {
-                        let active: bool = perm == current;
-                        let text: String = format!("{} {} {}", perm[0], perm[1], perm[2]);
-                        if ui
-                            .add_enabled(!won, egui::SelectableLabel::new(active, text))
-                            .clicked()
-                        {
-                            self.do_relabel(perm);
-                        }
-                    }
-                });
             });
         });
 
