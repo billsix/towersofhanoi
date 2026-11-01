@@ -106,6 +106,25 @@ conformant hanoi UI organizes its features into three tiers:
 5. **Preserve what already matches the HIG** — dim-don't-hide for illegal actions (perceived
    stability), colour-follows-label (`feature-spec.md` §3), and the three-panel rebinding view as the
    direct-manipulation showpiece of the method.
+6. **The shared wx layout (`ui/hanoi.xrc`) stays structural; each wx front-end wires the flow in
+   code.** The three wx front-ends (wxPython oracle, C++ wxWidgets, Rust wxDragon) load the *same*
+   `ui/hanoi.xrc`, so the tier structure is **not** baked into the XRC: each hides/ignores the XRC
+   recipe sidebar and builds the Recipe menu, history panel, goal line, and How-to-Play panel
+   programmatically. This keeps the XRC a stable shared contract — baking the tiers in would force
+   reworking all three front-ends at once and risk regressing them together — and lets each adapt to
+   its toolkit's limits (e.g. wxDragon builds its menu bar in code, since it has no runtime
+   menu-insert on an XRC-loaded `MenuBar`, and *hides* rather than destroys the sidebar, since it has
+   no sizer detach). *(Decided William Emerison Six <billsix@gmail.com>, delegated 2026-11-01;
+   confirmed by the oracle, which already works this way on the unchanged XRC.)*
+7. **Direct manipulation: drag a disc, and keep the buttons.** Every graphical front-end lets the
+   player drag a peg's top disc onto another peg — **nearest-peg targeting** (forgiving), an illegal
+   drop **snaps back** with the usual rejection reason, dragging is **off once solved** — *and* keeps
+   the move buttons as the keyboard/accessible path (two affordances for one action, not a choice).
+   The drop resolves to a `<from>→<to>` move dispatched through the **same shared core** as a button
+   (one dispatch path), so the rule lives in the core, not the gesture. Per-toolkit mechanics differ
+   (immediate-mode frameworks track the drag across frames; retained-mode wx captures the mouse; the
+   Tauri webview uses canvas pointer events) but the behaviour is identical. *(Approved as a wxPython
+   spike, then fanned out to all five graphical UIs, 2026-11-01.)*
 
 ## Relationship to the feature spec
 

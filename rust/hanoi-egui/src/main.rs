@@ -96,6 +96,28 @@ struct HanoiApp {
     /// Scrollable detail (a recipe's moves, or a rebinding table), shown on demand.
     detail_title: String,
     detail: Vec<String>,
+    /// Disc drag-drop (spike, mirrored across the GUIs): the physical peg (0,1,2)
+    /// whose top disc is being dragged, its size, and the pointer position.
+    drag_src: Option<usize>,
+    drag_size: u32,
+    drag_pos: egui::Pos2,
+}
+
+/// Board layout derived from the paint rect, shared by `paint_board` (drawing)
+/// and the drag hit-test (so both agree on peg centres and disc sizes).
+struct BoardGeom {
+    relabelled: bool,
+    margin: f32,
+    base_h: f32,
+    label_band_h: f32,
+    peg_w: f32,
+    peg_h: f32,
+    peg_top_y: f32,
+    base_y: f32,
+    disc_h: f32,
+    max_disc_w: f32,
+    peg_centres: [f32; 3],
+    n: u32,
 }
 
 impl HanoiApp {
@@ -112,6 +134,9 @@ impl HanoiApp {
             help_shown: false,
             detail_title: String::new(),
             detail: Vec::new(),
+            drag_src: None,
+            drag_size: 0,
+            drag_pos: egui::Pos2::ZERO,
         }
     }
 
@@ -264,15 +289,11 @@ impl HanoiApp {
         self.status = format!("Solved in {moves} moves -- {verdict}  Save to keep it.");
     }
 
-    /// Paint the board (solid fills) into `rect` with `painter`.
-    fn paint_board(&self, painter: &egui::Painter, rect: egui::Rect) {
-        painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(30, 36, 50));
-        let n: u32 = self.game.num_disks;
-        if n == 0 {
-            return;
-        }
+    /// Board layout from the paint rect (peg centres, disc sizes), shared by the
+    /// drawing and the drag hit-test so they can't disagree.
+    fn board_geometry(&self, rect: egui::Rect) -> BoardGeom {
+        let n: u32 = self.game.num_disks.max(1);
         let relabelled: bool = self.labelling != Labelling::OneTwoThree;
-
         let w: f32 = rect.width();
         let h: f32 = rect.height();
         let margin: f32 = 20.0;
@@ -289,13 +310,48 @@ impl HanoiApp {
         let peg_top_y: f32 = base_y - peg_h;
         let peg_centres: [f32; 3] =
             [0, 1, 2].map(|i| rect.left() + margin + peg_zone_w * (i as f32 + 0.5));
+        BoardGeom {
+            relabelled,
+            margin,
+            base_h,
+            label_band_h,
+            peg_w,
+            peg_h,
+            peg_top_y,
+            base_y,
+            disc_h,
+            max_disc_w,
+            peg_centres,
+            n,
+        }
+    }
+
+    /// Paint the board (solid fills) into `rect` with `painter`. The disc being
+    /// dragged (if any) is omitted from its home peg and drawn at the pointer.
+    fn paint_board(&self, painter: &egui::Painter, rect: egui::Rect, geom: &BoardGeom) {
+        painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(30, 36, 50));
+        if self.game.num_disks == 0 {
+            return;
+        }
+        let relabelled: bool = geom.relabelled;
+        let w: f32 = rect.width();
+        let n: u32 = geom.n;
+        let base_h: f32 = geom.base_h;
+        let label_band_h: f32 = geom.label_band_h;
+        let peg_w: f32 = geom.peg_w;
+        let peg_h: f32 = geom.peg_h;
+        let peg_top_y: f32 = geom.peg_top_y;
+        let base_y: f32 = geom.base_y;
+        let disc_h: f32 = geom.disc_h;
+        let max_disc_w: f32 = geom.max_disc_w;
+        let peg_centres: [f32; 3] = geom.peg_centres;
         let font: egui::FontId = egui::FontId::proportional(13.0);
 
         // Base bar.
         painter.rect_filled(
             egui::Rect::from_min_size(
-                egui::pos2(rect.left() + margin, base_y),
-                egui::vec2(w - 2.0 * margin, base_h),
+                egui::pos2(rect.left() + geom.margin, base_y),
+                egui::vec2(w - 2.0 * geom.margin, base_h),
             ),
             4.0,
             egui::Color32::from_rgb(150, 110, 70),
@@ -313,10 +369,13 @@ impl HanoiApp {
             );
         }
 
-        // Discs (bottom-up), coloured by size.
+        // Discs (bottom-up), coloured by size; omit the one being dragged.
         for (p, stack) in self.game.towers.iter().enumerate() {
             let cx: f32 = peg_centres[p];
             for (idx, &size) in stack.iter().enumerate() {
+                if self.drag_src == Some(p) && idx + 1 == stack.len() {
+                    continue;
+                }
                 let dw: f32 = disc_width(size, n, max_disc_w);
                 let y: f32 = base_y - (idx as f32 + 1.0) * disc_h * 1.04;
                 painter.rect_filled(
@@ -358,6 +417,61 @@ impl HanoiApp {
                     font.clone(),
                     egui::Color32::from_rgb(170, 178, 195),
                 );
+            }
+        }
+
+        // The dragged disc follows the pointer, drawn on top (gold tint).
+        if self.drag_src.is_some() {
+            let dw: f32 = disc_width(self.drag_size, n, max_disc_w);
+            painter.rect_filled(
+                egui::Rect::from_center_size(self.drag_pos, egui::vec2(dw, disc_h)),
+                disc_h / 3.0,
+                egui::Color32::from_rgb(235, 225, 150),
+            );
+        }
+    }
+
+    /// Handle the board drag gesture from the painter's `Response`: press picks
+    /// up the top disc of the nearest peg, drag moves it, release drops on the
+    /// nearest peg (forgiving) and dispatches through `do_move`. Off once won.
+    /// Mirrors the wxPython GraphicsBoardRenderer spike + the ImGui port.
+    fn handle_board_drag(&mut self, response: &egui::Response, geom: &BoardGeom) {
+        if self.is_won() {
+            self.drag_src = None;
+            return;
+        }
+        let nearest = |x: f32| -> usize {
+            let mut best: usize = 0;
+            for i in 1..3 {
+                if (x - geom.peg_centres[i]).abs() < (x - geom.peg_centres[best]).abs() {
+                    best = i;
+                }
+            }
+            best
+        };
+        if response.drag_started() {
+            if let Some(pos) = response.interact_pointer_pos() {
+                let peg: usize = nearest(pos.x);
+                if let Some(&top) = self.game.towers[peg].last() {
+                    self.drag_src = Some(peg);
+                    self.drag_size = top;
+                    self.drag_pos = pos;
+                }
+            }
+        }
+        if response.dragged() {
+            if let Some(pos) = response.interact_pointer_pos() {
+                self.drag_pos = pos;
+            }
+        }
+        if response.drag_stopped() {
+            if let Some(src) = self.drag_src.take() {
+                let target: usize = nearest(self.drag_pos.x);
+                if target != src {
+                    let from_label: u32 = (change_labels_on_pegs(self.labelling, src) + 1) as u32;
+                    let to_label: u32 = (change_labels_on_pegs(self.labelling, target) + 1) as u32;
+                    self.do_move(from_label, to_label);
+                }
             }
         }
     }
@@ -417,10 +531,7 @@ impl eframe::App for HanoiApp {
                                         self.view_recipe(&name);
                                         ui.close_menu();
                                     }
-                                    if ui
-                                        .add_enabled(!won, egui::Button::new("Apply"))
-                                        .clicked()
-                                    {
+                                    if ui.add_enabled(!won, egui::Button::new("Apply")).clicked() {
                                         self.apply_recipe_named(&name);
                                         ui.close_menu();
                                     }
@@ -435,8 +546,7 @@ impl eframe::App for HanoiApp {
                         ui.add_enabled_ui(!won, |ui| {
                             for perm in RELABEL_PERMS {
                                 let active: bool = perm == current;
-                                let text: String =
-                                    format!("{} {} {}", perm[0], perm[1], perm[2]);
+                                let text: String = format!("{} {} {}", perm[0], perm[1], perm[2]);
                                 if ui.radio(active, text).clicked() {
                                     self.do_relabel(perm);
                                     ui.close_menu();
@@ -462,7 +572,9 @@ impl eframe::App for HanoiApp {
         // optimal 2^N-1, then the numbered default-label tally).
         egui::SidePanel::right("history").show(ctx, |ui| {
             ui.heading("History");
-            ui.label(format!("{moves} moves (optimal {min}, default 1-2-3 labels)"));
+            ui.label(format!(
+                "{moves} moves (optimal {min}, default 1-2-3 labels)"
+            ));
             ui.separator();
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let tally: Vec<String> = format_move_tally(&self.recorder.default_moves);
@@ -515,8 +627,10 @@ impl eframe::App for HanoiApp {
                 (ui.available_height() - 120.0).max(160.0),
             );
             let (response, painter): (egui::Response, egui::Painter) =
-                ui.allocate_painter(desired, egui::Sense::hover());
-            self.paint_board(&painter, response.rect);
+                ui.allocate_painter(desired, egui::Sense::click_and_drag());
+            let geom: BoardGeom = self.board_geometry(response.rect);
+            self.handle_board_drag(&response, &geom);
+            self.paint_board(&painter, response.rect, &geom);
 
             ui.separator();
 
@@ -527,10 +641,7 @@ impl eframe::App for HanoiApp {
                         for &(f, t) in MOVE_PAIRS.iter().filter(|(f, _)| *f == from) {
                             let enabled: bool = !won && legal.contains(&(f, t));
                             if ui
-                                .add_enabled(
-                                    enabled,
-                                    egui::Button::new(format!("{f} -> {t}")),
-                                )
+                                .add_enabled(enabled, egui::Button::new(format!("{f} -> {t}")))
                                 .clicked()
                             {
                                 self.do_move(f, t);
