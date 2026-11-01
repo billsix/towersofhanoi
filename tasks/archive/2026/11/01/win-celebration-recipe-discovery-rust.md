@@ -9,9 +9,9 @@ surface the win celebration: `hanoi-cli` + `hanoi` (ratatui) print it each win (
 21), egui + tauri `cargo check`, `deno check/lint/fmt` on the Tauri frontend, `cargo fmt`. **Pending:**
 the maintainer's display-verify of the four GUIs (`make wx`/`tauri`/`egui`/`tui`) — then this archives.
 **Priority:** 5 **Difficulty:** 5 (five front-ends)
-**Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
+**Part of:** `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
 open questions that **block implementation**).
-**Depends on:** `tasks/win-celebration-recipe-discovery-python.md` (the Python oracle fixes the wording
+**Depends on:** `tasks/archive/2026/11/01/win-celebration-recipe-discovery-python.md` (the Python oracle fixes the wording
 and updates the spec; mirror that here — don't invent wording).
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>).
 
@@ -25,7 +25,7 @@ wire all **five** front-ends to surface it at the win: `hanoi-cli` (CLI), `hanoi
 
 ## Context (read first)
 
-- Umbrella design + open questions: `tasks/win-celebration-recipe-discovery.md`. The **wording is the
+- Umbrella design + open questions: `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`. The **wording is the
   Python task's output** — this task reproduces it, it does not redesign it.
 - The crate mirrors the Python package module-for-module (`rust/CLAUDE.md`): put the helper in the
   `hanoigame` presenter module next to the move-tally formatter; **annotate every binding** (house style).
@@ -59,7 +59,7 @@ wire all **five** front-ends to surface it at the win: `hanoi-cli` (CLI), `hanoi
 
 ## Related
 
-- Umbrella + Python oracle: `tasks/win-celebration-recipe-discovery.md`,
-  `tasks/win-celebration-recipe-discovery-python.md`.
+- Umbrella + Python oracle: `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`,
+  `tasks/archive/2026/11/01/win-celebration-recipe-discovery-python.md`.
 - `rust/CLAUDE.md` (the crate/front-end map), `tasks/reference/tauri-frontend-native-look.md` (the Tauri
   `<dialog>` pattern used by How-to-Play), `tasks/reference/feature-spec.md`.

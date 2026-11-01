@@ -70,12 +70,12 @@ celebration *explains* it. Dragging is already off once won (`ui-design-principl
 
 ## Children (per language; Python first, the other two mirror it)
 
-- **Python (oracle — do first):** `tasks/win-celebration-recipe-discovery-python.md` — the core helper,
+- **Python (oracle — do first):** `tasks/archive/2026/11/01/win-celebration-recipe-discovery-python.md` — the core helper,
   the three Python front-ends, and the **feature-spec + compliance-checklist** update.
-- **Rust (depends on Python):** `tasks/win-celebration-recipe-discovery-rust.md` — mirror the helper into
+- **Rust (depends on Python):** `tasks/archive/2026/11/01/win-celebration-recipe-discovery-rust.md` — mirror the helper into
   the `hanoigame` crate; wire all five front-ends (cli, ratatui TUI, wxDragon, **Tauri — upgrade the
   existing inline hint**, egui).
-- **C++ (depends on Python):** `tasks/win-celebration-recipe-discovery-cpp.md` — mirror into the
+- **C++ (depends on Python):** `tasks/archive/2026/11/01/win-celebration-recipe-discovery-cpp.md` — mirror into the
   header-only core; wire the ImGui GUI (native + wasm) and the wxWidgets GUI.
 
 Ordering is **Priority + "Depends on"**, not `blocked` (each language is within our control once the

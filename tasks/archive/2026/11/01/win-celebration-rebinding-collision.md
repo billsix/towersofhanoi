@@ -12,7 +12,7 @@ Text UIs unchanged (they show everything inline at the win). **Pending:** the ma
 of the GUIs — then this archives alongside the win-celebration tasks.
 **Priority:** 5 **Difficulty:** 3
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). Found during the display-verify of
-the win-celebration work (`tasks/win-celebration-recipe-discovery.md`): in the wxPython GUI, a recipe
+the win-celebration work (`tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`): in the wxPython GUI, a recipe
 **apply under a relabelling that also won** opened the three-panel rebinding window **and** the win
 celebration modal at the same time — confusing.
 
@@ -73,6 +73,6 @@ order; this is a GUI-only problem.
 
 ## Related
 
-- `tasks/win-celebration-recipe-discovery.md` (+ the python/rust/cpp children) — the feature this refines.
+- `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md` (+ the python/rust/cpp children) — the feature this refines.
 - `tasks/reference/feature-spec.md` §4.8 (rebinding view), §4.9 (win celebration), §4.5 (save prompt),
   §3.5 (the learning flow / "win is the teaching hinge").

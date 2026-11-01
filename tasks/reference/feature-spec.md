@@ -334,7 +334,7 @@ authority: `tasks/reference/ui-design-principles.md` rulings 1–7. Archived fan
 
 **Update (2026-11-01):** row 20 (win celebration + recipe discovery) added. Implemented in **Python**
 (the oracle — `presenter.format_win_celebration` + `default_recipe_name`, wired into all three
-front-ends); **Rust and C++ are scheduled** to mirror it (`tasks/win-celebration-recipe-discovery.md`
+front-ends); **Rust and C++ are scheduled** to mirror it (`tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`
 umbrella + the per-language children).
 
 ## Related

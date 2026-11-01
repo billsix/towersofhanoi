@@ -6,9 +6,9 @@ celebration; feature-spec row 20 added. Gate green in-container (ty src+tests, 1
 doctest + first-win test, ruff). **Pending:** the maintainer's display-verify of the wxPython win modal
 (agent can't drive the display) — then this archives.
 **Priority:** 4 **Difficulty:** 4
-**Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — read it for the cross-cutting design,
+**Part of:** `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md` (umbrella — read it for the cross-cutting design,
 the HIG grounding, and the open questions, which **block implementation here**).
-**Next:** `tasks/win-celebration-recipe-discovery-rust.md`, `tasks/win-celebration-recipe-discovery-cpp.md`
+**Next:** `tasks/archive/2026/11/01/win-celebration-recipe-discovery-rust.md`, `tasks/archive/2026/11/01/win-celebration-recipe-discovery-cpp.md`
 depend on the wording this task fixes.
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>).
 
@@ -23,7 +23,7 @@ update `feature-spec.md` + the compliance checklist. "Done" = all three Python U
 
 ## Context (read first)
 
-- Umbrella design + open questions: `tasks/win-celebration-recipe-discovery.md`. **Do not implement until
+- Umbrella design + open questions: `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`. **Do not implement until
   the umbrella's four questions are addressed** (they set trigger, save-in-popup, core-helper, spec-change).
 - Core files: `python/src/hanoigame/presenter.py` (home for the text helper, beside `format_move_tally`),
   `engine.py` (`is_won`/optimal `min_moves`/`save_recipe`; the "first win this session" flag may live on
@@ -61,6 +61,6 @@ update `feature-spec.md` + the compliance checklist. "Done" = all three Python U
 
 ## Related
 
-- Umbrella: `tasks/win-celebration-recipe-discovery.md`.
+- Umbrella: `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`.
 - `tasks/reference/feature-spec.md` (the spec this updates; Python is its authority),
   `tasks/reference/ui-design-principles.md`.

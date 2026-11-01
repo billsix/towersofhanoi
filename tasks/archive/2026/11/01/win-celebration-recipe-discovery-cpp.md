@@ -11,9 +11,9 @@ maintainer's `make test`/`make gui`/`make wx` + display run, and `make webassemb
 not compiled here — the popup path uses only core ImGui calls, so it should build, but confirm) — then
 this archives.
 **Priority:** 5 **Difficulty:** 5
-**Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
+**Part of:** `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
 open questions that **block implementation**).
-**Depends on:** `tasks/win-celebration-recipe-discovery-python.md` (mirror the oracle's wording + the spec
+**Depends on:** `tasks/archive/2026/11/01/win-celebration-recipe-discovery-python.md` (mirror the oracle's wording + the spec
 update; don't invent wording).
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>).
 
@@ -27,7 +27,7 @@ later wins, wording matches the oracle (a `doctest` `TEST_CASE` asserts it), the
 
 ## Context (read first)
 
-- Umbrella design + open questions: `tasks/win-celebration-recipe-discovery.md`. Wording is the **Python
+- Umbrella design + open questions: `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`. Wording is the **Python
   task's output** — reproduce it.
 - C++ layering + GUIs: `tasks/reference/imgui-cpp-native-and-wasm.md` and `cpp/CLAUDE.md`. The engine is
   header-only in `cpp/src/`; put the celebration-text helper there (free function / presenter header) so
@@ -56,6 +56,6 @@ later wins, wording matches the oracle (a `doctest` `TEST_CASE` asserts it), the
 
 ## Related
 
-- Umbrella + Python oracle: `tasks/win-celebration-recipe-discovery.md`,
-  `tasks/win-celebration-recipe-discovery-python.md`.
+- Umbrella + Python oracle: `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md`,
+  `tasks/archive/2026/11/01/win-celebration-recipe-discovery-python.md`.
 - `tasks/reference/imgui-cpp-native-and-wasm.md`, `cpp/CLAUDE.md`, `tasks/reference/feature-spec.md`.

@@ -64,9 +64,20 @@ makes presentation a per-category choice while the *features* stay mandatory.
   out of the crowded win moment **without losing it**.
 - **Perceived stability / dim-don't-remove**: the Tier-2 menus still *enable* at the first win (unchanged);
   the celebration explains what just became available, rather than relying on the player noticing.
-- The four alternatives considered — suppress-on-collision, sequence-after-close, merge-into-the-rebinding
-  window, non-modal banner — and why each lost, are logged in
-  `tasks/win-celebration-rebinding-collision.md`.
+### Alternatives considered (and why save-at-discard won)
+
+1. **Suppress the celebration when a rebinding window is shown** — removes the collision, but also drops
+   the congratulation and the save offer on those wins.
+2. **Sequence the celebration after the rebinding window closes** — keeps it on every win, but adds a
+   second window to dismiss and is awkward in the immediate-mode GUIs (egui/ImGui have no close event).
+3. **Merge a "Solved! Save?" footer into the rebinding window** — one window, but invasive (the rebinding
+   layout is a shared XRC/panel) and only helps the relabelled case.
+4. **Make the celebration a non-modal in-window banner** — never competes as a window, but loses the
+   deliberate "stop and notice" modal that works well for a clean win.
+5. **(chosen) Move the save to the new-game / discard boundary** — removes the collision at the source:
+   the win moment carries teaching only (and only on the first win), and the save happens later at a calm
+   boundary. The full options log is
+   `tasks/archive/2026/11/01/win-celebration-rebinding-collision.md`.
 
 ## The shared mechanism (how it is built)
 
@@ -87,5 +98,5 @@ makes presentation a per-category choice while the *features* stay mandatory.
   win is the Tier-2 hinge).
 - `tasks/reference/feature-spec.md` — §3.5 (learning flow), §4.5 (save a recipe), §4.8 (rebinding view),
   §4.9 (win), §6 (per-category presentation).
-- `tasks/win-celebration-recipe-discovery.md` (+ the python/rust/cpp children) — the implementation;
-  `tasks/win-celebration-rebinding-collision.md` — the options log for this decision.
+- `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md` (+ the python/rust/cpp children) — the implementation;
+  `tasks/archive/2026/11/01/win-celebration-rebinding-collision.md` — the options log for this decision.
