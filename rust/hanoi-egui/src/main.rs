@@ -497,6 +497,24 @@ impl eframe::App for HanoiApp {
         // the How-to-Play window.
         egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
+                // Game menu — pick a disc count for a New Game, or restart at the
+                // current size, matching the wx front-ends' Game menu.
+                ui.menu_button("Game", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Discs:");
+                        ui.add(egui::DragValue::new(&mut self.disc_count).range(1..=MAX_DISKS));
+                    });
+                    if ui.button("New Game").clicked() {
+                        let n: u32 = self.disc_count.clamp(1, MAX_DISKS);
+                        self.new_game(n);
+                        ui.close_menu();
+                    }
+                    if ui.button("New Game (Same Size)").clicked() {
+                        let n: u32 = self.game.num_disks.max(1);
+                        self.new_game(n);
+                        ui.close_menu();
+                    }
+                });
                 ui.add_enabled_ui(self.won_once, |ui| {
                     ui.menu_button("Recipe", |ui| {
                         let can_save: bool = won && !self.recorder.default_moves.is_empty();
@@ -604,18 +622,7 @@ impl eframe::App for HanoiApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // New game controls.
-            ui.horizontal(|ui| {
-                ui.label("Discs:");
-                ui.add(egui::DragValue::new(&mut self.disc_count).range(1..=MAX_DISKS));
-                if ui.button("New game").clicked() {
-                    let n: u32 = self.disc_count.clamp(1, MAX_DISKS);
-                    self.new_game(n);
-                }
-            });
-            ui.separator();
-
-            // Tier-1 goal line.
+            // Tier-1 goal line. (New Game lives on the Game menu now.)
             ui.label(format!(
                 "Goal: move all {n} discs to peg 3   (Moves: {moves} / optimal {min})"
             ));

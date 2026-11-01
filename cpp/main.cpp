@@ -413,8 +413,10 @@ void draw_menubar(App &app) {
     return;
   }
   if (ImGui::BeginMenu("Game")) {
-    if (ImGui::BeginMenu("New game (disks)")) {
-      for (int n = 1; n <= 8; ++n) {
+    // New Game picks a disc count (1-10, matching the wx front-ends);
+    // New Game (Same Size) restarts at the current count.
+    if (ImGui::BeginMenu("New Game")) {
+      for (int n = 1; n <= 10; ++n) {
         const std::string item = std::to_string(n) + " disks";
         if (ImGui::MenuItem(item.c_str(), nullptr, app.game.num_disks() == n)) {
           app.new_game(n);
@@ -422,7 +424,7 @@ void draw_menubar(App &app) {
       }
       ImGui::EndMenu();
     }
-    if (ImGui::MenuItem("Restart")) {
+    if (ImGui::MenuItem("New Game (Same Size)")) {
       app.new_game(app.game.num_disks());
     }
 #ifndef __EMSCRIPTEN__
