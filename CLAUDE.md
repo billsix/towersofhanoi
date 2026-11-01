@@ -57,8 +57,10 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
   record: `tasks/archive/2026/10/23/port-to-rust-wxdragon.md`; Tauri:
   runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` (frontend history: lint done —
   `tasks/archive/2026/10/26/tauri-frontend-lint.md`; the JS-options investigation concluded "stay
-  vanilla, no rewrite" and is archived — `tasks/archive/2026/11/01/tauri-frontend-js-options.md`; live
-  follow-ups it spawned: `tasks/desktop-native-look-css-tokens.md` and the no-network gate tasks).
+  vanilla, no rewrite" and is archived — `tasks/archive/2026/11/01/tauri-frontend-js-options.md`; the
+  native-look CSS refresh it spawned is done (token layer + OS light/dark theming) — rationale in
+  `tasks/reference/tauri-frontend-native-look.md`, work archived at
+  `tasks/archive/2026/11/01/desktop-native-look-css-tokens.md`; the no-network gate tasks remain live).
 - **C++** (`cpp/`, header-only engine in `src/`) — **two GUIs** from one `CMakeLists.txt`: a Dear ImGui
   `main.cpp` (native SDL2+OpenGL3 and WebAssembly OpenGL3→WebGL-ES3; ImGui vendored at `cpp/imgui/`), and
   a **wxWidgets `hanoiwx.cpp`** (`make wx`) built from the shared `ui/hanoi.xrc`. Both at feature parity
