@@ -1,6 +1,10 @@
 # Win celebration + recipe discovery — realize the "teaching hinge" on winning (umbrella)
 
-**Status:** proposed — needs go-ahead (umbrella; children are the per-language tasks below).
+**Status:** implemented 2026-11-01 across all three languages (on branch `win-celebration-recipe-discovery`)
+— Python (oracle, 3 front-ends + spec row 20), Rust (crate + 5 front-ends), C++ (core + 2 GUIs). Each
+language's headless gate is green (see the child tasks). **Pending:** the maintainer's display-verify of
+the GUIs (and the C++ `make webassembly` build); each child archives on its own confirmation, the
+umbrella when the last one lands.
 **Priority:** 4 **Difficulty:** 6 (spans 3 languages × many UIs)
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). From the maintainer's observation that
 a player who wins **doesn't learn that recipes exist** — the UIs quietly enable the Tier-2 menus, but a
