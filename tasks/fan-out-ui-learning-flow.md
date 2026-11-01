@@ -75,10 +75,13 @@ graphical UI remains open (`tasks/port-drag-drop-to-graphical-uis.md`).
   gone; a first-run **How to Play** panel (goal + one rule + a legal/illegal diagram + "don't show
   again" via `wxConfig`, reopen from Help). Two **wxDragon-forced** departures (both keep the XRC
   intact): the Rust menu bar is built in code (wxDragon has no runtime menu-insert on an XRC-loaded
-  `MenuBar`) and the Rust sidebar is *destroyed* not hidden (no sizer hide/detach). C++ verified via
-  `make build` + a headless Xvfb smoke; Rust via `make check` (`cargo check --all-targets`, wxDragon
-  compiles clean). **Both need the maintainer's on-display `make wx` sign-off.** When they land, harvest
-  the settled XRC decision into `tasks/reference/ui-design-principles.md`.
+  `MenuBar`) and the Rust sidebar is **hidden** (not destroyed). A first cut destroyed the sidebar
+  widgets, but that left the `StaticBoxSizer` holding freed pointers and GTK segfaulted in its idle
+  size-allocate at launch; hiding lets wxWidgets reclaim the slot on `Layout` with nothing freed (fix
+  commit `894581b`, gdb-confirmed). C++ verified via `make build` + a headless Xvfb smoke; Rust via
+  `make check` + a headless Xvfb launch (ran full duration, no segfault). **Both need the maintainer's
+  on-display `make wx` sign-off** (incl. whether the collapsed Rust sidebar leaves a residual gap).
+  When they land, harvest the settled XRC decision into `tasks/reference/ui-design-principles.md`.
 - **Tauri UX fixes folded in on this branch** (maintainer-reported on the merged Tauri GUI): the
   always-visible history `<ol>` reserved a stable scrollbar gutter (the bar had overlapped the move
   text); and the post-apply rebinding view dropped its redundant "Steps" list (the per-step replay log
