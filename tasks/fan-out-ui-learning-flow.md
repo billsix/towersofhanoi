@@ -1,12 +1,12 @@
 # Fan out the learning-flow UI to every other front-end
 
-**Status:** IN PROGRESS (autonomous batch, branch `ui-fanout-and-apply-output`, gpg off → restored).
-Text **CLIs done** (Python + Rust); text **TUIs** and the **5 GUIs + shared XRC** remain (GUIs need the
-maintainer's on-display sign-off).
+**Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged] +
+`ui-fanout-tuis`, gpg off → restored). All **text UIs done** (Python + Rust CLI **and** TUI); the
+**5 GUIs + shared `ui/hanoi.xrc`** remain (need the maintainer's on-display sign-off).
 **Priority:** 3
 **Difficulty:** 6
 
-## Progress (2026-10-31)
+## Progress (2026-10-31 → 11-01)
 
 - **Shared grammar gained a `history` command** (alias `moves`) in BOTH cores → the numbered
   default-space move tally + live count vs the optimal 2^N-1 (the text-UI form of the Tier-1
@@ -19,12 +19,16 @@ maintainer's on-display sign-off).
   above the board (the running count is the legend's trailing `Moves: N`); **Tier-2 relabel/save stated
   in text, not hard-blocked** (§6.1 permits this for a plain terminal UI — keeps behaviour + tests).
   Tests added both languages (onboarding/goal + `history`); all gates green.
-- **Remaining, per UI:**
-  - **Python ncurses TUI** (`hanoigame.py`) + **Rust ratatui TUI** (`hanoi`): always-visible history
-    region/toggled panel, goal line, onboarding, Tier-2 surfacing. (`history` already works — they
-    render engine lines.)
+- **Python ncurses TUI (`hanoigame.py`) + Rust ratatui TUI (`hanoi`) — DONE** (branch `ui-fanout-tuis`):
+  the status row now leads with the **Tier-1 goal line** (with `Moves: N/optimal` as the always-visible
+  history indicator; the full numbered tally is the `history` command); the message area **opens with
+  the "How to play" onboarding**, replaced by the first move's feedback; the hint lists `history`. Per
+  §6.1 the always-visible history is the status count + the on-demand `history` panel (the fixed curses/
+  ratatui layout makes a permanent full-tally region impractical without a larger rework). The Rust
+  ratatui `screen()` render test asserts the goal line; Python/Rust gates green.
+- **Remaining, per UI (needs on-display sign-off):**
   - **The 5 GUIs + the shared `ui/hanoi.xrc` decision** (C++ ImGui/wx, Rust wxDragon/egui/Tauri): the
-    tier layout + recipe submenus + status-bar goal + How-to-Play panel. **Needs on-display sign-off.**
+    tier layout + recipe submenus + status-bar goal + How-to-Play panel.
   - Fold in **drag-drop** per graphical UI (`tasks/port-drag-drop-to-graphical-uis.md`) — same files.
 
 ## BLUF

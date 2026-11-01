@@ -56,7 +56,16 @@ HINT_AREA_LINES: int = 2  # rows reserved for hint text above the prompt
 # to discover the 'help' command first.
 DEFAULT_HINT: list[str] = [
     "Move: type 'from -> to' (e.g. '1 -> 3')",
-    "Other: relabel a b c | apply <name> | show <name> | list | help | quit",
+    "Other: relabel | apply | show | list | history | help | quit",
+]
+
+# Tier-1 onboarding shown in the message area when a game starts (feature-spec
+# §3.5 / §6.1): the goal, the one rule, and the new-learner pointers. Kept to a
+# few lines so it fits MSG_AREA_LINES; the first move replaces it.
+HOWTO_LINES: list[str] = [
+    "How to play: move the whole stack onto peg 3, one disc at a time",
+    "(the top disc of a peg); never put a larger disc on a smaller one.",
+    "Type a move ('1 3'), 'history' for your moves, 'help' for all commands.",
 ]
 
 # Curses colour-pair numbers
@@ -230,10 +239,13 @@ def _draw_top_status(stdscr: curses.window, session: GameSession) -> None:
     a, b, c = (
         change_labels_on_pegs(session.labelling, i) + 1 for i in range(3)
     )
+    # Lead with the always-present Tier-1 goal line; the move count carries the
+    # optimal 2^N-1 alongside it (the always-visible history indicator -- the
+    # full numbered tally is the 'history' command). (feature-spec §3.5/§6.1.)
     text: str = (
-        f" Discs: {session.num_disks}    "
+        f" Goal: move all {session.num_disks} discs to peg 3    "
+        f"Moves: {session.current_moves}/{session.min_moves()}    "
         f"Labelling: {a} {b} {c}    "
-        f"Moves: {session.current_moves}    "
         f"Recipes: {len(session.registry)} "
     )
     stdscr.move(0, 0)
@@ -523,7 +535,9 @@ def _play_game(stdscr: curses.window, n: int, registry: RecipeRegistry) -> bool:
             return False
 
     session: GameSession = GameSession(num_disks=n, registry=registry)
-    msg_lines: list[str] = []
+    # Open with the Tier-1 onboarding in the message area; the first move's
+    # feedback replaces it.
+    msg_lines: list[str] = list(HOWTO_LINES)
 
     while not session.is_won():
         _redraw(stdscr, session, msg_lines)
