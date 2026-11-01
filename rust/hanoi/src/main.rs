@@ -35,7 +35,16 @@ const HINT_AREA_LINES: usize = 2;
 
 const DEFAULT_HINT: [&str; 2] = [
     "Move: type 'from -> to' (e.g. '1 -> 3')",
-    "Other: relabel a b c | apply <name> | show <name> | list | help | quit",
+    "Other: relabel | apply | show | list | history | help | quit",
+];
+
+/// Tier-1 onboarding shown in the message area when a game starts (feature-spec
+/// §3.5 / §6.1): the goal, the one rule, and the new-learner pointers. A few
+/// lines so it fits `MSG_AREA_LINES`; the first move replaces it.
+const HOWTO_LINES: [&str; 3] = [
+    "How to play: move the whole stack onto peg 3, one disc at a time",
+    "(the top disc of a peg); never put a larger disc on a smaller one.",
+    "Type a move ('1 3'), 'history' for your moves, 'help' for all commands.",
 ];
 
 // --- Colour ----------------------------------------------------------------
@@ -141,15 +150,20 @@ fn digit_char(d: usize) -> char {
     char::from_digit(d as u32, 10).expect("label digit is 1..=9")
 }
 
-/// The one-line status: disc count, active labelling, move count, recipe count.
+/// The one-line status, led by the always-present Tier-1 goal line; the move
+/// count carries the optimal 2^N-1 alongside it (the always-visible history
+/// indicator -- the full numbered tally is the `history` command).
+/// (feature-spec §3.5/§6.1.)
 fn status_line(session: &GameSession) -> String {
     let a: usize = change_labels_on_pegs(session.labelling, 0) + 1;
     let b: usize = change_labels_on_pegs(session.labelling, 1) + 1;
     let c: usize = change_labels_on_pegs(session.labelling, 2) + 1;
     format!(
-        " Discs: {}    Labelling: {a} {b} {c}    Moves: {}    Recipes: {} ",
+        " Goal: move all {} discs to peg 3    Moves: {}/{}    \
+         Labelling: {a} {b} {c}    Recipes: {} ",
         session.num_disks(),
         session.current_moves(),
+        session.min_moves(),
         session.registry.len()
     )
 }
@@ -405,7 +419,9 @@ fn play_game(
     registry: &mut RecipeRegistry,
 ) -> std::io::Result<bool> {
     let mut session: GameSession<'_> = GameSession::new(n, registry);
-    let mut msg: Vec<String> = Vec::new();
+    // Open with the Tier-1 onboarding in the message area; the first move's
+    // feedback replaces it.
+    let mut msg: Vec<String> = HOWTO_LINES.iter().map(|s| s.to_string()).collect();
 
     while !session.is_won() {
         let Some(line) = read_line_on(
@@ -541,7 +557,10 @@ mod tests {
         let content = screen(60, 20, |f| {
             draw_play(f, &session, &["hello".to_string()], &DEFAULT_HINT, "1 -> 3");
         });
-        assert!(content.contains("Discs: 3"), "status missing");
+        assert!(
+            content.contains("Goal: move all 3 discs to peg 3"),
+            "goal line missing"
+        );
         assert!(content.contains("Moves: 0"), "move count missing");
         assert!(content.contains('*'), "a disc should be drawn");
         assert!(content.contains("hello"), "message missing");
