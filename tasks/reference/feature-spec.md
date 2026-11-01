@@ -267,8 +267,9 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
 14. Help/quit/empty-input behavior (interactive UIs).
 15. **Inspectable running move tally** in default-label space (§4.11): an on-demand (or always-visible)
     view listing every move this game, numbered, in default 1-2-3 labels, with a live count, moves-only,
-    resetting on new game, via `presenter.format_move_tally`. Implemented in wxPython; other UIs tracked
-    by `tasks/fan-out-move-tally.md`.
+    resetting on new game, via `presenter.format_move_tally`. Implemented across **all** UIs (the
+    learning-flow fan-out, 2026-11-01): the GUIs as an always-visible panel, the text UIs as a `history`
+    command through the shared engine.
 16. **Move history is always-visible** (§3.5 Tier 1), not hidden behind an on-demand action by default.
 17. **Tier-2 gating** (§3.5): relabel + save-recipe are gated until the first win (disabled-with-hint in
     a GUI, stated in text in a CLI), then available for the session.
@@ -303,6 +304,14 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
 - **bash** — a by-design non-interactive demo of the relabelling method (solve scripts composed through
   six `tr` relabel filters); embodies §3/§4.3 relabelling cleanly but is not a game UI, so most
   interactive rows are n/a. Not a parity target.
+
+**Update (2026-11-01):** the 2026-10-25 Rust gaps are closed — the **Tauri** app now shows the §4.8
+three-panel view on apply, and the **ratatui** TUI shows the §4.4 valid-moves line. Since then the
+three-tier **learning flow** (rows 16–19: always-visible move history, Tier-2 gating, Tier-3 menu
+placement, the goal-line + "How to Play" onboarding) and **direct-manipulation disc drag-drop** (keep
+the buttons; one shared dispatch) were fanned out to **every** front-end and on-display-verified. Design
+authority: `tasks/reference/ui-design-principles.md` rulings 1–7. Archived fan-out tasks under
+`tasks/archive/2026/11/01/` (learning-flow, drag-drop, move-tally).
 
 ## Related
 
