@@ -16,7 +16,7 @@ use eframe::egui;
 use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
-use hanoigame::presenter::{change_labels_on_pegs, Labelling};
+use hanoigame::presenter::{change_labels_on_pegs, format_move_tally, Labelling};
 use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
 
 const MAX_DISKS: u32 = 10;
@@ -88,7 +88,11 @@ struct HanoiApp {
     recorder: Recorder,
     disc_count: u32,
     status: String,
-    selected_recipe: Option<String>,
+    /// Tier-2 latch: relabel + recipes stay dimmed until the first win, then unlock.
+    won_once: bool,
+    /// Whether the How-to-Play window is open, and whether it has auto-opened once.
+    open_help: bool,
+    help_shown: bool,
     /// Scrollable detail (a recipe's moves, or a rebinding table), shown on demand.
     detail_title: String,
     detail: Vec<String>,
@@ -103,7 +107,9 @@ impl HanoiApp {
             recorder: Recorder::new(),
             disc_count: DEFAULT_DISKS,
             status: String::new(),
-            selected_recipe: None,
+            won_once: false,
+            open_help: false,
+            help_shown: false,
             detail_title: String::new(),
             detail: Vec::new(),
         }
@@ -205,22 +211,17 @@ impl HanoiApp {
         self.status = msg;
     }
 
-    fn do_apply(&mut self) {
-        let Some(name) = self.selected_recipe.clone() else {
-            self.status = "Select a recipe first.".to_string();
-            return;
-        };
+    /// Apply a recipe by name (a Tier-3 Recipe-menu action). When the pegs are
+    /// relabelled, the per-step log is suppressed by the core, so the move count
+    /// comes from the recipe itself and a rebinding table is shown.
+    fn apply_recipe_named(&mut self, name: &str) {
         let relabelled: bool = self.labelling != Labelling::OneTwoThree;
         let moves: Option<Vec<(u32, u32)>> =
-            self.registry.get(&name).map(|r| r.default_moves.clone());
-        let result: DispatchResult = self.dispatch(&Command::Apply(name.clone()));
-        let steps: usize = result
-            .lines
-            .iter()
-            .filter(|l| l.trim_start().starts_with("step "))
-            .count();
-        if steps > 0 {
-            self.status = format!("Applied '{name}' \u{2014} {steps} moves.");
+            self.registry.get(name).map(|r| r.default_moves.clone());
+        let move_count: usize = moves.as_ref().map_or(0, Vec::len);
+        let result: DispatchResult = self.dispatch(&Command::Apply(name.to_string()));
+        if move_count > 0 {
+            self.status = format!("Applied '{name}' \u{2014} {move_count} moves.");
         } else if let Some(last) = result.lines.last() {
             self.status = last.clone();
         }
@@ -232,12 +233,9 @@ impl HanoiApp {
         }
     }
 
-    fn do_show(&mut self) {
-        let Some(name) = self.selected_recipe.clone() else {
-            self.status = "Select a recipe first.".to_string();
-            return;
-        };
-        let lines: Vec<String> = self.dispatch(&Command::Show(name.clone())).lines;
+    /// Show a recipe's moves in the detail area (the Tier-3 Recipe-menu "View").
+    fn view_recipe(&mut self, name: &str) {
+        let lines: Vec<String> = self.dispatch(&Command::Show(name.to_string())).lines;
         self.detail_title = format!("Recipe '{name}'");
         self.detail = lines;
     }
@@ -368,52 +366,98 @@ impl HanoiApp {
 impl eframe::App for HanoiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let won: bool = self.is_won();
+        self.won_once = self.won_once || won;
+        // Tier-1: the How-to-Play window auto-opens once, on the first frame.
+        if !self.help_shown {
+            self.open_help = true;
+            self.help_shown = true;
+        }
         let legal: Vec<(u32, u32)> = self.legal_moves();
         let current: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
+        let n: u32 = self.game.num_disks;
+        let moves: u32 = self.game.current_moves;
+        let min: u64 = self.min_moves();
 
-        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(format!("Moves: {}", self.game.current_moves));
-                ui.separator();
-                ui.label(&self.status);
+        // Tier-3: recipes live in a menu, dimmed until the first win; Help reopens
+        // the How-to-Play window.
+        egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.add_enabled_ui(self.won_once, |ui| {
+                    ui.menu_button("Recipe", |ui| {
+                        let can_save: bool = won && !self.recorder.default_moves.is_empty();
+                        if ui
+                            .add_enabled(can_save, egui::Button::new("Save current solution"))
+                            .clicked()
+                        {
+                            self.do_save();
+                            ui.close_menu();
+                        }
+                        if ui.button("Reset recording").clicked() {
+                            self.recorder.reset();
+                            self.status = "Recording reset.".to_string();
+                            ui.close_menu();
+                        }
+                        ui.separator();
+                        let names: Vec<String> = self.registry.names();
+                        if names.is_empty() {
+                            ui.add_enabled(false, egui::Button::new("(no saved recipes yet)"));
+                        } else {
+                            for name in names {
+                                let label: String = match self.registry.get(&name) {
+                                    Some(r) => format!(
+                                        "{name}  ({} discs, {} moves)",
+                                        r.disk_count,
+                                        r.default_moves.len()
+                                    ),
+                                    None => name.clone(),
+                                };
+                                ui.menu_button(label, |ui| {
+                                    if ui.button("View").clicked() {
+                                        self.view_recipe(&name);
+                                        ui.close_menu();
+                                    }
+                                    if ui
+                                        .add_enabled(!won, egui::Button::new("Apply"))
+                                        .clicked()
+                                    {
+                                        self.apply_recipe_named(&name);
+                                        ui.close_menu();
+                                    }
+                                });
+                            }
+                        }
+                    });
+                });
+                ui.menu_button("Help", |ui| {
+                    if ui.button("How to Play").clicked() {
+                        self.open_help = true;
+                        ui.close_menu();
+                    }
+                });
             });
         });
 
-        egui::SidePanel::right("recipes").show(ctx, |ui| {
-            ui.heading("Recipes");
-            egui::ScrollArea::vertical()
-                .max_height(220.0)
-                .show(ui, |ui| {
-                    for name in self.registry.names() {
-                        let label: String = match self.registry.get(&name) {
-                            Some(r) => {
-                                format!(
-                                    "{name}  ({} discs, {} moves)",
-                                    r.disk_count,
-                                    r.default_moves.len()
-                                )
-                            }
-                            None => name.clone(),
-                        };
-                        let selected: bool = self.selected_recipe.as_deref() == Some(name.as_str());
-                        if ui.selectable_label(selected, label).clicked() {
-                            self.selected_recipe = Some(name.clone());
-                        }
-                    }
-                });
+        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+            ui.label(&self.status);
+        });
+
+        // Tier-1: the move history is always visible (the running count against the
+        // optimal 2^N-1, then the numbered default-label tally).
+        egui::SidePanel::right("history").show(ctx, |ui| {
+            ui.heading("History");
+            ui.label(format!("{moves} moves (optimal {min}, default 1-2-3 labels)"));
             ui.separator();
-            ui.add_enabled_ui(won, |ui| {
-                if ui.button("Save (solve-N)").clicked() {
-                    self.do_save();
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                let tally: Vec<String> = format_move_tally(&self.recorder.default_moves);
+                if tally.is_empty() {
+                    ui.weak("(no moves yet)");
+                } else {
+                    for line in &tally {
+                        ui.monospace(line);
+                    }
                 }
             });
-            if ui.add_enabled(!won, egui::Button::new("Apply")).clicked() {
-                self.do_apply();
-            }
-            if ui.button("Show").clicked() {
-                self.do_show();
-            }
             if !self.detail.is_empty() {
                 ui.separator();
                 ui.label(&self.detail_title);
@@ -441,6 +485,12 @@ impl eframe::App for HanoiApp {
                     self.new_game(n);
                 }
             });
+            ui.separator();
+
+            // Tier-1 goal line.
+            ui.label(format!(
+                "Goal: move all {n} discs to peg 3   (Moves: {moves} / optimal {min})"
+            ));
             ui.separator();
 
             // Board.
@@ -476,21 +526,46 @@ impl eframe::App for HanoiApp {
 
             ui.separator();
 
-            // Relabel buttons (the active one highlighted).
-            ui.label("Relabel pegs (physical 1 2 3 \u{2192}):");
-            ui.horizontal_wrapped(|ui| {
-                for perm in RELABEL_PERMS {
-                    let active: bool = perm == current;
-                    let text: String = format!("{} {} {}", perm[0], perm[1], perm[2]);
-                    if ui
-                        .add_enabled(!won, egui::SelectableLabel::new(active, text))
-                        .clicked()
-                    {
-                        self.do_relabel(perm);
+            // Tier-2: relabelling is dimmed until the first win.
+            ui.add_enabled_ui(self.won_once, |ui| {
+                ui.label("Relabel pegs (physical 1 2 3 \u{2192}):");
+                ui.horizontal_wrapped(|ui| {
+                    for perm in RELABEL_PERMS {
+                        let active: bool = perm == current;
+                        let text: String = format!("{} {} {}", perm[0], perm[1], perm[2]);
+                        if ui
+                            .add_enabled(!won, egui::SelectableLabel::new(active, text))
+                            .clicked()
+                        {
+                            self.do_relabel(perm);
+                        }
                     }
-                }
+                });
             });
         });
+
+        // Tier-1: the dismissible How-to-Play window (first-run + Help).
+        let mut open: bool = self.open_help;
+        let mut dismiss: bool = false;
+        egui::Window::new("How to Play")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.label("Goal: move the whole stack of discs to peg 3.");
+                ui.label("Rule: never place a larger disc on a smaller one.");
+                ui.separator();
+                ui.label(
+                    "Method: solve a smaller stack first, then relabel the pegs and \
+                     replay your saved solution on the bigger one.",
+                );
+                ui.add_space(4.0);
+                if ui.button("Got it").clicked() {
+                    dismiss = true;
+                }
+            });
+        self.open_help = open && !dismiss;
     }
 }
 
