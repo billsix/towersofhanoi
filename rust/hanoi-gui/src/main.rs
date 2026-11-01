@@ -145,7 +145,44 @@ fn disc_width(size: u32, n: u32, max_w: f64) -> f64 {
 }
 
 /// Draw the board onto a device context (solid fills; no gradients/shadows).
-fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, labelling: Labelling) {
+/// The three peg-centre x-coordinates for a board `w` pixels wide. Shared by the
+/// board drawing and the drag hit-test so they agree on where the pegs are.
+fn board_peg_centres(w: i32) -> [f64; 3] {
+    let margin: i32 = 20;
+    let avail_w: i32 = (w - 2 * margin).max(80);
+    let peg_zone_w: f64 = f64::from(avail_w) / 3.0;
+    [0, 1, 2].map(|i| f64::from(margin) + peg_zone_w * (f64::from(i) + 0.5))
+}
+
+/// The physical peg (0,1,2) whose centre is nearest `x` on a board `w` wide --
+/// forgiving drop targeting (the decided spike behaviour).
+fn nearest_board_peg(x: i32, w: i32) -> usize {
+    let centres: [f64; 3] = board_peg_centres(w);
+    let xf: f64 = f64::from(x);
+    let mut best: usize = 0;
+    for i in 1..3 {
+        if (xf - centres[i]).abs() < (xf - centres[best]).abs() {
+            best = i;
+        }
+    }
+    best
+}
+
+/// Draw the board. `drag_src`/`drag_size`/`drag_x`/`drag_y` describe the disc
+/// currently being dragged (if any): it is omitted from its home peg and drawn
+/// following the cursor.
+#[allow(clippy::too_many_arguments)]
+fn draw_board_dc(
+    dc: &AutoBufferedPaintDC,
+    w: i32,
+    h: i32,
+    game: &HanoiGame,
+    labelling: Labelling,
+    drag_src: Option<usize>,
+    drag_size: u32,
+    drag_x: i32,
+    drag_y: i32,
+) {
     // Vertical background gradient (top lighter), matching the wxPython renderer's
     // GraphicsContext gradient; the DC can't gradient-fill the rounded pegs/discs, so
     // those stay flat. Transparent text background so the label digits have no box.
@@ -175,8 +212,7 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
     let peg_h: f64 = f64::from(avail_h) * 0.95;
     let base_y: f64 = f64::from(h - margin - label_band_h - base_h);
     let peg_top_y: f64 = base_y - peg_h;
-    let peg_centres: [f64; 3] =
-        [0, 1, 2].map(|i| f64::from(margin) + peg_zone_w * (f64::from(i) + 0.5));
+    let peg_centres: [f64; 3] = board_peg_centres(w);
 
     // Base bar.
     dc.set_pen(Colour::rgb(90, 64, 38), 1, PenStyle::Solid);
@@ -200,6 +236,10 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
     for (p, stack) in game.towers.iter().enumerate() {
         let cx: f64 = peg_centres[p];
         for (idx, &size) in stack.iter().enumerate() {
+            // Omit the disc currently being dragged from its home peg.
+            if drag_src == Some(p) && idx + 1 == stack.len() {
+                continue;
+            }
             let dw: f64 = disc_width(size, n, max_disc_w);
             let y: f64 = base_y - (idx as f64 + 1.0) * disc_h * 1.04;
             let rgb: (u8, u8, u8) = disc_rgb(size);
@@ -254,6 +294,22 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
             let (tw, th): (i32, i32) = dc.get_text_extent(&text);
             dc.draw_text(&text, cx as i32 - tw / 2, ref_y as i32 - th / 2);
         }
+    }
+
+    // The dragged disc follows the cursor, drawn on top in its size colour (as
+    // if lifted off its peg).
+    if drag_src.is_some() {
+        let dw: f64 = disc_width(drag_size, n, max_disc_w);
+        let rgb: (u8, u8, u8) = disc_rgb(drag_size);
+        dc.set_pen(darken(rgb, 0.45), 1, PenStyle::Solid);
+        dc.set_brush(colour(rgb), BrushStyle::Solid);
+        dc.draw_rounded_rectangle(
+            (f64::from(drag_x) - dw / 2.0) as i32,
+            (f64::from(drag_y) - disc_h / 2.0) as i32,
+            dw as i32,
+            disc_h as i32,
+            disc_h / 3.0,
+        );
     }
 }
 
@@ -336,6 +392,12 @@ struct GuiState {
     howto_toggle: MenuItem,
     history_toggle: MenuItem,
     howto_dont_show: CheckBox,
+    // Disc drag-drop (spike): the physical peg (0,1,2) whose top disc is being
+    // dragged, its size, and the cursor position on the board panel.
+    drag_src: Option<usize>,
+    drag_size: u32,
+    drag_x: i32,
+    drag_y: i32,
 }
 
 impl GuiState {
@@ -1140,6 +1202,10 @@ fn main() {
             howto_toggle,
             history_toggle,
             howto_dont_show: howto_dont_show.clone(),
+            drag_src: None,
+            drag_size: 0,
+            drag_x: 0,
+            drag_y: 0,
         }));
 
         // Graphics board paint handler.
@@ -1150,7 +1216,85 @@ fn main() {
                 let dc: AutoBufferedPaintDC = AutoBufferedPaintDC::new(&panel_clone);
                 let (w, h): (i32, i32) = dc.get_size();
                 let s: std::cell::Ref<'_, GuiState> = st.borrow();
-                draw_board_dc(&dc, w, h, &s.game, s.labelling);
+                draw_board_dc(
+                    &dc,
+                    w,
+                    h,
+                    &s.game,
+                    s.labelling,
+                    s.drag_src,
+                    s.drag_size,
+                    s.drag_x,
+                    s.drag_y,
+                );
+            });
+        }
+
+        // Disc drag-drop (spike): press picks up the top disc of the nearest peg,
+        // motion moves it, release drops on the nearest peg and dispatches through
+        // the engine (on_move, which validates + reports an illegal drop). No
+        // mouse capture -- wxDragon exposes no capture-lost handler, and the board
+        // panel fills the drag area. The move buttons stay as the accessible path.
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            board_graphics.on_mouse_left_down(move |ev: WindowEventData| {
+                let WindowEventData::MouseButton(e) = ev else {
+                    return;
+                };
+                let Some(pos) = e.get_position() else { return };
+                let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
+                if s.is_won() {
+                    return;
+                }
+                let w: i32 = s.board_graphics.get_size().width;
+                let peg: usize = nearest_board_peg(pos.x, w);
+                if let Some(&top) = s.game.towers[peg].last() {
+                    s.drag_src = Some(peg);
+                    s.drag_size = top;
+                    s.drag_x = pos.x;
+                    s.drag_y = pos.y;
+                    s.board_graphics.refresh(true, None);
+                }
+            });
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            board_graphics.on_mouse_motion(move |ev: WindowEventData| {
+                let WindowEventData::MouseMotion(e) = ev else {
+                    return;
+                };
+                let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
+                if s.drag_src.is_none() {
+                    return;
+                }
+                if let Some(pos) = e.get_position() {
+                    s.drag_x = pos.x;
+                    s.drag_y = pos.y;
+                    s.board_graphics.refresh(true, None);
+                }
+            });
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            board_graphics.on_mouse_left_up(move |ev: WindowEventData| {
+                let WindowEventData::MouseButton(e) = ev else {
+                    return;
+                };
+                let (src, target): (usize, usize) = {
+                    let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
+                    let Some(src) = s.drag_src.take() else { return };
+                    let Some(pos) = e.get_position() else { return };
+                    let w: i32 = s.board_graphics.get_size().width;
+                    let target: usize = nearest_board_peg(pos.x, w);
+                    s.board_graphics.refresh(true, None); // snap back to true state
+                    (src, target)
+                };
+                if target != src {
+                    let labelling: Labelling = st.borrow().labelling;
+                    let from_label: u32 = (change_labels_on_pegs(labelling, src) + 1) as u32;
+                    let to_label: u32 = (change_labels_on_pegs(labelling, target) + 1) as u32;
+                    on_move(&st, from_label, to_label);
+                }
             });
         }
 
