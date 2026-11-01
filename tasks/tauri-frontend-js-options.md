@@ -56,6 +56,21 @@ investigation; implementation waits on the maintainer picking a direction.
    architecture. Note whether it even pairs well with Tauri's webview vs. being its own thing.
 5. **A minimal reactive framework (Svelte/SolidJS compiled, or lit)** — likely overkill for a
    ~130-line UI; include only to rule out explicitly.
+6. **Reimplement/adapt only the piece you want from a framework, in vanilla JS under the upstream's
+   licence** — the deliberate "don't take the dependency" path (runClaudeInContainer
+   `tasks/reference/reimplementing-third-party-libraries.md`). Rather than *adopt* a framework (option 5)
+   or hand-roll from nothing, study a framework/widget's source online, lift **only** the part this
+   ~130-line UI needs, and ship it as **one tailored, trimmed, framework-free file** in the house
+   vanilla-JSDoc style (runClaudeInContainer `tasks/reference/javascript-coding-standard.md` — Deno
+   `check --check-js` strict, no `node_modules`). **Licence is an obligation, not a flourish:** if any
+   upstream source is copied in, the file is a **derivative work** and MUST carry the upstream licence
+   (real SPDX id, a vendored `LICENSE`, upstream links, changes stated); a genuine *clean-room*
+   reimplementation written from behaviour/docs may be relicensed but should still match upstream as a
+   courtesy — the `pgzero_gl` precedent in github.com/billsix/modelviewprojection. The fetched source is
+   a **transient reference, never a dependency**: it never enters the image, lockfile, or runtime, so
+   this preserves the no-Node / offline-rebuild / lean-image guarantees intact. Best when a *specific*
+   framework has one widget worth borrowing; if the UI needs nothing a framework offers, this collapses
+   back to option 1 (plain vanilla JS + JSDoc).
 
 For each: the type-safety gain, the build-step/toolchain cost, whether it keeps the image lean + the
 offline-rebuild guarantee, bundle size, and the newcomer-readability cost. **Verify claims** (does
@@ -83,3 +98,8 @@ cheaper type-check-the-JS option (1), since that may meet the real goal at a fra
 - runClaudeInContainer `tasks/reference/tauri-desktop-apps.md` — the Tauri frontend setup + constraints.
 - Personal overlay "Self-contained images + live source" — the offline-rebuild constraint any build
   step must satisfy.
+- runClaudeInContainer `tasks/reference/reimplementing-third-party-libraries.md` — option 6's method
+  (clean-room-vs-derivative licence distinction, the `pgzero_gl` header/licence mechanics, fetch-to-learn
+  is transient); its JS sibling runClaudeInContainer `tasks/reference/javascript-coding-standard.md` — the
+  vanilla-JSDoc style (and the "write a vanilla JS widget instead of a dependency" cross-link that seeds
+  this option).
