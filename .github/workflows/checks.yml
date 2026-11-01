@@ -95,6 +95,27 @@ jobs:
         working-directory: rust
         run: make test-lib USE_EMACS=0 USE_WASM=0
 
+  rust-check-egui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The egui crate (hanoi-egui) is a SEPARATE Cargo workspace, so rust-check's
+      # --workspace does not reach it; compile-check it on its own.
+      - name: make check-egui
+        working-directory: rust
+        run: make check-egui USE_EMACS=0 USE_WASM=0
+
+  rust-check-tauri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The Tauri backend crate (tauri/src-tauri) is a SEPARATE workspace too, so
+      # --workspace skips it; compile-check it on its own (the frontend JS is gated
+      # by rust-type-check above).
+      - name: make check-tauri
+        working-directory: rust
+        run: make check-tauri USE_EMACS=0 USE_WASM=0
+
   # --- C++ (cpp/): two GUIs over the header-only engine. No type-check job --
   #     the C++ compiler is the type check (that is the `build` job).
   cpp-check-format:
