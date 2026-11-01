@@ -3,23 +3,28 @@
 
 //! wxDragon GUI front-end for the Towers of Hanoi game.
 //!
-//! A board (a solid-fill 2D graphics view by default, or a monospace text view)
-//! plus six move buttons, a relabel menu, and a recipe list with Save / Apply /
-//! Show — all driven by the same [`GameSession`] dispatcher as the CLI and TUI.
-//! (Rust port of the wxPython `python/src/hanoigame/hanoigui.py` +
-//! `board_renderers.py`, kept in sync.)
+//! The three-tier learning flow (feature-spec.md §3.5), mirroring the wxPython
+//! oracle `python/src/hanoigame/hanoigui.py`: Tier 1 is always visible (the
+//! board, a goal line in the status bar, an always-visible move-history panel,
+//! and move feedback); Tier 2 (relabelling + recipes) unlocks at the first win
+//! and stays unlocked; Tier 3 keeps recipes and relabelling on the menu bar,
+//! out of the workspace. A first-run "How to Play" panel teaches the one rule
+//! and the method (solve small, relabel, replay), reopenable from Help.
 //!
-//! Port notes: the window (menu bar + panel layout + move/recipe controls) is
-//! loaded from the **shared `ui/hanoi.xrc`** — the one UI definition the Python
-//! and C++ wx front-ends also use — via wxDragon's `XmlResource`
-//! (`load_from_string` on the `include_str!`'d XRC, then `load_panel` /
-//! `MenuBar::from_xrc_name`, with children fetched by `find_child_by_xrc_name`).
-//! The graphics board is still drawn in code with the wxDC model (solid fills,
-//! rounded rectangles, circles) into a sub-panel of the XRC `board_slot`.
+//! Port notes: the board panel + move buttons are loaded from the **shared
+//! `ui/hanoi.xrc`** (the one UI definition the Python and C++ wx front-ends also
+//! use) via wxDragon's `XmlResource`; the XRC stays shared and structural, so
+//! each front-end carries the tier wiring in its own code (the oracle does the
+//! same). Two wxDragon-specific departures from the oracle, both keeping the XRC
+//! untouched: (1) the **menu bar is built in code** rather than loaded from the
+//! XRC, because wxDragon exposes no way to insert a menu into an XRC-loaded
+//! menu bar (`MenuBar` has only a builder `append` and `replace`); (2) the XRC
+//! recipe sidebar is **destroyed** rather than hidden, because wxDragon has no
+//! sizer hide/detach to collapse the freed slot. The graphics board is drawn in
+//! code with the wxDC model (solid fills; no `wxGraphicsContext` in wxDragon).
 //! GUI state is shared across wxDragon's `'static` event closures via
-//! `Rc<RefCell<GuiState>>`. The recipe-show and rebinding views are message
-//! dialogs rather than the Python's scrollable 3-panel dialog (the teaching
-//! content is the same). See `tasks/rust-gui-use-shared-xrc.md`.
+//! `Rc<RefCell<GuiState>>`. The recipe-show and rebinding views are monospace
+//! dialogs (the same teaching content as the Python's scrollable 3-panel one).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,12 +35,14 @@ use wxdragon::prelude::*;
 use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
-use hanoigame::presenter::{self, change_labels_on_pegs, Labelling};
+use hanoigame::presenter::{self, change_labels_on_pegs, format_move_tally, Labelling};
 use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
 
 /// The shared wx UI definition (repo-root `ui/hanoi.xrc`, reached via the
 /// git-tracked `hanoi.xrc` symlink in this crate). `include_str!` bakes the
 /// bytes into the binary at compile time, so no XRC file is needed at run time.
+/// Only the board panel + move buttons are taken from it; the menu bar is built
+/// in code (see the module docs).
 const XRC_DATA: &str = include_str!("../hanoi.xrc");
 
 const MAX_DISKS: u32 = 10;
@@ -45,8 +52,7 @@ const DEFAULT_DISKS: u32 = 3;
 /// to the XRC button named `move_<from>_<to>`.
 const MOVE_PAIRS: [(u32, u32); 6] = [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)];
 
-/// The six peg-label permutations; each maps to the XRC menu item
-/// `relabel_<a>_<b>_<c>`.
+/// The six peg-label permutations; each is a Relabel-menu item.
 const RELABEL_PERMS: [[u32; 3]; 6] = [
     [1, 2, 3],
     [1, 3, 2],
@@ -56,10 +62,19 @@ const RELABEL_PERMS: [[u32; 3]; 6] = [
     [3, 2, 1],
 ];
 
-/// The XRC name of the relabel menu item for a permutation.
-fn relabel_item_name(perm: [u32; 3]) -> String {
-    format!("relabel_{}_{}_{}", perm[0], perm[1], perm[2])
-}
+/// Tier-1 onboarding text (How to Play), mirroring `hanoigui.py` HOWTO_TEXT. The
+/// goal itself lives in the status bar; this teaches the one rule and the method.
+const HOWTO_TEXT: &str = "Move the whole stack of discs from peg 1 to peg 3.\n\
+     - Move one disc at a time -- always the top disc of a peg.\n\
+     - Never place a larger disc on a smaller one.\n\
+     \n\
+     The method this teaches: solve a SMALL stack, then RELABEL the pegs to\n\
+     reuse that solution for a bigger stack -- \"solve small, relabel, replay.\"\n\
+     Relabelling and saved recipes unlock after your first win.";
+
+/// `Config` key: show the How-to-Play panel on launch. Cleared by the panel's
+/// "Don't show this again" checkbox; re-shown any time from Help / View.
+const CONFIG_SHOW_HOWTO: &str = "show_howto_on_start";
 
 // --- Colour palettes (from board_renderers.py) ------------------------------
 
@@ -222,6 +237,57 @@ fn draw_board_dc(dc: &AutoBufferedPaintDC, w: i32, h: i32, game: &HanoiGame, lab
     }
 }
 
+/// Draw the legal/illegal-move teaching figure onto a DC: a smaller disc may
+/// rest on a larger one (left, allowed); a larger disc may never rest on a
+/// smaller one (right, forbidden). Mirrors `hanoigui.py` _LegalMoveDiagram
+/// (flat wxDC fills — wxDragon has no `wxGraphicsContext`).
+fn draw_legal_diagram(dc: &AutoBufferedPaintDC, w: i32, h: i32) {
+    // Fill the panel background (AutoBufferedPaintDC must be painted fully).
+    let bg: Colour = Colour::rgb(238, 238, 242);
+    dc.gradient_fill_linear(DcRect::new(0, 0, w, h), bg, bg, GradientDirection::South);
+    dc.set_background_mode(BackgroundMode::Transparent);
+    let half: i32 = w / 2;
+    draw_diagram_example(dc, 0, half, true);
+    draw_diagram_example(dc, half, half, false);
+}
+
+/// One two-disc stack centred in `[x0, x0+width]`: wide-under-narrow when
+/// `legal`, else narrow-under-wide struck through, with a caption.
+fn draw_diagram_example(dc: &AutoBufferedPaintDC, x0: i32, width: i32, legal: bool) {
+    let cx: i32 = x0 + width / 2;
+    let disc_h: i32 = 16;
+    let top_y: i32 = 42;
+    let big_w: i32 = 78;
+    let small_w: i32 = 42;
+    let bottom_w: i32 = if legal { big_w } else { small_w };
+    let upper_w: i32 = if legal { small_w } else { big_w };
+    let accent: (u8, u8, u8) = if legal { (40, 150, 60) } else { (200, 55, 55) };
+
+    dc.set_pen(Colour::rgb(30, 30, 40), 1, PenStyle::Solid);
+    dc.set_brush(Colour::rgb(210, 210, 215), BrushStyle::Solid);
+    dc.draw_rounded_rectangle(cx - bottom_w / 2, top_y + disc_h, bottom_w, disc_h, 4.0);
+    dc.draw_rounded_rectangle(cx - upper_w / 2, top_y, upper_w, disc_h, 4.0);
+
+    if !legal {
+        dc.set_pen(colour(accent), 3, PenStyle::Solid);
+        dc.draw_line(
+            cx - big_w / 2,
+            top_y - 4,
+            cx + big_w / 2,
+            top_y + disc_h + 4,
+        );
+    }
+
+    dc.set_text_foreground(colour(accent));
+    let caption: &str = if legal {
+        "\u{2713}  smaller on larger"
+    } else {
+        "\u{2717}  larger on smaller"
+    };
+    let (tw, _th): (i32, i32) = dc.get_text_extent(caption);
+    dc.draw_text(caption, cx - tw / 2, 84);
+}
+
 /// The whole GUI's mutable state.
 struct GuiState {
     registry: RecipeRegistry,
@@ -230,15 +296,26 @@ struct GuiState {
     recorder: Recorder,
     disc_count: u32,
     graphics_mode: bool,
+    /// Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the first
+    /// win and stay unlocked for the rest of the session.
+    won_once: bool,
     frame: Frame,
-    board_slot: Panel,
     board_text: TextCtrl,
     board_graphics: Panel,
     move_buttons: Vec<Button>,
-    recipe_list: ListBox,
-    save_btn: Button,
-    apply_btn: Button,
-    show_btn: Button,
+    // Menu handles `refresh` touches (the menu is built in code, not from XRC).
+    relabel_items: Vec<MenuItem>,
+    recipe_menu: Menu,
+    recipe_save_item: MenuItem,
+    // Tier-1 onboarding + always-visible history, built in code.
+    config: Config,
+    history_panel: Panel,
+    history_header: StaticText,
+    history_list: ListBox,
+    howto_panel: Panel,
+    howto_toggle: MenuItem,
+    history_toggle: MenuItem,
+    howto_dont_show: CheckBox,
 }
 
 impl GuiState {
@@ -276,6 +353,8 @@ impl GuiState {
         msg
     }
 
+    /// Start a fresh `n`-disc game. The `won_once` latch is NOT reset — Tier 2
+    /// stays unlocked for the rest of the session once earned (feature-spec §3.5).
     fn new_game(&mut self, n: u32) {
         self.disc_count = n;
         self.game = HanoiGame::new(n);
@@ -291,17 +370,11 @@ impl GuiState {
         (1u64 << self.game.num_disks) - 1
     }
 
-    fn selected_recipe(&self) -> Option<String> {
-        let i: u32 = self.recipe_list.get_selection()?;
-        self.registry.names().get(i as usize).cloned()
-    }
-
-    /// Redraw the board and re-sync every control to the session.
     /// The text board, horizontally centred and pushed to the bottom of the text
-    /// control — matching the wxPython TextBoardRenderer (which the maintainer prefers),
-    /// rather than sitting top-left. Recomputed on every refresh from the control's
-    /// current size (wxDragon exposes no resize hook, so a bare window-resize reflows
-    /// only on the next state change — close enough for a teaching board).
+    /// control — matching the wxPython TextBoardRenderer (which the maintainer
+    /// prefers), rather than sitting top-left. Recomputed on every refresh from
+    /// the control's current size (wxDragon exposes no resize hook, so a bare
+    /// window-resize reflows only on the next state change — close enough).
     fn centred_board_text(&self) -> String {
         let lines: Vec<String> = presenter::render(&self.game, self.labelling);
         let Some(first) = lines.first() else {
@@ -321,6 +394,7 @@ impl GuiState {
         format!("{}{}", "\n".repeat(v_pad), centred.join("\n"))
     }
 
+    /// Redraw the board and re-sync every control to the session.
     fn refresh(&self) {
         // Board.
         self.board_text.set_value(&self.centred_board_text());
@@ -346,56 +420,64 @@ impl GuiState {
         }
 
         // Relabel-menu bullets (active permutation marked; display-only). The
-        // items are NORMAL (not radio) in the XRC — a radio's checked state is
-        // unreliable on wxGTK — so the active one is marked by rewriting its
-        // label, which never emits an event.
+        // items are NORMAL (not radio) — a radio's checked state is unreliable on
+        // wxGTK — so the active one is marked by rewriting its label. Tier-2
+        // gating: each item is enabled only once `won_once`.
         let current: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
+        for (item, perm) in self.relabel_items.iter().zip(RELABEL_PERMS.iter()) {
+            let marker: &str = if *perm == current {
+                "\u{25CF}  "
+            } else {
+                "    "
+            };
+            item.set_label(&format!("{marker}{} {} {}", perm[0], perm[1], perm[2]));
+            item.enable(self.won_once);
+        }
+
+        // Tier-2 gating (dim, don't remove): the Relabel and Recipe top menus are
+        // disabled until the first win, then stay enabled for the session. Save
+        // is enabled only on a won game.
         if let Some(mb) = self.frame.get_menu_bar() {
-            for perm in RELABEL_PERMS.iter() {
-                let id: i32 = XmlResource::get_xrc_id(&relabel_item_name(*perm));
-                if let Some(item) = mb.find_item(id) {
-                    let marker: &str = if *perm == current {
-                        "\u{25CF}  "
-                    } else {
-                        "    "
-                    };
-                    item.set_label(&format!("{marker}{} {} {}", perm[0], perm[1], perm[2]));
-                    item.enable(!won);
-                }
-            }
+            mb.enable_top(1, self.won_once); // Relabel pegs
+            mb.enable_top(2, self.won_once); // Recipe
         }
+        self.recipe_save_item.enable(won);
 
-        // Recipe list (repopulate, preserve selection by name).
-        let previously: Option<String> = self.selected_recipe();
-        self.recipe_list.clear();
-        let names: Vec<String> = self.registry.names();
-        for name in &names {
-            if let Some(recipe) = self.registry.get(name) {
-                self.recipe_list.append(&format!(
-                    "{name}  ({} discs, {} moves)",
-                    recipe.disk_count,
-                    recipe.default_moves.len()
-                ));
-            }
-        }
-        if let Some(prev) = previously {
-            if let Some(i) = names.iter().position(|n| *n == prev) {
-                self.recipe_list.set_selection(i as u32, true);
-            }
-        }
-
-        self.apply_btn.enable(!won);
-        self.show_btn.enable(true);
-        self.save_btn.enable(won);
+        self.update_history();
+        self.update_goal();
         self.frame
-            .set_status_text(&format!("Moves: {}", self.game.current_moves), 1);
+            .set_status_text(&format!("Moves: {}", self.game.current_moves), 2);
     }
 
-    fn check_win(&self) {
-        if !self.is_won() {
-            return;
+    /// Repopulate the always-visible move-history panel from the recorder: every
+    /// move this game in the default 1-2-3 labels, with a live count vs 2^N-1.
+    fn update_history(&self) {
+        let tally: Vec<String> = format_move_tally(&self.recorder.default_moves);
+        self.history_list.clear();
+        for line in &tally {
+            self.history_list.append(line);
         }
+        let count: usize = self.recorder.default_moves.len();
+        let noun: &str = if count == 1 { "move" } else { "moves" };
+        self.history_header.set_label(&format!(
+            "{count} {noun}  optimal {} (default 1-2-3 labels)",
+            self.min_moves()
+        ));
+    }
+
+    /// The persistent goal line in the status bar (field 0) for the current disc
+    /// count; the full rules live in the How-to-Play panel, so this stays terse.
+    fn update_goal(&self) {
+        self.frame.set_status_text(
+            &format!("Goal: move all {} discs to peg 3", self.game.num_disks),
+            0,
+        );
+    }
+
+    /// The win message for the feedback field: the move count vs the optimum and
+    /// the Tier-2-unlocked handoff.
+    fn win_message(&self) -> String {
         let min: u64 = self.min_moves();
         let moves: u64 = u64::from(self.game.current_moves);
         let verdict: String = if moves == min {
@@ -403,17 +485,17 @@ impl GuiState {
         } else {
             format!("{} more than the minimum ({min}).", moves - min)
         };
-        self.frame.set_status_text(
-            &format!("Solved in {moves} moves — {verdict}  Click 'Save' to keep it."),
-            0,
-        );
+        format!(
+            "Solved in {moves} moves \u{2014} {verdict}  Relabel pegs and Recipe are now \
+             unlocked: save this solve, start a bigger stack, and reuse it."
+        )
     }
 }
 
 // --- Handlers ---------------------------------------------------------------
 
 fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
-    let (relabelled, status, moves_for_dialog): (bool, String, Option<Vec<(u32, u32)>>) = {
+    let moves_for_dialog: Option<Vec<(u32, u32)>> = {
         let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
         let relabelled: bool = st.labelling != Labelling::OneTwoThree;
         let result: DispatchResult = st.dispatch(&Command::Move {
@@ -433,12 +515,17 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
                     },
                 )
             };
-        st.frame.set_status_text(&status, 0);
+        st.frame.set_status_text(&status, 1);
+        if st.is_won() {
+            st.won_once = true;
+        }
         st.refresh();
-        st.check_win();
-        (relabelled, status, moves)
+        if st.is_won() {
+            let msg: String = st.win_message();
+            st.frame.set_status_text(&msg, 1);
+        }
+        moves
     };
-    let _ = (relabelled, status);
     if let Some(moves) = moves_for_dialog {
         let (frame, labelling): (Frame, Labelling) = {
             let st: std::cell::Ref<'_, GuiState> = state.borrow();
@@ -450,8 +537,8 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
 
 /// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
 /// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
-/// a proportional font, which collapses the columns (hence the misalignment the maintainer
-/// saw). A read-only teletype `TextCtrl` keeps the columns aligned, matching the Python wx.
+/// a proportional font, which collapses the columns. A read-only teletype `TextCtrl`
+/// keeps the columns aligned, matching the Python wx.
 fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
     let dlg: Dialog = Dialog::builder(parent, title).with_size(640, 460).build();
     let text: TextCtrl = TextCtrl::builder(&dlg)
@@ -476,7 +563,7 @@ fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
 }
 
 fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: Labelling) {
-    let table: Vec<String> = format_rebinding_table(moves, labelling, "Your move / recipe");
+    let table: Vec<String> = format_rebinding_table(moves, labelling, "Recipe (its labels)");
     if table.is_empty() {
         return;
     }
@@ -487,7 +574,7 @@ fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {
     let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
     let result: DispatchResult = st.dispatch(&Command::Relabel(perm));
     if let Some(line) = result.lines.first() {
-        st.frame.set_status_text(line, 0);
+        st.frame.set_status_text(line, 1);
     }
     st.refresh();
 }
@@ -513,7 +600,7 @@ fn on_new_game(state: &Rc<RefCell<GuiState>>) {
     }
     let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
     st.new_game(n);
-    st.frame.set_status_text("", 0);
+    st.frame.set_status_text("", 1);
     st.refresh();
 }
 
@@ -521,7 +608,7 @@ fn on_new_game_same(state: &Rc<RefCell<GuiState>>) {
     let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
     let n: u32 = st.disc_count;
     st.new_game(n);
-    st.frame.set_status_text("", 0);
+    st.frame.set_status_text("", 1);
     st.refresh();
 }
 
@@ -548,23 +635,23 @@ fn on_save(state: &Rc<RefCell<GuiState>>) {
     if name.is_empty() {
         return;
     }
-    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
-    let msg: String = st.save(&name);
-    st.frame.set_status_text(&msg, 0);
-    st.refresh();
+    {
+        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+        let msg: String = st.save(&name);
+        st.frame.set_status_text(&msg, 1);
+        st.refresh();
+    }
+    // Recipes changed, so rebuild the Recipe menu's per-recipe submenus.
+    rebuild_recipe_menu(state);
 }
 
-fn on_apply(state: &Rc<RefCell<GuiState>>) {
-    let (name, frame, relabelled, moves): (String, Frame, bool, Option<Vec<(u32, u32)>>) = {
+/// Recipe menu → <name> → Apply: replay the recipe under the current labelling;
+/// under a relabelling, pop the three-panel rebinding teaching view.
+fn apply_recipe_by_name(state: &Rc<RefCell<GuiState>>, name: &str) {
+    let (frame, relabelled, moves): (Frame, bool, Option<Vec<(u32, u32)>>) = {
         let st: std::cell::Ref<'_, GuiState> = state.borrow();
-        let Some(name) = st.selected_recipe() else {
-            st.frame.set_status_text("Select a recipe first.", 0);
-            return;
-        };
-        let moves: Option<Vec<(u32, u32)>> =
-            st.registry.get(&name).map(|r| r.default_moves.clone());
+        let moves: Option<Vec<(u32, u32)>> = st.registry.get(name).map(|r| r.default_moves.clone());
         (
-            name,
             st.frame.clone(),
             st.labelling != Labelling::OneTwoThree,
             moves,
@@ -572,20 +659,23 @@ fn on_apply(state: &Rc<RefCell<GuiState>>) {
     };
     let labelling: Labelling = {
         let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
-        let result: DispatchResult = st.dispatch(&Command::Apply(name.clone()));
-        let steps: usize = result
-            .lines
-            .iter()
-            .filter(|l| l.trim_start().starts_with("step "))
-            .count();
-        if steps > 0 {
+        let result: DispatchResult = st.dispatch(&Command::Apply(name.to_string()));
+        // The move count comes from the recipe, not the apply log (which omits
+        // the per-step log under a relabelling, feature-spec §4.8).
+        if let Some(count) = moves.as_ref().map(Vec::len) {
             st.frame
-                .set_status_text(&format!("Applied '{name}' — {steps} moves."), 0);
+                .set_status_text(&format!("Applied '{name}' \u{2014} {count} moves."), 1);
         } else if let Some(last) = result.lines.last() {
-            st.frame.set_status_text(last, 0);
+            st.frame.set_status_text(last, 1);
+        }
+        if st.is_won() {
+            st.won_once = true;
         }
         st.refresh();
-        st.check_win();
+        if st.is_won() {
+            let msg: String = st.win_message();
+            st.frame.set_status_text(&msg, 1);
+        }
         st.labelling
     };
     if relabelled {
@@ -600,28 +690,139 @@ fn on_apply(state: &Rc<RefCell<GuiState>>) {
     }
 }
 
-fn on_show(state: &Rc<RefCell<GuiState>>) {
-    let (name, frame): (Option<String>, Frame) = {
+/// Recipe menu → <name> → View: show a saved recipe's steps; under a
+/// relabelling, the three-panel rebinding view instead.
+fn view_recipe(state: &Rc<RefCell<GuiState>>, name: &str) {
+    let (frame, relabelled, moves): (Frame, bool, Option<Vec<(u32, u32)>>) = {
         let st: std::cell::Ref<'_, GuiState> = state.borrow();
-        (st.selected_recipe(), st.frame.clone())
+        let moves: Option<Vec<(u32, u32)>> = st.registry.get(name).map(|r| r.default_moves.clone());
+        (
+            st.frame.clone(),
+            st.labelling != Labelling::OneTwoThree,
+            moves,
+        )
     };
-    let Some(name) = name else {
-        state
-            .borrow()
-            .frame
-            .set_status_text("Select a recipe first.", 0);
+    if relabelled {
+        if let Some(moves) = moves {
+            let labelling: Labelling = state.borrow().labelling;
+            show_rebinding(
+                &frame,
+                &format!("Recipe '{name}' - rebinding"),
+                &moves,
+                labelling,
+            );
+        }
         return;
-    };
+    }
     let lines: Vec<String> = {
         let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
-        st.dispatch(&Command::Show(name.clone())).lines
+        st.dispatch(&Command::Show(name.to_string())).lines
     };
     show_monospace_dialog(&frame, &format!("Recipe '{name}'"), &lines);
 }
 
+/// Rebuild the Recipe menu's tail: one submenu per saved recipe (View / Apply),
+/// or a disabled placeholder when none are saved. The head (Save + separator,
+/// items 0-1) is kept; everything after is deleted and re-appended. Mirrors
+/// `hanoigui.py` _rebuild_recipe_menu — point at the recipe, not a chooser verb.
+fn rebuild_recipe_menu(state: &Rc<RefCell<GuiState>>) {
+    let names: Vec<String> = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
+        // Delete the stale tail (everything after Save + separator).
+        let items: Vec<MenuItem> = st.recipe_menu.get_menu_items();
+        for item in items.iter().skip(2) {
+            st.recipe_menu.delete_item(item);
+        }
+        st.registry.names()
+    };
+    if names.is_empty() {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
+        if let Some(empty) = st.recipe_menu.append(
+            ID_ANY as i32,
+            "(no saved recipes yet)",
+            "",
+            ItemKind::Normal,
+        ) {
+            empty.enable(false);
+        }
+        return;
+    }
+    for name in &names {
+        let label: String = {
+            let st: std::cell::Ref<'_, GuiState> = state.borrow();
+            let Some(recipe) = st.registry.get(name) else {
+                continue;
+            };
+            format!(
+                "{name}  ({} discs, {} moves)",
+                recipe.disk_count,
+                recipe.default_moves.len()
+            )
+        };
+        let submenu: Menu = Menu::builder().build();
+        let view_item: MenuItem = submenu
+            .append(
+                ID_ANY as i32,
+                "&View",
+                "Show this recipe's steps",
+                ItemKind::Normal,
+            )
+            .expect("append View");
+        let apply_item: MenuItem = submenu
+            .append(
+                ID_ANY as i32,
+                "&Apply",
+                "Replay under the current labelling",
+                ItemKind::Normal,
+            )
+            .expect("append Apply");
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let n: String = name.clone();
+            view_item.on_click(move |_| view_recipe(&st, &n));
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let n: String = name.clone();
+            apply_item.on_click(move |_| apply_recipe_by_name(&st, &n));
+        }
+        state
+            .borrow()
+            .recipe_menu
+            .append_submenu(submenu, &label, "");
+    }
+}
+
+/// Swap the visible board renderer (graphics ↔ text) and re-sync the radios.
+fn set_board_mode(state: &Rc<RefCell<GuiState>>, graphics: bool) {
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    st.graphics_mode = graphics;
+    st.board_graphics.show(graphics);
+    st.board_text.show(!graphics);
+    st.frame.layout();
+    st.refresh();
+}
+
+/// Show or hide the always-visible move-history panel (View → Move history).
+fn toggle_history(state: &Rc<RefCell<GuiState>>) {
+    let st: std::cell::Ref<'_, GuiState> = state.borrow();
+    st.history_panel.show(st.history_toggle.is_checked());
+    st.frame.layout();
+}
+
+/// Show or hide the How-to-Play panel, keeping the panel, the View check item,
+/// and the frame layout in sync.
+fn show_howto(state: &Rc<RefCell<GuiState>>, show: bool) {
+    let st: std::cell::Ref<'_, GuiState> = state.borrow();
+    st.howto_panel.show(show);
+    st.howto_toggle.check(show);
+    st.frame.layout();
+}
+
 fn main() {
     let _ = wxdragon::main(|_| {
-        // Load the shared UI definition (menu bar + panel) from the baked XRC.
+        // Load the shared UI definition (the board panel + move buttons) from the
+        // baked XRC. The menu bar is built in code below (see the module docs).
         let res: XmlResource = XmlResource::get();
         res.init_all_handlers();
         if let Err(e) = res.load_from_string(XRC_DATA) {
@@ -629,22 +830,147 @@ fn main() {
             return;
         }
 
+        // Per-user preference store (the "show How-to-Play on launch" flag), named
+        // so it is stable across runs.
+        let config: Config =
+            Config::new("hanoi-wx", Some("hanoi"), None, None, ConfigStyle::empty());
+        let show_howto_on_start: bool = config.read_bool(CONFIG_SHOW_HOWTO, true);
+
         let frame: Frame = Frame::builder()
             .with_title("Towers of Hanoi")
-            .with_size(Size::new(1000, 640))
+            .with_size(Size::new(1040, 660))
             .build();
-        if let Some(menu_bar) = MenuBar::from_xrc_name("main_menubar") {
-            frame.set_menu_bar(menu_bar);
-        }
-        frame.create_status_bar(2, 0, ID_ANY as i32, "");
 
+        // --- Menu bar, built in code (the shared XRC stays untouched) ---
+        let game_menu: Menu = Menu::builder().build();
+        let new_item: MenuItem = game_menu
+            .append(
+                ID_ANY as i32,
+                "&New Game…\tCtrl+N",
+                "Start a new game",
+                ItemKind::Normal,
+            )
+            .expect("New");
+        let new_same_item: MenuItem = game_menu
+            .append(
+                ID_ANY as i32,
+                "New Game (Same &Size)\tCtrl+Shift+N",
+                "Start a new game with the same disc count",
+                ItemKind::Normal,
+            )
+            .expect("New Same");
+        game_menu.append_separator();
+        let exit_item: MenuItem = game_menu
+            .append(ID_EXIT, "&Quit\tCtrl+Q", "Quit", ItemKind::Normal)
+            .expect("Quit");
+
+        let relabel_menu: Menu = Menu::builder().build();
+        let relabel_items: Vec<MenuItem> = RELABEL_PERMS
+            .iter()
+            .map(|perm| {
+                relabel_menu
+                    .append(
+                        ID_ANY as i32,
+                        &format!("{} {} {}", perm[0], perm[1], perm[2]),
+                        "Relabel the pegs to this order",
+                        ItemKind::Normal,
+                    )
+                    .expect("relabel item")
+            })
+            .collect();
+
+        let recipe_menu_build: Menu = Menu::builder().build();
+        let recipe_save_item: MenuItem = recipe_menu_build
+            .append(
+                ID_ANY as i32,
+                "&Save Current Solution\tCtrl+S",
+                "Save the just-won solution as a reusable recipe",
+                ItemKind::Normal,
+            )
+            .expect("Save");
+        recipe_menu_build.append_separator();
+        // The per-recipe submenus are filled by rebuild_recipe_menu once the
+        // state exists.
+
+        let view_menu: Menu = Menu::builder().build();
+        let style_menu: Menu = Menu::builder().build();
+        let style_text_item: MenuItem = style_menu
+            .append(
+                ID_ANY as i32,
+                "&Text",
+                "Show the board as monospace text",
+                ItemKind::Radio,
+            )
+            .expect("Text");
+        let style_graphics_item: MenuItem = style_menu
+            .append(
+                ID_ANY as i32,
+                "&Graphics",
+                "Show the graphical board",
+                ItemKind::Radio,
+            )
+            .expect("Graphics");
+        view_menu.append_submenu(style_menu, "Board &Style", "");
+        view_menu.append_separator();
+        let history_toggle: MenuItem = view_menu
+            .append(
+                ID_ANY as i32,
+                "Move &history\tCtrl+H",
+                "Show the running list of moves in default 1-2-3 labels",
+                ItemKind::Check,
+            )
+            .expect("history toggle");
+        let howto_toggle: MenuItem = view_menu
+            .append(
+                ID_ANY as i32,
+                "How to &play",
+                "Show the How-to-Play panel",
+                ItemKind::Check,
+            )
+            .expect("howto toggle");
+
+        let help_menu: Menu = Menu::builder().build();
+        let help_howto_item: MenuItem = help_menu
+            .append(
+                ID_ANY as i32,
+                "How to &Play",
+                "Show the goal and the rules",
+                ItemKind::Normal,
+            )
+            .expect("Help howto");
+        help_menu.append_separator();
+        let about_item: MenuItem = help_menu
+            .append(ID_ABOUT, "&About", "About this program", ItemKind::Normal)
+            .expect("About");
+
+        let menu_bar: MenuBar = MenuBar::builder()
+            .append(game_menu, "&Game")
+            .append(relabel_menu, "&Relabel pegs")
+            .append(recipe_menu_build, "&Recipe")
+            .append(view_menu, "&View")
+            .append(help_menu, "&Help")
+            .build();
+        frame.set_menu_bar(menu_bar);
+        // Re-fetch the Recipe menu as a borrowed handle for later rebuilds.
+        let recipe_menu: Menu = frame
+            .get_menu_bar()
+            .and_then(|mb| mb.get_menu(2))
+            .expect("Recipe menu");
+        style_graphics_item.check(true);
+        history_toggle.check(true);
+        howto_toggle.check(show_howto_on_start);
+
+        let status_bar: StatusBar = frame.create_status_bar(3, 0, ID_ANY as i32, "");
+        // Field 0 = goal line; field 1 = action feedback; field 2 = moves counter.
+        status_bar.set_status_widths(&[-1, -2, 140]);
+
+        // --- Board panel + move buttons from the shared XRC ---
         let panel: Panel = res
             .load_panel(Some(&frame), "HanoiPanel")
             .expect("HanoiPanel in hanoi.xrc");
 
         // The board_slot is an empty placeholder panel in the XRC; put the two
-        // board widgets (one shown at a time) inside it, as the Python renderer
-        // slot does.
+        // board widgets (one shown at a time) inside it.
         let board_slot: Panel = panel
             .find_child_by_xrc_name("board_slot")
             .expect("board_slot in hanoi.xrc");
@@ -667,39 +993,134 @@ fn main() {
                     .unwrap_or_else(|| panic!("move_{f}_{t} in hanoi.xrc"))
             })
             .collect();
-        let recipe_list: ListBox = panel
-            .find_child_by_xrc_name("recipe_list")
-            .expect("recipe_list in hanoi.xrc");
-        let save_btn: Button = panel
-            .find_child_by_xrc_name("recipe_save")
-            .expect("recipe_save in hanoi.xrc");
-        let apply_btn: Button = panel
-            .find_child_by_xrc_name("recipe_apply")
-            .expect("recipe_apply in hanoi.xrc");
-        let show_btn: Button = panel
-            .find_child_by_xrc_name("recipe_show")
-            .expect("recipe_show in hanoi.xrc");
 
-        // The XRC panel carries its own sizer; drop it into the frame to fill it.
-        let frame_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-        frame_sizer.add(&panel, 1, SizerFlag::Expand, 0);
-        frame.set_sizer(frame_sizer, true);
-
-        // XRC menu-item ids (resolved by name once; the match below compares to
-        // these, since they aren't compile-time constants).
-        let id_new: i32 = XmlResource::get_xrc_id("wxID_NEW");
-        let id_new_same: i32 = XmlResource::get_xrc_id("game_new_same");
-        let id_exit: i32 = XmlResource::get_xrc_id("wxID_EXIT");
-        let id_about: i32 = XmlResource::get_xrc_id("wxID_ABOUT");
-        let id_style_text: i32 = XmlResource::get_xrc_id("style_text");
-        let id_style_graphics: i32 = XmlResource::get_xrc_id("style_graphics");
-        let relabel_ids: [i32; 6] =
-            RELABEL_PERMS.map(|p| XmlResource::get_xrc_id(&relabel_item_name(p)));
-
-        // Graphics is the default board; mark its (radio) menu item.
-        if let Some(mb) = frame.get_menu_bar() {
-            mb.check_item(id_style_graphics, true);
+        // Tier 3: destroy the XRC recipe sidebar (list + Save/Apply/Show) — recipes
+        // move to the Recipe menu. wxDragon has no sizer hide/detach to collapse a
+        // freed slot, so we destroy the widgets (and the enclosing static box, when
+        // it is a distinct parent window) and re-lay-out. The shared XRC still
+        // defines these controls for the other wx front-ends.
+        {
+            let recipe_list: ListBox = panel
+                .find_child_by_xrc_name("recipe_list")
+                .expect("recipe_list in hanoi.xrc");
+            let box_parent: Option<Window> = recipe_list.get_parent();
+            recipe_list.destroy();
+            for name in ["recipe_save", "recipe_apply", "recipe_show"] {
+                if let Some(b) = panel.find_child_by_xrc_name::<Button>(name) {
+                    b.destroy();
+                }
+            }
+            // The wxStaticBox is the items' parent on modern wxWidgets; destroying
+            // it collapses the empty "Recipes" box. Guard against ever destroying
+            // the panel itself.
+            if let Some(bp) = box_parent {
+                if bp.handle_ptr() != panel.handle_ptr() {
+                    bp.destroy();
+                }
+            }
+            panel.layout();
         }
+
+        // --- Tier-1 always-visible move-history panel (frame child) ---
+        let history_panel: Panel = Panel::builder(&frame).build();
+        let history_title: StaticText = StaticText::builder(&history_panel)
+            .with_label("Move history")
+            .build();
+        if let Some(bold) = Font::builder().with_weight(FontWeight::Bold).build() {
+            history_title.set_font(&bold);
+        }
+        let history_header: StaticText = StaticText::builder(&history_panel).with_label("").build();
+        let history_list: ListBox = ListBox::builder(&history_panel).build();
+        if let Some(mono) = Font::builder()
+            .with_point_size(11)
+            .with_family(FontFamily::Teletype)
+            .build()
+        {
+            history_list.set_font(&mono);
+        }
+        history_list.set_min_size(Size::new(240, 220));
+        let history_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+        history_sizer.add(&history_title, 0, SizerFlag::All, 6);
+        history_sizer.add(
+            &history_header,
+            0,
+            SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+            6,
+        );
+        history_sizer.add(
+            &history_list,
+            1,
+            SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+            6,
+        );
+        history_panel.set_sizer(history_sizer, true);
+
+        // --- Tier-1 first-run "How to Play" panel (frame child) ---
+        let howto_panel: Panel = Panel::builder(&frame).build();
+        let howto_heading: StaticText = StaticText::builder(&howto_panel)
+            .with_label("How to Play")
+            .build();
+        if let Some(head_font) = Font::builder()
+            .with_point_size(13)
+            .with_weight(FontWeight::Bold)
+            .build()
+        {
+            howto_heading.set_font(&head_font);
+        }
+        let howto_body: StaticText = StaticText::builder(&howto_panel)
+            .with_label(HOWTO_TEXT)
+            .build();
+        let howto_diagram: Panel = Panel::builder(&howto_panel).build();
+        howto_diagram.set_background_style(BackgroundStyle::Paint);
+        howto_diagram.set_min_size(Size::new(300, 108));
+        {
+            let d: Panel = howto_diagram.clone();
+            howto_diagram.on_paint(move |_| {
+                let dc: AutoBufferedPaintDC = AutoBufferedPaintDC::new(&d);
+                let (w, h): (i32, i32) = dc.get_size();
+                draw_legal_diagram(&dc, w, h);
+            });
+        }
+        let howto_dont_show: CheckBox = CheckBox::builder(&howto_panel)
+            .with_label("Don't show this again")
+            .build();
+        howto_dont_show.set_value(!show_howto_on_start);
+        let howto_got_it: Button = Button::builder(&howto_panel).with_label("Got it").build();
+
+        let howto_text_col: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+        howto_text_col.add(&howto_heading, 0, SizerFlag::Bottom, 6);
+        howto_text_col.add(&howto_body, 0, SizerFlag::AlignLeft, 0);
+        let howto_top_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
+        howto_top_row.add_sizer(&howto_text_col, 1, SizerFlag::Expand | SizerFlag::Right, 12);
+        howto_top_row.add(&howto_diagram, 0, SizerFlag::AlignCenterVertical, 0);
+        let howto_foot_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
+        howto_foot_row.add(&howto_dont_show, 0, SizerFlag::AlignCenterVertical, 0);
+        howto_foot_row.add_stretch_spacer(1);
+        howto_foot_row.add(&howto_got_it, 0, SizerFlag::AlignCenterVertical, 0);
+        let howto_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+        howto_sizer.add_sizer(&howto_top_row, 0, SizerFlag::Expand | SizerFlag::All, 8);
+        howto_sizer.add_sizer(
+            &howto_foot_row,
+            0,
+            SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+            8,
+        );
+        howto_panel.set_sizer(howto_sizer, true);
+
+        // --- Frame layout: [How to Play] on top, then [board panel | history] ---
+        let row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
+        row.add(&panel, 1, SizerFlag::Expand, 0);
+        row.add(
+            &history_panel,
+            0,
+            SizerFlag::Expand | SizerFlag::Top | SizerFlag::Bottom | SizerFlag::Right,
+            6,
+        );
+        let frame_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+        frame_sizer.add(&howto_panel, 0, SizerFlag::Expand | SizerFlag::All, 6);
+        frame_sizer.add_sizer(&row, 1, SizerFlag::Expand, 0);
+        frame.set_sizer(frame_sizer, true);
+        howto_panel.show(show_howto_on_start);
 
         let state: Rc<RefCell<GuiState>> = Rc::new(RefCell::new(GuiState {
             registry: RecipeRegistry::new(),
@@ -708,15 +1129,22 @@ fn main() {
             recorder: Recorder::new(),
             disc_count: DEFAULT_DISKS,
             graphics_mode: true,
+            won_once: false,
             frame: frame.clone(),
-            board_slot: board_slot.clone(),
             board_text: board_text.clone(),
             board_graphics: board_graphics.clone(),
             move_buttons: move_buttons.clone(),
-            recipe_list: recipe_list.clone(),
-            save_btn: save_btn.clone(),
-            apply_btn: apply_btn.clone(),
-            show_btn: show_btn.clone(),
+            relabel_items: relabel_items.clone(),
+            recipe_menu,
+            recipe_save_item,
+            config,
+            history_panel: history_panel.clone(),
+            history_header: history_header.clone(),
+            history_list: history_list.clone(),
+            howto_panel: howto_panel.clone(),
+            howto_toggle,
+            history_toggle,
+            howto_dont_show: howto_dont_show.clone(),
         }));
 
         // Graphics board paint handler.
@@ -738,66 +1166,88 @@ fn main() {
             btn.on_click(move |_| on_move(&st, f, t));
         }
 
-        // Recipe buttons + double-click.
+        // Menu items (wired by handle; the menu is code-built, so no id dispatch).
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            save_btn.on_click(move |_| on_save(&st));
+            new_item.on_click(move |_| on_new_game(&st));
         }
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            apply_btn.on_click(move |_| on_apply(&st));
+            new_same_item.on_click(move |_| on_new_game_same(&st));
+        }
+        {
+            let f: Frame = frame.clone();
+            exit_item.on_click(move |_| f.close(true));
+        }
+        {
+            let f: Frame = frame.clone();
+            about_item.on_click(move |_| {
+                MessageDialog::builder(
+                    &f,
+                    "Towers of Hanoi\n\nA teaching tool: solve small, relabel pegs, \
+                     replay. Shares its model and dispatcher with the CLI and TUI \
+                     front-ends.",
+                    "About Towers of Hanoi",
+                )
+                .build()
+                .show_modal();
+            });
+        }
+        for (item, perm) in relabel_items.iter().zip(RELABEL_PERMS.iter()) {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let perm: [u32; 3] = *perm;
+            item.on_click(move |_| on_relabel(&st, perm));
         }
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            show_btn.on_click(move |_| on_show(&st));
+            style_text_item.on_click(move |_| set_board_mode(&st, false));
         }
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            recipe_list.on_item_double_clicked(move |_| on_show(&st));
+            style_graphics_item.on_click(move |_| set_board_mode(&st, true));
         }
-
-        // Menu. The item ids come from the XRC (resolved above), so this is an
-        // if/else chain rather than a match on constants.
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            let frame_for_menu: Frame = frame.clone();
-            frame.on_menu_selected(move |ev: MenuEventData| {
-                let id: i32 = ev.get_id();
-                if id == id_new {
-                    on_new_game(&st);
-                } else if id == id_new_same {
-                    on_new_game_same(&st);
-                } else if id == id_exit {
-                    frame_for_menu.close(true);
-                } else if id == id_about {
-                    MessageDialog::builder(
-                        &frame_for_menu,
-                        "Towers of Hanoi\n\nA teaching tool: solve small, relabel pegs, \
-                         replay. Shares its model and dispatcher with the CLI and TUI \
-                         front-ends.",
-                        "About Towers of Hanoi",
-                    )
-                    .build()
-                    .show_modal();
-                } else if id == id_style_graphics || id == id_style_text {
-                    let graphics: bool = id == id_style_graphics;
-                    let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
-                    s.graphics_mode = graphics;
-                    s.board_graphics.show(graphics);
-                    s.board_text.show(!graphics);
-                    if let Some(mb) = s.frame.get_menu_bar() {
-                        mb.check_item(id_style_graphics, graphics);
-                        mb.check_item(id_style_text, !graphics);
-                    }
-                    s.board_slot.layout();
-                    s.frame.layout();
-                    s.refresh();
-                } else if let Some(pos) = relabel_ids.iter().position(|&x| x == id) {
-                    on_relabel(&st, RELABEL_PERMS[pos]);
-                }
+            // MenuItem is Copy; the handle was moved into the state, so copy it
+            // back out for the closure.
+            let toggle: MenuItem = state.borrow().history_toggle;
+            toggle.on_click(move |_| toggle_history(&st));
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let save: MenuItem = state.borrow().recipe_save_item;
+            save.on_click(move |_| on_save(&st));
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            help_howto_item.on_click(move |_| show_howto(&st, true));
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            let toggle: MenuItem = state.borrow().howto_toggle;
+            toggle.on_click(move |_| {
+                let checked: bool = st.borrow().howto_toggle.is_checked();
+                show_howto(&st, checked);
             });
         }
 
+        // How-to-Play panel controls.
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            howto_got_it.on_click(move |_| show_howto(&st, false));
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            howto_dont_show.on_toggled(move |_| {
+                let s: std::cell::Ref<'_, GuiState> = st.borrow();
+                // "Don't show again" checked ⇒ do NOT show on next launch.
+                s.config
+                    .write_bool(CONFIG_SHOW_HOWTO, !s.howto_dont_show.get_value());
+                s.config.flush(false);
+            });
+        }
+
+        rebuild_recipe_menu(&state);
         state.borrow().refresh();
         frame.show(true);
         frame.centre();
