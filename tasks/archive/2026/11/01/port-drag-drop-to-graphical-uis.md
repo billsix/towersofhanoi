@@ -68,7 +68,7 @@ commit boundary and can spin into its own task if it turns out large).
 
 - `tasks/archive/2026/10/31/wxpython-drag-drop-disks-spike.md` — the approved oracle this mirrors;
   `python/tools/gui_smoke.py` — the headless GUI smoke harness (pattern for a per-UI smoke).
-- `tasks/fan-out-ui-learning-flow.md` — do each UI's drag-drop with its tier redesign (shared files).
+- `tasks/archive/2026/11/01/fan-out-ui-learning-flow.md` — did each UI's drag-drop with its tier redesign (shared files).
 - `tasks/reference/ui-design-principles.md` (direct manipulation, forgiveness),
   `tasks/reference/feature-spec.md` §4.2 (move + rejection reasons), §6.2 (GUI button guidance),
   `tasks/reference/imgui-cpp-native-and-wasm.md` (C++ build/run + wasm).

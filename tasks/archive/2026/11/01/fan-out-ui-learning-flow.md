@@ -6,7 +6,7 @@ the wx trio (wxPython oracle + C++ wx + Rust wxDragon). All GUI work was on-disp
 maintainer; the wx trio's two on-display fixes (a wxDragon launch segfault + dead menus) are in git
 history. The shared-XRC decision (wx front-ends carry the flow in code, XRC stays structural) is
 harvested into `tasks/reference/ui-design-principles.md` (ruling 6). The sibling drag-drop fan-out is
-its own task (`tasks/port-drag-drop-to-graphical-uis.md`, also done). History/count/timing detail is in
+its own task (`tasks/archive/2026/11/01/port-drag-drop-to-graphical-uis.md`, also done). History/count/timing detail is in
 the commits on the merged branches.
 **Priority:** 3
 **Difficulty:** 6
@@ -88,7 +88,8 @@ the commits on the merged branches.
   duplicated the "Recipe (its labels)" column). Only Tauri showed the duplicate — the shared engine
   already suppresses the per-step log under a relabelling (`rust/hanoigame/src/engine.rs` `handle_apply`),
   and egui/CLI/TUI reuse that. Verified: `make type-check` (deno) + Tauri backend `cargo check`.
-- **Remaining:** fold in **drag-drop** per graphical UI incl. ImGui (`tasks/port-drag-drop-to-graphical-uis.md`).
+- **Drag-drop** per graphical UI incl. ImGui is DONE in its sibling task
+  (`tasks/archive/2026/11/01/port-drag-drop-to-graphical-uis.md`).
 
 ## BLUF
 
