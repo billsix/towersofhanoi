@@ -51,9 +51,10 @@ in-script, with a reason):
    non-zero if any are found. Multi-pattern but single-command, so it is safe-by-shape on exit status
    (one `grep`); if it grows to several passes, use the `status=0; … || status=1; exit $status` shape
    (house rule for multi-step gates).
-2. Wire it into a `make` target. **Candidate: extend `make type-check`** (it already runs the Deno
-   checks over the frontend and is the "static gate" bucket) — accumulate its exit status with the Deno
-   steps. Alternatively its own `## `-documented `make check-no-network`. (Open question 1.)
+2. Wire it into **`make type-check`** (decided 2026-11-01, maintainer): fold the check into the existing
+   static-gate target that already runs the Deno checks over the frontend — accumulate its exit status
+   with the Deno steps (`status=0; … || status=1; … exit $status`), so one run reports all the red. No
+   new `make` target and no new CI job (it rides the `rust-type-check` job).
 3. Add it to CI in the **`rust-type-check`** job (where the frontend's Deno checks already run) so it
    gates every push/PR — one line, matching the "CI is a thin wrapper over `make`" principle
    (`tasks/reference/ci-github-actions.md`).
@@ -65,17 +66,31 @@ in-script, with a reason):
 
 ## Open questions
 
-1. **Wiring: fold into `make type-check`, or a standalone `make check-no-network`?** (Recommend fold
-   into `type-check` — it is the existing static-gate target for this frontend and already runs in the
-   `rust-type-check` CI job, so no new CI job is needed; one less target to document. Your call.)
-2. **Scope now or later for the other web targets** (C++ wasm, egui-web)? (Recommend: this task does the
-   Tauri frontend only; note the others as possible siblings if you want the same guarantee. Each has a
-   different asset-bundling story, so a shared gate would need per-target globs.)
+*(Both resolved by the maintainer 2026-11-01.)*
+
+1. ~~Wiring: fold into `make type-check` or a standalone target?~~ **Decided: fold into `make
+   type-check`** (rides the existing `rust-type-check` CI job; no new target/job). Reflected in Plan
+   step 2.
+2. ~~Scope the other web targets now or later?~~ **Decided: now** — sibling tasks scaffolded for the
+   **C++ wasm** gate (`tasks/cpp-wasm-no-network-static-gate.md`) and the **egui-web** gate
+   (`tasks/egui-web-no-network-static-gate.md`). This task is the proven template they adapt; the one
+   real per-target difference is the glob scope (and, for C++, **excluding the vendored emacs `elpa/`
+   tree**, which legitimately contains CDN links inside third-party packages that never ship in the
+   app).
+
+3. **(New, optional) Shared gate script?** The three gates differ only in target dir + globs — the check
+   logic is identical. Worth a single reusable `tools/check-no-network.sh` (arg: a dir + glob) vendored
+   across the subprojects, like `check_local_annotations.py`? Or keep three tiny per-subproject copies
+   until a 3rd consumer proves the need (the house "inline until 2–3 real consumers" bar)? Recommend
+   starting with per-subproject copies and promoting only if they drift into wanting one source. Your
+   call.
 
 ## Related
 
 - Parent investigation: `tasks/tauri-frontend-js-options.md` (findings + why this is the only
   recommended change).
+- Sibling gates (same pattern, other web targets): `tasks/cpp-wasm-no-network-static-gate.md`,
+  `tasks/egui-web-no-network-static-gate.md`. This task is their template.
 - `tasks/reference/ci-github-actions.md` — where the CI line lands (the `rust-type-check` job).
 - Personal overlay "Self-contained images + live source" — the offline guarantee this statically
   enforces for the web frontend; its runtime-proof is the offline-run test.
