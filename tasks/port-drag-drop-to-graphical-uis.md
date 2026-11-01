@@ -1,9 +1,12 @@
 # Port drag-and-drop discs to the other graphical front-ends
 
-**Status:** IN PROGRESS (branch `drag-drop-fanout`; gpg off → restored). All five graphical
-front-ends now carry the drag gesture. **C++ ImGui on-display-verified by the maintainer**; the other
-four (egui, C++ wx, Rust wxDragon, Tauri) are compile- and headless-smoke-verified (Tauri via the deno
-type-check) and **await the maintainer's on-display sign-off** per UI.
+**Status:** DONE (branch `drag-drop-fanout`; gpg off → restored). All five graphical front-ends carry
+the drag gesture and were **on-display-verified by the maintainer** (2026-11-01). One fix after the
+on-display pass: the Tauri drop flickered the disc back to its source before landing — it repainted the
+pre-move snapshot during the `await do_move`; fixed by leaving the dragged-disc frame up until
+`render()` paints the result (the other GUIs don't flicker — wx coalesces its `Refresh()` calls and the
+immediate-mode ones apply the move synchronously). Decisions harvested into
+`tasks/reference/ui-design-principles.md` (rulings 6–7). Maintainer merges `drag-drop-fanout`.
 **Priority:** 3
 **Difficulty:** 6
 

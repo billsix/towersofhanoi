@@ -1,13 +1,13 @@
 # Fan out the learning-flow UI to every other front-end
 
-**Status:** IN PROGRESS (autonomous batch; branches `ui-fanout-and-apply-output` [merged],
-`ui-fanout-tuis` [merged], `ui-fanout-guis` [merged], `ui-fanout-egui` [merged],
-`ui-egui-relabel-glyph` [merged], `emacs-packages-from-mount` [merged, carried the Tauri GUI], and
-`ui-fanout-wx-trio` [current — the C++ wx + Rust wxDragon learning flow + two Tauri UX fixes; gpg
-off → restored]). **Every front-end now carries the learning flow**: all text UIs + C++ ImGui + Rust
-egui + Rust Tauri + **C++ wx + Rust wxDragon**. The wx trio is compile- and headless-smoke-verified
-but **needs the maintainer's on-display `make wx` sign-off** before merge. Only **drag-drop** per
-graphical UI remains open (`tasks/port-drag-drop-to-graphical-uis.md`).
+**Status:** DONE (all front-ends merged, 2026-11-01). **Every front-end carries the three-tier
+learning flow**: Python CLI/curses + Rust cli/ratatui (text), C++ ImGui, Rust egui, Rust Tauri, and
+the wx trio (wxPython oracle + C++ wx + Rust wxDragon). All GUI work was on-display-verified by the
+maintainer; the wx trio's two on-display fixes (a wxDragon launch segfault + dead menus) are in git
+history. The shared-XRC decision (wx front-ends carry the flow in code, XRC stays structural) is
+harvested into `tasks/reference/ui-design-principles.md` (ruling 6). The sibling drag-drop fan-out is
+its own task (`tasks/port-drag-drop-to-graphical-uis.md`, also done). History/count/timing detail is in
+the commits on the merged branches.
 **Priority:** 3
 **Difficulty:** 6
 
