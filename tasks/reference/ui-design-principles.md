@@ -100,9 +100,12 @@ conformant hanoi UI organizes its features into three tiers:
 4. **Onboarding for the non-knower** — an always-present one-line **goal statement**, plus a
    dismissible **"How to play"** (the rules + the one legal-move rule + the "solve small, relabel,
    replay" idea). Implicit teaching is not enough for an audience that does not know the puzzle.
-   *Realized in the wxPython oracle:* the goal line sits in the **status bar** (terse, out of the
-   board's way); "How to play" is a **first-run dismissible panel** (a ✓/✗ legal-move diagram, not a
-   screenshot) reopenable from the **Help** menu, with a "don't show again" preference.
+   *Realized across the GUIs:* the goal line sits in the **status bar** (terse, out of the board's
+   way); "How to play" is a **centered modal dialog** shown once on first run (centered in the middle
+   of the window, not an inline panel pinned above the board) and reopenable from the **Help** menu,
+   with a ✓/✗ legal-move diagram (not a screenshot) and a "don't show again" preference. (wx/ImGui use
+   a native modal; egui a centered window; Tauri an HTML `<dialog>` `showModal`.) A terminal UI prints
+   the same text on first run / on `help`.
 5. **Preserve what already matches the HIG** — dim-don't-hide for illegal actions (perceived
    stability), colour-follows-label (`feature-spec.md` §3), and the three-panel rebinding view as the
    direct-manipulation showpiece of the method.
