@@ -416,8 +416,9 @@ fn prompt_disc_count(terminal: &mut DefaultTerminal) -> std::io::Result<Option<u
 fn play_game(
     terminal: &mut DefaultTerminal,
     n: u32,
+    first_win: bool,
     registry: &mut RecipeRegistry,
-) -> std::io::Result<bool> {
+) -> std::io::Result<Option<bool>> {
     let mut session: GameSession<'_> = GameSession::new(n, registry);
     // Open with the Tier-1 onboarding in the message area; the first move's
     // feedback replaces it.
@@ -431,12 +432,12 @@ fn play_game(
             |input| complete_line(input, &session.registry.names()),
         )?
         else {
-            return Ok(false);
+            return Ok(None);
         };
         let cmd: Command = parse(&line);
         let result: DispatchResult = session.dispatch(&cmd);
         if result.quit {
-            return Ok(false);
+            return Ok(None);
         }
         let mut show: Vec<String> = result.lines.clone();
         show.extend(session.move_teaching_lines(&cmd, &result));
@@ -449,16 +450,15 @@ fn play_game(
     }
 
     // Won.
-    let min: u64 = session.min_moves();
-    let moves: u64 = u64::from(session.current_moves());
-    let mut banner: Vec<String> = vec![format!("Solved! {moves} moves (minimum {min}).")];
-    if moves == min {
-        banner.push("Optimal solution!".to_string());
-    } else {
-        banner.push(format!("{} more than the minimum.", moves - min));
-    }
+    let mut banner: Vec<String> = hanoigame::presenter::format_win_celebration(
+        session.num_disks() as usize,
+        u64::from(session.current_moves()),
+        session.min_moves(),
+        first_win,
+    );
 
-    let default_name: String = format!("solve-{}", session.num_disks());
+    let default_name: String =
+        hanoigame::presenter::default_recipe_name(session.num_disks() as usize);
     let save_hint: [&str; 1] =
         ["Save this solution? Edit the name and press Enter, or clear it to skip."];
     let name: Option<String> = read_line_on(
@@ -482,18 +482,27 @@ fn play_game(
         |f, input| draw_play(f, &session, &banner, &again_hint, input),
         |s| s.to_string(),
     )?;
-    Ok(matches!(again, Some(a) if a.trim().to_lowercase().starts_with('y')))
+    Ok(Some(
+        matches!(again, Some(a) if a.trim().to_lowercase().starts_with('y')),
+    ))
 }
 
 /// The game loop: prompt for a disc count, play, repeat until the user quits.
 fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
     let mut registry: RecipeRegistry = RecipeRegistry::new();
+    let mut won_before: bool = false;
     loop {
         let Some(n) = prompt_disc_count(terminal)? else {
             return Ok(());
         };
-        if !play_game(terminal, n, &mut registry)? {
-            return Ok(());
+        match play_game(terminal, n, !won_before, &mut registry)? {
+            None => return Ok(()),
+            Some(play_again) => {
+                won_before = true;
+                if !play_again {
+                    return Ok(());
+                }
+            }
         }
     }
 }

@@ -75,6 +75,9 @@ const RELABEL_PERMS = [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [
 // Tier-2 latch: once the player has won at least once this session, the Relabel
 // and Recipe menus stay unlocked (dim-don't-remove; feature-spec §3.5).
 let wonOnce = false;
+// Whether the win celebration has been shown for the current win, so render()
+// (which runs on every command) pops the modal once per win, not every frame.
+let winCelebrated = false;
 // The latest snapshot, so menu actions (Save) can read e.g. the disc count.
 /** @type {Snapshot|null} */
 let latest = null;
@@ -326,6 +329,55 @@ function renderRelabelMenu(s) {
 }
 
 /**
+ * Show the win celebration as a modal <dialog> (the teaching hinge): the shared
+ * wording from the backend `win_celebration` command (so the webview reads
+ * identically to the other front-ends), a "Save as recipe" button (offered
+ * every win) and a "Not now" dismiss. The recipe-teaching lines are present
+ * only on the first win (the backend keys off `firstWin`).
+ * @param {boolean} firstWin
+ * @returns {Promise<void>}
+ */
+async function showWinDialog(firstWin) {
+  const lines = /** @type {string[]} */ (
+    await invoke("win_celebration", { firstWin })
+  );
+  const dialog = document.createElement("dialog");
+  dialog.className = "howto";
+  const heading = document.createElement("h2");
+  heading.textContent = lines[0] || "You solved it!";
+  dialog.appendChild(heading);
+  for (const line of lines.slice(1)) {
+    const para = document.createElement("p");
+    para.textContent = line;
+    dialog.appendChild(para);
+  }
+  const form = document.createElement("form");
+  form.method = "dialog";
+  const notNow = document.createElement("button");
+  notNow.value = "cancel";
+  notNow.textContent = "Not now";
+  const save = document.createElement("button");
+  save.value = "save";
+  save.textContent = "Save as recipe";
+  form.appendChild(notNow);
+  form.appendChild(save);
+  dialog.appendChild(form);
+  document.body.appendChild(dialog);
+  dialog.addEventListener("close", async () => {
+    const wantSave = dialog.returnValue === "save";
+    dialog.remove();
+    if (wantSave && latest) {
+      render(
+        /** @type {Snapshot} */ (await invoke("save_recipe", {
+          name: `solve-${latest.num_disks}`,
+        })),
+      );
+    }
+  });
+  dialog.showModal();
+}
+
+/**
  * Fill the Recipe menu: Save current solution (enabled only at a win), then each
  * saved recipe as a row with View / Apply (Apply disabled once the game is solved).
  * @param {Snapshot} s
@@ -355,7 +407,16 @@ function renderRecipeMenu(s) {
  */
 function render(s) {
   latest = s;
+  const firstWin = s.won && !wonOnce;
   wonOnce = wonOnce || s.won;
+
+  // Win celebration (the teaching hinge): pop the modal once per win.
+  if (!s.won) {
+    winCelebrated = false;
+  } else if (!winCelebrated) {
+    winCelebrated = true;
+    void showWinDialog(firstWin);
+  }
 
   drawBoard(s);
   el("board").textContent = s.board.join("\n");
@@ -369,11 +430,7 @@ function render(s) {
 
   let message = s.message || "";
   if (s.won && !message) {
-    const verdict = s.moves === s.min_moves
-      ? "Optimal!"
-      : `${s.moves - s.min_moves} more than the minimum (${s.min_moves}).`;
-    message =
-      `Solved in ${s.moves} moves — ${verdict}  Save it from the Recipe menu to keep it.`;
+    message = `Solved in ${s.moves} moves — save it as a recipe to replay it.`;
   }
   el("message").textContent = message;
 

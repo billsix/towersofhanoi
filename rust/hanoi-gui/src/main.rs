@@ -552,21 +552,85 @@ impl GuiState {
             0,
         );
     }
+}
 
-    /// The win message for the feedback field: the move count vs the optimum and
-    /// the Tier-2-unlocked handoff.
-    fn win_message(&self) -> String {
-        let min: u64 = self.min_moves();
-        let moves: u64 = u64::from(self.game.current_moves);
-        let verdict: String = if moves == min {
-            "Optimal!".to_string()
-        } else {
-            format!("{} more than the minimum ({min}).", moves - min)
-        };
-        format!(
-            "Solved in {moves} moves \u{2014} {verdict}  Relabel pegs and Recipe are now \
-             unlocked: save this solve, start a bigger stack, and reuse it."
-        )
+/// On a win, show the celebration popup (the teaching hinge, feature-spec §4.9):
+/// the congratulation + result as a centered modal, plus the recipe teaching on
+/// the first win, with a "Save as recipe" button (offered every win) and a "Not
+/// now" dismiss. Shared by the move and apply handlers; Save opens the name
+/// prompt on close. No-op when the game is not won.
+fn celebrate_win(state: &Rc<RefCell<GuiState>>) {
+    let (frame, lines): (Frame, Vec<String>) = {
+        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+        if !st.is_won() {
+            return;
+        }
+        let first_win: bool = !st.won_once;
+        st.won_once = true;
+        st.refresh();
+        let lines: Vec<String> = hanoigame::presenter::format_win_celebration(
+            st.game.num_disks as usize,
+            u64::from(st.game.current_moves),
+            st.min_moves(),
+            first_win,
+        );
+        if let Some(first) = lines.first() {
+            st.frame.set_status_text(first, 1);
+        }
+        (st.frame.clone(), lines)
+    };
+
+    let dlg: Dialog = Dialog::builder(&frame, "You solved it!").build();
+    let heading: StaticText = StaticText::builder(&dlg).with_label(&lines[0]).build();
+    if let Some(head_font) = Font::builder()
+        .with_point_size(13)
+        .with_weight(FontWeight::Bold)
+        .build()
+    {
+        heading.set_font(&head_font);
+    }
+    let rest: String = if lines.len() > 1 {
+        lines[1..].join("\n")
+    } else {
+        String::new()
+    };
+    let body: StaticText = StaticText::builder(&dlg).with_label(&rest).build();
+    let save_btn: Button = Button::builder(&dlg)
+        .with_label("Save as recipe\u{2026}")
+        .build();
+    let not_now: Button = Button::builder(&dlg).with_label("Not now").build();
+
+    let foot_row: BoxSizer = BoxSizer::builder(Orientation::Horizontal).build();
+    foot_row.add_stretch_spacer(1);
+    foot_row.add(&not_now, 0, SizerFlag::Right, 6);
+    foot_row.add(&save_btn, 0, SizerFlag::AlignCenterVertical, 0);
+    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    sizer.add(&heading, 0, SizerFlag::All, 12);
+    sizer.add(
+        &body,
+        0,
+        SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+        12,
+    );
+    sizer.add_sizer(
+        &foot_row,
+        0,
+        SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+        12,
+    );
+    dlg.set_sizer(sizer, true);
+    dlg.fit();
+    dlg.centre();
+    {
+        let d: Dialog = dlg.clone();
+        save_btn.on_click(move |_| d.end_modal(ID_OK));
+    }
+    {
+        let d: Dialog = dlg.clone();
+        not_now.on_click(move |_| d.end_modal(ID_CANCEL));
+    }
+    if dlg.show_modal() == ID_OK {
+        on_save(state);
     }
 }
 
@@ -594,16 +658,10 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
                 )
             };
         st.frame.set_status_text(&status, 1);
-        if st.is_won() {
-            st.won_once = true;
-        }
         st.refresh();
-        if st.is_won() {
-            let msg: String = st.win_message();
-            st.frame.set_status_text(&msg, 1);
-        }
         moves
     };
+    celebrate_win(state);
     if let Some(moves) = moves_for_dialog {
         let (frame, labelling): (Frame, Labelling) = {
             let st: std::cell::Ref<'_, GuiState> = state.borrow();
@@ -695,7 +753,7 @@ fn on_save(state: &Rc<RefCell<GuiState>>) {
         let st: std::cell::Ref<'_, GuiState> = state.borrow();
         (
             st.frame.clone(),
-            format!("solve-{}", st.game.num_disks),
+            hanoigame::presenter::default_recipe_name(st.game.num_disks as usize),
             st.is_won(),
         )
     };
@@ -746,16 +804,10 @@ fn apply_recipe_by_name(state: &Rc<RefCell<GuiState>>, name: &str) {
         } else if let Some(last) = result.lines.last() {
             st.frame.set_status_text(last, 1);
         }
-        if st.is_won() {
-            st.won_once = true;
-        }
         st.refresh();
-        if st.is_won() {
-            let msg: String = st.win_message();
-            st.frame.set_status_text(&msg, 1);
-        }
         st.labelling
     };
+    celebrate_win(state);
     if relabelled {
         if let Some(moves) = moves {
             show_rebinding(

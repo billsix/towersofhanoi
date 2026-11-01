@@ -16,7 +16,10 @@ use eframe::egui;
 use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
-use hanoigame::presenter::{change_labels_on_pegs, format_move_tally, Labelling};
+use hanoigame::presenter::{
+    change_labels_on_pegs, default_recipe_name, format_move_tally, format_win_celebration,
+    Labelling,
+};
 use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
 
 const MAX_DISKS: u32 = 10;
@@ -90,6 +93,9 @@ struct HanoiApp {
     status: String,
     /// Tier-2 latch: relabel + recipes stay dimmed until the first win, then unlock.
     won_once: bool,
+    /// The win-celebration lines to show in a modal window (None = no dialog);
+    /// set by `check_win`, cleared when the player dismisses or saves.
+    win_dialog: Option<Vec<String>>,
     /// Whether the How-to-Play window is open, and whether it has auto-opened once.
     open_help: bool,
     help_shown: bool,
@@ -130,6 +136,7 @@ impl HanoiApp {
             disc_count: DEFAULT_DISKS,
             status: String::new(),
             won_once: false,
+            win_dialog: None,
             open_help: false,
             help_shown: false,
             detail_title: String::new(),
@@ -179,6 +186,7 @@ impl HanoiApp {
         self.recorder = Recorder::new();
         self.status.clear();
         self.detail.clear();
+        self.win_dialog = None;
     }
 
     fn is_won(&self) -> bool {
@@ -231,7 +239,7 @@ impl HanoiApp {
         if !self.is_won() {
             return;
         }
-        let name: String = format!("solve-{}", self.game.num_disks);
+        let name: String = default_recipe_name(self.game.num_disks as usize);
         let msg: String = self.save(&name);
         self.status = msg;
     }
@@ -279,14 +287,16 @@ impl HanoiApp {
         if !self.is_won() {
             return;
         }
-        let min: u64 = self.min_moves();
-        let moves: u64 = u64::from(self.game.current_moves);
-        let verdict: String = if moves == min {
-            "Optimal!".to_string()
-        } else {
-            format!("{} more than the minimum ({min}).", moves - min)
-        };
-        self.status = format!("Solved in {moves} moves -- {verdict}  Save to keep it.");
+        let lines: Vec<String> = format_win_celebration(
+            self.game.num_disks as usize,
+            u64::from(self.game.current_moves),
+            self.min_moves(),
+            !self.won_once,
+        );
+        if let Some(first) = lines.first() {
+            self.status = first.clone();
+        }
+        self.win_dialog = Some(lines);
     }
 
     /// Board layout from the paint rect (peg centres, disc sizes), shared by the
@@ -681,6 +691,39 @@ impl eframe::App for HanoiApp {
                 }
             });
         self.open_help = open && !dismiss;
+
+        // The win celebration (teaching hinge): shown on every win; Save is
+        // offered each time, the teaching lines appear only on a first win.
+        if let Some(lines) = self.win_dialog.clone() {
+            let mut keep_open: bool = true;
+            let mut save: bool = false;
+            let mut close: bool = false;
+            egui::Window::new("You solved it!")
+                .open(&mut keep_open)
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    for line in &lines {
+                        ui.label(line);
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Save as recipe").clicked() {
+                            save = true;
+                        }
+                        if ui.button("Not now").clicked() {
+                            close = true;
+                        }
+                    });
+                });
+            if save {
+                self.do_save();
+            }
+            if save || close || !keep_open {
+                self.win_dialog = None;
+            }
+        }
     }
 }
 

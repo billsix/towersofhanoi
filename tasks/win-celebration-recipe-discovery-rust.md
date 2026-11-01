@@ -1,6 +1,13 @@
 # Win celebration + recipe discovery — Rust
 
-**Status:** proposed — needs go-ahead.
+**Status:** implemented 2026-11-01 — the crate helper (`presenter::format_win_celebration` +
+`default_recipe_name`, with a parity doctest asserting the oracle strings) and all five front-ends
+surface the win celebration: `hanoi-cli` + `hanoi` (ratatui) print it each win (teaching on the first);
+`hanoi-gui` (wxDragon) + `hanoi-egui` show a centered modal/window with a "Save as recipe" button;
+`tauri` gets a `win_celebration` backend command + a webview `<dialog>`. Gate green in-container:
+`cargo check --workspace --all-targets`, `cargo test --workspace` (crate 28 doctests incl. parity + cli
+21), egui + tauri `cargo check`, `deno check/lint/fmt` on the Tauri frontend, `cargo fmt`. **Pending:**
+the maintainer's display-verify of the four GUIs (`make wx`/`tauri`/`egui`/`tui`) — then this archives.
 **Priority:** 5 **Difficulty:** 5 (five front-ends)
 **Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
 open questions that **block implementation**).
