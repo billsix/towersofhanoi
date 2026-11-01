@@ -1,8 +1,9 @@
 # Make the Tauri frontend look native on Linux/GTK, macOS, and Windows (CSS design-token refresh)
 
-**Status:** in progress — the **token-layer prototype is committed** (step 1 below, on branch
-`desktop-native-look`); the remaining steps are proposed and need the maintainer's eyes on the prototype
-first. Not blocked.
+**Status:** in progress — **steps 1 and 2 are committed** (token layer + board follows the OS
+light/dark theme, on branch `desktop-native-look`). Step 3 (density) is deferred by the maintainer's
+"keep current" decision, step 4 (toggle) is dropped, step 5 (window effects) is an optional spike. The
+remaining action is the maintainer's **display pass** (`make tauri` on each OS). Not blocked.
 **Priority:** 5 **Difficulty:** 4
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). Comes out of the JS-options
 investigation (`tasks/archive/2026/11/01/tauri-frontend-js-options.md`), which concluded **stay vanilla,
@@ -71,12 +72,16 @@ own `--accent` token per theme rather than reading the OS accent.
    **`:focus-visible`** ring. Decision logged: **the board (canvas + text `<pre>`) stays a fixed dark
    "screen" in both themes** — it's a graphic surface, not chrome, and keeping it fixed avoids a
    half-themed look until step 2. Layout/spacing unchanged so the diff is reviewable and nothing moves.
-2. **[proposed] Theme the canvas board in `main.js`.** The board colours are painted in JS, so light
-   mode can't reach them from CSS. Make `main.js` read the theme tokens (via
-   `getComputedStyle(document.documentElement).getPropertyValue('--…')`) or mirror a small token object,
-   so the board (and disc/peg colours) follow light/dark too — *if* the maintainer wants the board to
-   theme (vs. the step-1 "fixed dark screen" choice). This is the one JS change; keep it typed
-   (`@ts-check`).
+2. **[DONE 2026-11-01] Theme the canvas board in `main.js`.** The board colours are painted in JS, so
+   CSS alone can't reach them. `main.js` now keeps a small `boardTheme` object refreshed by
+   `refreshBoardTheme()`, which reads `--board-surface` (the canvas "desk") and `--fg-muted` (the
+   reference-row text) from the token layer via `getComputedStyle(document.documentElement)`. Because the
+   webview's `prefers-color-scheme` reflects the OS setting, those resolved tokens are already the active
+   theme's, so the board follows light/dark; a `matchMedia("(prefers-color-scheme: dark)")` change
+   listener repaints on a live OS flip. `style.css` gained light board tokens in `:root` + the dark ones
+   in the dark `@media` block. The **wooden pegs/base and the vivid size-coloured discs stay
+   theme-independent** (a physical toy's materials don't change with room lighting) — so only the desk
+   surface and the text board flip. Stays typed (`@ts-check`, strict `checkJs`); gate green.
 3. **[proposed] Native density + control metrics.** Optionally nudge the base size toward native
    (~14px) and adopt Fluent-ish control metrics (4px corners, ~32px control height) behind tokens;
    verify it still reads well on GTK/macOS. Left as its own step because it shifts every measurement —

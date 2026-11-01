@@ -15,9 +15,11 @@
    Windows system-locale bug), and the GTK UI font on Linux/WebKitGTK (`system-ui`
    -> Cantarell / the user's choice), matching the GTK wx GUIs.
 
-   The board (canvas + text <pre>) is a FIXED dark "screen" in both themes: it is
-   a graphic surface, not chrome. Theming its painted colours is step 2 (a JS
-   change), deliberately deferred.
+   The board (canvas + text <pre>) FOLLOWS the OS light/dark theme too (step 2):
+   main.js reads --board-surface / --fg-muted from this token layer at paint time,
+   so the "desk" surface and label text flip with the theme. The wooden pegs/base
+   and the vivid size-coloured discs are painted theme-independently in main.js --
+   a physical toy's materials don't change with room lighting.
    --------------------------------------------------------------------------- */
 :root {
   color-scheme: light dark;
@@ -49,11 +51,13 @@
   --shadow: 0 6px 18px #00000026;
   --backdrop: #0000006b;
 
-  /* Board surface: fixed in both themes (a dark play "screen"). */
-  --board-bg: #141a28;
-  --board-surface: #1e2432;
-  --board-fg: #6fd3e0;
-  --board-border: #39425a;
+  /* Board surface: follows the OS theme (light here, dark in the media query).
+     The "desk" the pegs sit on + the text-board colours; main.js reads
+     --board-surface for the canvas and --fg-muted for the reference row. */
+  --board-bg: #e6eaf1;
+  --board-surface: #e9edf3;
+  --board-fg: #0f6b78;
+  --board-border: #cdd4df;
 
   font-family: var(--font-ui);
   color: var(--fg);
@@ -79,6 +83,12 @@
     --status: #e5c84b;
     --shadow: 0 6px 18px #0006;
     --backdrop: #0008;
+
+    /* Board surface, dark theme (the original dark "screen"). */
+    --board-bg: #141a28;
+    --board-surface: #1e2432;
+    --board-fg: #6fd3e0;
+    --board-border: #39425a;
   }
 }
 
