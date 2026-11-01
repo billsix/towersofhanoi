@@ -43,11 +43,12 @@ wire all **five** front-ends to surface it at the win: `hanoi-cli` (CLI), `hanoi
    `make type-check` (Deno, for the Tauri frontend) + `make format`; maintainer runs `make wx`/`make
    tauri`/`make egui`/`make tui` to confirm each on display.
 
-## Open questions
+## Open questions — resolved
 
-- Inherit the umbrella's four. **Rust-local:** whether the celebration text rides the existing `Snapshot`
-  as a new field or a dedicated command — implementation discretion, resolve against the current
-  view-model (note it in the work record).
+- The umbrella's four are **resolved** (2026-11-01; see umbrella): teaching first-win-only; congrats +
+  Save offer every win; shared crate helper; spec updated (by the Python task). **Rust-local:** whether
+  the celebration text rides the existing `Snapshot` as a new field or a dedicated command —
+  implementation discretion, resolve against the current view-model (note it in the work record).
 
 ## Related
 

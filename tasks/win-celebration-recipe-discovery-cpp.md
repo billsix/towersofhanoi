@@ -39,10 +39,11 @@ later wins, wording matches the oracle (a `doctest` `TEST_CASE` asserts it), the
 4. **Verify:** the C++ build + `ctest` (native ImGui, **wasm build**, wx) green via `make` targets;
    maintainer runs the GUIs on display (native + browser for wasm).
 
-## Open questions
+## Open questions — resolved
 
-- Inherit the umbrella's four. **C++-local:** none beyond the ImGui wasm constraint (keep the popup path
-  free of native-only APIs) — implementation discretion.
+- The umbrella's four are **resolved** (2026-11-01; see umbrella): teaching first-win-only; congrats +
+  Save offer every win; shared core helper; spec updated (by the Python task). **C++-local:** none beyond
+  the ImGui wasm constraint (keep the popup path free of native-only APIs) — implementation discretion.
 
 ## Related
 

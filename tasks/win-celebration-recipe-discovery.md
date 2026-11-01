@@ -46,11 +46,14 @@ language's **core** (not per-UI copy), and the **feature-spec + compliance check
 3. **The affordance (offer, don't force — HIG user control).** Save now, with the name **prefilled
    `solve-<N>`** (§4.5), or where to find it later (the Recipe menu / the `save` command).
 
-**When it shows (HIG modelessness / forgiveness — don't over-modal):**
-- **First win of the session** = a prominent one-time teaching moment (a GUI **modal** like "How to
-  play"; a printed block in CLI/TUI). This is where parts 2–3 teach the recipe concept.
-- **Later wins** = a **lighter** congratulatory line (the existing inline message), not a re-teach and not
-  a forced modal.
+**When it shows (decided 2026-11-01, William Emerison Six <billsix@gmail.com>):**
+- **Every win** = congrats + result + the **Save-as-recipe affordance** (prefilled `solve-<N>`). This
+  realizes §4.5's "save prompt on winning" on *every* win, so any winning solve (not just the first) can
+  be saved.
+- **First win of the session additionally** = the **recipe teaching explanation** (part 2 above) — a
+  one-time teaching moment (a GUI **modal** like "How to play"; a printed block in CLI/TUI) that explains
+  what recipes are and the "solve small, relabel, replay" idea. **Later wins drop only the teaching
+  paragraph** (don't re-teach — HIG), but keep the congrats + the save offer.
 
 **Where the logic lives (the maintainer's "core if needed, or each UI"):** a **shared core/presenter
 helper per language** returns the celebration text from the snapshot (`won`, `moves`, `min_moves`, and a
@@ -74,20 +77,17 @@ celebration *explains* it. Dragging is already off once won (`ui-design-principl
 Ordering is **Priority + "Depends on"**, not `blocked` (each language is within our control once the
 wording is fixed). Rust and C++ can proceed in parallel after Python.
 
-## Open questions (block implementation; each has a recommendation — answer by number)
+## Open questions — resolved 2026-11-01 (William Emerison Six <billsix@gmail.com>)
 
-1. **Trigger:** first-win-only teaching modal + lighter inline on later wins, **or** the full moment every
-   win? **Recommend (a) first-win modal + inline after** — HIG says teach once, don't over-modal (mirrors
-   "How to play" shown once).
-2. **Does the first-win GUI popup offer Save directly** (a "Save as recipe" button prefilled `solve-<N>`,
-   merging §4.5's save-prompt-on-win into the teaching moment), **or** just explain and point at the Recipe
-   menu? **Recommend (a) offer Save directly in GUIs** (one-click common case; it *is* the §4.5 prompt);
-   CLI/TUI print the text + the `save` hint.
-3. **Wording home:** one shared **core/presenter helper per language** (recommended — thin UIs, matches
-   `format_move_tally`), or each UI composes its own? **Recommend the core helper.**
-4. **Spec change:** update `feature-spec.md` §4.9/§3.5/§4.5 to make the win celebration + recipe teaching
-   **explicit and mandatory** (and add a compliance-checklist row 20), as part of the Python task?
-   **Recommend yes** (Python-first, since it's the oracle).
+1. ~~Trigger?~~ **The teaching explanation is first-win-only** (don't over-modal — HIG). The congrats +
+   save offer, however, shows on **every** win (see Q2). So: first win = teaching modal; every win =
+   congrats + save affordance.
+2. ~~Offer Save directly, and on which wins?~~ **Yes — offer Save directly in the popup** (a "Save as
+   recipe" button prefilled `solve-<N>`), **and on every win**, not just the first. This merges §4.5's
+   save-prompt-on-win into the moment. CLI/TUI print the text + the `save <name>` hint each win.
+3. ~~Wording home?~~ **Shared core/presenter helper per language** (thin UIs; matches `format_move_tally`).
+4. ~~Spec change?~~ **Yes** — update `feature-spec.md` §4.9/§3.5/§4.5 and add compliance row 20, in the
+   Python task (Python is the oracle).
 
 ## Related
 

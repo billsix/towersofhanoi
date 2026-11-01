@@ -34,12 +34,12 @@ update `feature-spec.md` + the compliance checklist. "Done" = all three Python U
    name/signature decided at implementation) → the text with the three parts (congrats+verdict, the
    recipe teaching line, the save affordance / `solve-<N>` default). One source of wording; **doctest it**
    (the oracle's text is the authority — Rust/C++ assert against the same strings).
-2. **wxPython GUI** (`hanoigui.py`): on **first** win, a centered **modal** with the celebration text and
-   — per umbrella Q2 — a **Save as recipe** action prefilled `solve-<N>` (reusing `_save_recipe_with_prompt`)
-   plus a dismiss ("Not now"/"Got it"); on **later** wins, the lighter inline message. Keep the Tier-2
-   enable.
-3. **CLI** (`hanoicli.py`): print the celebration block on win, with the `save <name>` hint (name defaults
-   `solve-<N>`); lighter line on later wins.
+2. **wxPython GUI** (`hanoigui.py`): on **every** win, a centered celebration (congrats + result + a
+   **Save as recipe** action prefilled `solve-<N>`, reusing `_save_recipe_with_prompt`, + a dismiss
+   "Not now"/"Got it"); on the **first** win it additionally carries the recipe **teaching** paragraph
+   (what recipes are + "solve small, relabel, replay"). Keep the Tier-2 enable.
+3. **CLI** (`hanoicli.py`): print the celebration block on **every** win (congrats + result + the
+   `save <name>` hint, default `solve-<N>`); the **first** win adds the teaching lines.
 4. **Curses TUI** (`hanoigame.py`): surface it in a visible region / one-time overlay consistent with the
    TUI's modeless style; the `save` path stays the Tier-2 command.
 5. **Spec** (umbrella Q4): update `feature-spec.md` §4.9 (win surfaces the celebration), §3.5 (the hinge
@@ -49,10 +49,11 @@ update `feature-spec.md` + the compliance checklist. "Done" = all three Python U
 6. **Verify:** `make test` (doctests + unit) + `make format`/type-check green; the maintainer runs the
    wxPython GUI to see the first-win modal (agent can't drive the display).
 
-## Open questions
+## Open questions — resolved
 
-- Inherit the umbrella's four. **No Python-specific open question** beyond them; the only local choice is
-  the helper's exact name/signature, which is implementation discretion once Q3 (core helper) is confirmed.
+- The umbrella's four are **resolved** (2026-11-01): teaching explanation **first-win-only**; congrats +
+  **Save offer (prefilled `solve-<N>`) every win**; **shared** presenter helper; **update the spec**. No
+  Python-specific open question remains — the helper's exact name/signature is implementation discretion.
 
 ## Related
 
