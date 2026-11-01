@@ -30,6 +30,7 @@ ARG DENO_VERSION=v2.9.8
 COPY entrypoint/01-install-rust-base.sh /usr/local/bin/
 COPY entrypoint/02-install-deno.sh /usr/local/bin/
 COPY entrypoint/03-install-wasm.sh /usr/local/bin/
+COPY entrypoint/04-install-emacs.sh /usr/local/bin/
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
@@ -49,7 +50,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 # not pushed for standalone pull. The rust-analyzer LSP backend is in 01-install-rust-base.sh.
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
-     if [ "$USE_EMACS" = "1" ]; then dnf install -y emacs; fi
+     if [ "$USE_EMACS" = "1" ]; then /usr/local/bin/04-install-emacs.sh; fi
 
 # WASM toolchain LAST of the dnf layers: its cache key includes WASM_BINDGEN_VERSION (read
 # from hanoi-egui/Cargo.lock), so a bump rebuilds only this layer, not emacs or the base.

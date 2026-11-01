@@ -17,7 +17,7 @@ ARG USE_EMACS=0
 # host-runnable with no container runtime; the scripts take no options -- WHICH optional
 # groups run is decided here by the ARG `if` blocks. The dnf cache mount + keepcache stay
 # in the Dockerfile (build plumbing). 01-install-base.sh also does `dnf upgrade`.
-COPY entrypoint/01-install-base.sh entrypoint/03-install-xwindows.sh /usr/local/bin/
+COPY entrypoint/01-install-base.sh entrypoint/03-install-xwindows.sh entrypoint/04-install-emacs.sh /usr/local/bin/
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
@@ -36,10 +36,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
      --mount=type=cache,target=/root/.npm \
-     if [ "$USE_EMACS" = "1" ]; then \
-       dnf install -y emacs nodejs npm && \
-       npm install -g pyright ; \
-     fi
+     if [ "$USE_EMACS" = "1" ]; then /usr/local/bin/04-install-emacs.sh; fi
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
