@@ -50,8 +50,8 @@ def test_winning_3_disc_sequence_optimal() -> None:
     """A minimal 3-disc solve reports the win and an optimality note."""
     # Skip the save prompt with '-'; decline play-again.
     output: str = _drive(_script("3", *WIN_3_OPTIMAL, "-", "n"))
-    assert "Solved! 7 moves (minimum 7)." in output
-    assert "Optimal solution!" in output
+    assert "Congratulations — you solved it in 7 moves!" in output
+    assert "Optimal — the fewest possible for 3 discs." in output
 
 
 def test_winning_with_extra_moves_reports_diff() -> None:
@@ -59,8 +59,22 @@ def test_winning_with_extra_moves_reports_diff() -> None:
     # Same solution but with two wasted moves at the start.
     moves: list[str] = ["1 2", "2 1", *WIN_3_OPTIMAL]
     output: str = _drive(_script("3", *moves, "-", "n"))
-    assert "Solved! 9 moves (minimum 7)." in output
-    assert "2 more than the minimum." in output
+    assert "Congratulations — you solved it in 9 moves!" in output
+    assert "That is 2 more than the optimal 7 for 3 discs." in output
+
+
+def test_recipe_teaching_shown_only_on_first_win() -> None:
+    """The recipe-discovery teaching appears on the first win of the session,
+    not on later wins; the congratulation still shows on every win."""
+    # Win a 2-disc game, decline the save, play again, win again, skip, stop.
+    output: str = _drive(
+        _script("2", *WIN_2_OPTIMAL, "-", "y", "2", *WIN_2_OPTIMAL, "-", "n")
+    )
+    teaching: str = (
+        "You can save this solution as a recipe and replay it on a new game"
+    )
+    assert output.count(teaching) == 1
+    assert output.count("Congratulations — you solved it in 3 moves!") == 2
 
 
 def test_howto_and_goal_shown_for_the_learner() -> None:
@@ -166,7 +180,7 @@ def test_post_win_dash_skips_save() -> None:
     """Typing '-' at the post-win prompt skips saving."""
     output: str = _drive(_script("2", *WIN_2_OPTIMAL, "-", "n"))
     assert "Saved recipe" not in output
-    assert "Solved!" in output
+    assert "Congratulations — you solved it in" in output
 
 
 def test_post_win_empty_saves_default_name() -> None:
@@ -218,7 +232,7 @@ def test_apply_replays_recipe_on_fresh_game() -> None:
     assert "  step 2: 1 -> 3" in output
     assert "  step 3: 2 -> 3" in output
     # Two wins reported (one from manual play, one from the apply).
-    assert output.count("Solved! 3 moves (minimum 3).") == 2
+    assert output.count("Congratulations — you solved it in 3 moves!") == 2
 
 
 def test_bill_worked_example_via_cli() -> None:
@@ -347,7 +361,7 @@ def test_recipe_captured_under_relabel_replays_under_default() -> None:
     )
     output: str = _drive(script)
     # Two solves for 2 discs: one manual under the relabel, one via apply.
-    assert output.count("Solved! 3 moves (minimum 3).") == 2
+    assert output.count("Congratulations — you solved it in 3 moves!") == 2
 
 
 def test_overwriting_recipe_name_says_so() -> None:

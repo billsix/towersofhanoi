@@ -1,6 +1,10 @@
 # Win celebration + recipe discovery — Python (the oracle)
 
-**Status:** proposed — needs go-ahead.
+**Status:** implemented 2026-11-01 — the shared helpers (`presenter.format_win_celebration` +
+`default_recipe_name`) and all three front-ends (CLI, curses TUI, wxPython GUI) surface the win
+celebration; feature-spec row 20 added. Gate green in-container (ty src+tests, 135 pytest incl. the new
+doctest + first-win test, ruff). **Pending:** the maintainer's display-verify of the wxPython win modal
+(agent can't drive the display) — then this archives.
 **Priority:** 4 **Difficulty:** 4
 **Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — read it for the cross-cutting design,
 the HIG grounding, and the open questions, which **block implementation here**).

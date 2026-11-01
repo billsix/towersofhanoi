@@ -518,21 +518,30 @@ def _prompt_disc_count(stdscr: curses.window) -> int | None:
         # invalid — loop and re-prompt
 
 
-def _play_game(stdscr: curses.window, n: int, registry: RecipeRegistry) -> bool:
+def _play_game(
+    stdscr: curses.window,
+    n: int,
+    registry: RecipeRegistry,
+    *,
+    first_win: bool,
+) -> bool | None:
     """Play one game to a win or exit inside the curses UI.
 
     Args:
         stdscr: The curses window to draw on and read from.
         n: The number of discs to start with.
         registry: The recipe store shared across games.
+        first_win: True when no game has been won yet this run (gates the
+            one-time recipe teaching in the win celebration).
 
     Returns:
-        ``True`` if the user wants to play again, ``False`` to exit.
+        ``None`` if the user left without winning; otherwise the game was won
+        and the bool is whether to play again.
     """
     if not _check_size(stdscr, n):
         _show_too_small(stdscr, n)
         if not _check_size(stdscr, n):
-            return False
+            return None
 
     session: GameSession = GameSession(num_disks=n, registry=registry)
     # Open with the Tier-1 onboarding in the message area; the first move's
@@ -543,11 +552,11 @@ def _play_game(stdscr: curses.window, n: int, registry: RecipeRegistry) -> bool:
         _redraw(stdscr, session, msg_lines)
         text: str | None = _read_line(stdscr, registry=registry)
         if text is None:
-            return False
+            return None
         cmd: Command = parse(text)
         result: DispatchResult = session.dispatch(cmd)
         if result.quit:
-            return False
+            return None
         # A plain move under a relabelling gets the same three-column rebinding
         # table `apply` shows (empty otherwise — see move_teaching_lines).
         show_lines: list[str] = list(
@@ -562,24 +571,26 @@ def _play_game(stdscr: curses.window, n: int, registry: RecipeRegistry) -> bool:
             msg_lines = show_lines
 
     # Won
-    min_moves: int = session.min_moves()
-    banner: list[str] = [
-        f"Solved! {session.current_moves} moves (minimum {min_moves})."
-    ]
-    if session.current_moves == min_moves:
-        banner.append("Optimal solution!")
-    else:
-        extra: int = session.current_moves - min_moves
-        banner.append(f"{extra} more than the minimum.")
+    banner: list[str] = presenter.format_win_celebration(
+        session.num_disks,
+        session.current_moves,
+        session.min_moves(),
+        first_win=first_win,
+    )
+    default_name: str = presenter.default_recipe_name(session.num_disks)
     _redraw(
         stdscr,
         session,
         banner,
-        hint=["Save this solution? Type a name, or press Enter to skip."],
+        hint=[
+            f"Save as '{default_name}'? Enter to accept, "
+            "a name to rename, or '-' to skip."
+        ],
     )
     name: str | None = _read_line(stdscr)
-    if name and name.strip():
-        msg: str = session.save_recipe(name.strip())
+    if name is not None and name.strip() != "-":
+        save_name: str = name.strip() or default_name
+        msg: str = session.save_recipe(save_name)
         _redraw(
             stdscr,
             session,
@@ -605,11 +616,18 @@ def _main(stdscr: curses.window) -> None:
     stdscr.keypad(True)
 
     registry: RecipeRegistry = RecipeRegistry()
+    won_before: bool = False
     while True:
         n: int | None = _prompt_disc_count(stdscr)
         if n is None:
             return
-        if not _play_game(stdscr, n, registry):
+        play_again: bool | None = _play_game(
+            stdscr, n, registry, first_win=not won_before
+        )
+        if play_again is None:  # left without winning
+            return
+        won_before = True
+        if not play_again:
             return
 
 
