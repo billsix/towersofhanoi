@@ -93,17 +93,25 @@ own `--accent` token per theme rather than reading the OS accent.
    `tasks/tauri-frontend-no-network-static-gate.md` lands (the token pass adds no remote refs — verified
    none in this prototype).
 
-## Open questions (logged; the maintainer was away — step 1 proceeded, the rest wait on review)
+## Open questions — all resolved by the maintainer 2026-11-01 (William Emerison Six <billsix@gmail.com>)
 
-1. **Board theming (step 2): should the board follow light/dark, or stay a fixed dark "screen"?**
-   Prototype chose **fixed dark** (no JS change, no half-themed state). If you want it to theme, step 2
-   does it. Recommend: see the prototype first, then decide.
-2. **Native density (step 3): nudge base size to ~14px + Fluent control metrics, or keep current
-   sizing?** Recommend: keep current for now (step 1 doesn't resize), tune in step 3 once you've seen it.
-3. **Manual theme toggle (step 4): want one, or is OS-follow (`prefers-color-scheme`) enough?** Recommend
-   OS-follow only unless you specifically want to override.
-4. **Light vs dark default:** the prototype defaults to **light** and switches to dark under the OS dark
-   setting (the native convention). If you'd rather it default dark regardless of OS, say so.
+1. ~~Board theming: follow light/dark, or stay a fixed dark "screen"?~~ **Decided: follow the OS
+   light/dark setting** ("if you can query the desktop and use light dark based off of what it's
+   configured for, then do that"). We can: the webview's `prefers-color-scheme` reflects the desktop's
+   configured theme on all three OSes, so `main.js` reads the resolved `--board-surface` / `--fg-muted`
+   tokens at paint time and the board's desk surface + label text flip with the theme. **Step 2 done**
+   (the wooden pegs/base and vivid disc colours stay theme-independent — a toy's materials don't change
+   with room lighting).
+2. ~~Native density: nudge to ~14px + Fluent metrics, or keep current?~~ **Decided: keep current for
+   now** (maintainer: "whatever you recommend" → my recommendation). Reason unchanged: step 3 shifts
+   every measurement, so it's better tuned once the maintainer has seen steps 1–2 rendered. **Step 3
+   stays proposed**, available on request after the display pass.
+3. ~~Manual theme toggle: add one, or is OS-follow enough?~~ **Decided: no toggle** (maintainer: "what
+   you recommend" → my recommendation). `prefers-color-scheme` follows the OS, which is the native
+   behaviour; a toggle adds DOM + `localStorage` state for little gain. **Step 4 dropped** unless later
+   wanted.
+4. ~~Light vs dark default?~~ **Decided: follow the OS** ("same answer as 1") — light default, dark under
+   the OS dark setting. Already the prototype's behaviour; no change.
 
 ## Related
 
