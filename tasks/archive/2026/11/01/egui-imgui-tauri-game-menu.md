@@ -1,9 +1,11 @@
 # Make the egui / ImGui / Tauri Game menu match the wx shape (New Game + Same Size)
 
-**Status:** IN PROGRESS (branch `egui-imgui-tauri-game-menu`; gpg off → restored). Presentation-only;
-no core/logic change. Decided shape (maintainer, 2026-11-01): **every GUI's Game menu matches the wx
-trio** — a disc-count picker to start a **New Game**, plus **New Game (Same Size)** that restarts at
-the current count. wx is the reference (unchanged); egui, C++ ImGui, and Tauri are brought to match.
+**Status:** DONE + on-display-verified (maintainer, 2026-11-01: "menus look good"). Merged to master
+(work commit `b727588`). Presentation-only; no core/logic change. Decided shape (maintainer,
+2026-11-01): **every GUI's Game menu matches the wx trio** — a disc-count picker to start a **New
+Game**, plus **New Game (Same Size)** that restarts at the current count. wx is the reference
+(unchanged); egui, C++ ImGui, and Tauri are brought to match. All gates green: deno check+lint+fmt
+(Tauri), `make build` both C++ GUIs + clang-format, `make check-egui` + rustfmt.
 **Priority:** 4 **Difficulty:** 2 (three front-ends; egui is the only sizeable change)
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>, from an on-display review; scope
 widened from egui-only to egui+ImGui+Tauri on the maintainer's 2026-11-01 go-ahead). Supersedes the
