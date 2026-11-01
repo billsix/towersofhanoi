@@ -500,12 +500,16 @@ function initBoardDrag() {
     const src = dragSrc;
     const target = nearestPeg(canvasPos(e).x, canvas.width);
     dragSrc = null;
-    drawBoard(latest); // snap back to the true board state
-    if (target !== src) {
-      const from = latest.labels[src];
-      const to = latest.labels[target];
-      render(/** @type {Snapshot} */ (await invoke("do_move", { from, to })));
+    if (target === src) {
+      drawBoard(latest); // no move: redraw to settle the disc back on its peg
+      return;
     }
+    // A move is coming: DON'T repaint the old snapshot first (that would flash
+    // the disc back to its source during the await) -- leave the dragged-disc
+    // frame up until render() paints the result at the destination.
+    const from = latest.labels[src];
+    const to = latest.labels[target];
+    render(/** @type {Snapshot} */ (await invoke("do_move", { from, to })));
   });
   canvas.addEventListener("pointercancel", () => {
     dragSrc = null;
