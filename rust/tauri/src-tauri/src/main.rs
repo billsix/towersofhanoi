@@ -323,6 +323,22 @@ fn show_recipe(state: State<'_, Mutex<AppState>>, name: String) -> Vec<String> {
     st.dispatch(&Command::Show(name)).lines
 }
 
+/// The win celebration + recipe-discovery lines (the shared wording, so the
+/// webview reads identically to the other front-ends). `first_win` is the
+/// webview's session latch (`wonOnce`): the recipe teaching shows only on the
+/// first win, the congratulation + result on every win.
+#[tauri::command]
+fn win_celebration(state: State<'_, Mutex<AppState>>, first_win: bool) -> Vec<String> {
+    let st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    let num_disks: u32 = st.game.num_disks;
+    presenter::format_win_celebration(
+        num_disks as usize,
+        u64::from(st.game.current_moves),
+        (1u64 << num_disks) - 1,
+        first_win,
+    )
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(AppState::new(DEFAULT_DISKS)))
@@ -333,7 +349,8 @@ fn main() {
             relabel,
             save_recipe,
             apply_recipe,
-            show_recipe
+            show_recipe,
+            win_celebration
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Towers of Hanoi Tauri application");

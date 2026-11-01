@@ -57,7 +57,13 @@ from .board_renderers import (
 from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
 from .engine import DispatchResult, GameSession
 from .hanoimodel import ValidMove
-from .presenter import Labelling, change_labels_on_pegs, format_move_tally
+from .presenter import (
+    Labelling,
+    change_labels_on_pegs,
+    default_recipe_name,
+    format_move_tally,
+    format_win_celebration,
+)
 from .recipe import Recipe, RecipeRegistry, rebinding, rebound_moves
 
 MAX_DISKS: int = 10
@@ -185,6 +191,12 @@ class HanoiFrame(wx.Frame):
         # Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the
         # first win and stay unlocked for the rest of the session.
         self._won_once: bool = False
+        # Save-on-discard (feature-spec §4.9; the win-celebration UX doc):
+        # whether the current won solution was already saved, and whether it was
+        # reached by replaying a recipe (then there is nothing new to save).
+        # Both reset per game in `_new_game`.
+        self._solution_saved: bool = False
+        self._won_via_apply: bool = False
         # The always-visible Tier-1 move-history panel, built in `_build_ui`.
         self._history_panel: wx.Panel | None = None
         self._history_list: wx.ListBox | None = None
@@ -526,6 +538,7 @@ class HanoiFrame(wx.Frame):
             if dlg.ShowModal() != wx.ID_OK:
                 return
             self.disc_count_value = dlg.GetValue()
+        self._maybe_offer_save_before_discard()
         self._new_game(self.disc_count_value)
         # Silent: the user just picked the disc count; the board renders
         # the result. Nothing to tell them they don't already know.
@@ -533,6 +546,7 @@ class HanoiFrame(wx.Frame):
 
     def _on_new_game_same(self, _evt: wx.CommandEvent) -> None:
         """Restart with the same disc count as the current game."""
+        self._maybe_offer_save_before_discard()
         self._new_game(self.disc_count_value)
         self._set_status("")
 
@@ -651,6 +665,7 @@ class HanoiFrame(wx.Frame):
             )
         self._refresh()
         if self.session.is_won():
+            self._won_via_apply = True
             self._on_win()
 
     def _show_rebinding_dialog(
@@ -916,26 +931,91 @@ class HanoiFrame(wx.Frame):
     def _new_game(self, n: int) -> None:
         """Start a fresh `n`-disc game (keep the registry) and refresh."""
         self.session = GameSession(num_disks=n, registry=self.registry)
+        self._solution_saved = False
+        self._won_via_apply = False
         self._refresh()
 
     def _on_win(self) -> None:
-        """Handle a win: unlock Tier 2 for the session and show the teaching
-        handoff. No modal — the board stays visible; menu/button state is set
-        by `_refresh` (move buttons off, Relabel + Recipe on, Save enabled)."""
+        """Handle a win (the teaching hinge, feature-spec §3.5/§4.9): unlock
+        Tier 2, note the result in the status bar, and — on the FIRST win of the
+        session — show a teaching modal explaining recipes. Later wins are a
+        status line only (no modal: a second window would collide with the
+        §4.8 rebinding view on a relabelled winning move/apply). The save is
+        offered later, at the new-game boundary
+        (`_maybe_offer_save_before_discard`); the rationale is in the UX doc
+        `win-celebration-and-recipe-discovery-ux.md`. `_refresh` sets the
+        button/menu state (move buttons off, Tier-2 on)."""
+        first_win: bool = not self._won_once
         self._won_once = True
         self._refresh()  # unlock the Tier-2 menus
-        min_moves: int = self.session.min_moves()
-        moves: int = self.session.current_moves
-        if moves == min_moves:
-            verdict: str = "Optimal!"
-        else:
-            verdict = (
-                f"{moves - min_moves} more than the minimum ({min_moves})."
-            )
-        self._set_status(
-            f"Solved in {moves} moves — {verdict}  Relabel pegs and Recipe are "
-            "now unlocked: save this solve, start a bigger stack, and reuse it."
+        lines: list[str] = format_win_celebration(
+            self.session.num_disks,
+            self.session.current_moves,
+            self.session.min_moves(),
+            first_win=first_win,
         )
+        if lines:
+            self._set_status(lines[0])
+        if first_win:
+            self._show_win_teaching_dialog(lines)
+
+    def _show_win_teaching_dialog(self, lines: list[str]) -> None:
+        """Show the first-win teaching as a centered modal: the first line as a
+        bold heading, the recipe-teaching lines as body, and a single 'Got it'
+        button. No Save here — the save is offered at the new-game boundary,
+        and this is shown only on the first win (always a clean default-label
+        solve), so it never collides with the §4.8 rebinding view."""
+        dlg: wx.Dialog = wx.Dialog(
+            self, title="You solved it!", style=wx.DEFAULT_DIALOG_STYLE
+        )
+        heading: wx.StaticText = wx.StaticText(dlg, label=lines[0])
+        heading_font: wx.Font = heading.GetFont()
+        heading_font.MakeBold()
+        heading_font.SetPointSize(heading_font.GetPointSize() + 2)
+        heading.SetFont(heading_font)
+        body: wx.StaticText = wx.StaticText(dlg, label="\n".join(lines[1:]))
+        got_it: wx.Button = wx.Button(dlg, wx.ID_OK, "Got it")
+        got_it.SetDefault()
+
+        foot_row: wx.BoxSizer = wx.BoxSizer(wx.HORIZONTAL)
+        foot_row.AddStretchSpacer()
+        foot_row.Add(got_it, proportion=0)
+
+        dlg_sizer: wx.BoxSizer = wx.BoxSizer(wx.VERTICAL)
+        dlg_sizer.Add(heading, proportion=0, flag=wx.ALL, border=12)
+        dlg_sizer.Add(
+            body, proportion=0, flag=wx.LEFT | wx.RIGHT | wx.BOTTOM, border=12
+        )
+        dlg_sizer.Add(
+            foot_row,
+            proportion=0,
+            flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            border=12,
+        )
+        dlg.SetSizerAndFit(dlg_sizer)
+        dlg.Center()
+        dlg.ShowModal()
+        dlg.Destroy()
+
+    def _maybe_offer_save_before_discard(self) -> None:
+        """At a discard point (new game), if the finished game was won by hand
+        and not yet saved, offer to save its solution as a recipe first — the
+        save-before-you-close pattern (ux doc). No-op otherwise (not won, won by
+        replaying a recipe, or already saved)."""
+        if (
+            not self.session.is_won()
+            or self._won_via_apply
+            or self._solution_saved
+        ):
+            return
+        with wx.MessageDialog(
+            self,
+            "Save your solution as a recipe before starting over?",
+            "Save solution?",
+            wx.YES_NO | wx.ICON_QUESTION,
+        ) as dlg:
+            if dlg.ShowModal() == wx.ID_YES:
+                self._save_recipe_with_prompt()
 
     def _on_save(self, _evt: wx.CommandEvent) -> None:
         """Prompt for a name and save the just-won solution as a recipe."""
@@ -949,7 +1029,7 @@ class HanoiFrame(wx.Frame):
             self,
             "Recipe name:",
             "Save Recipe",
-            value=f"solve-{self.session.num_disks}",
+            value=default_recipe_name(self.session.num_disks),
         ) as dlg:
             if dlg.ShowModal() != wx.ID_OK:
                 return
@@ -957,6 +1037,7 @@ class HanoiFrame(wx.Frame):
             if not name:
                 return
             msg: str = self.session.save_recipe(name)
+            self._solution_saved = True
             self._set_status(msg)
             self._refresh()
 

@@ -341,6 +341,73 @@ pub fn format_move_tally(moves: &[(u32, u32)]) -> Vec<String> {
         .collect()
 }
 
+// --- Win celebration / recipe discovery -------------------------------------
+
+/// The default name offered when saving a just-won solution (`solve-<N>`).
+///
+/// Every front-end prefills its save affordance with this (feature-spec §4.5),
+/// mirroring the Python oracle's `presenter.default_recipe_name`.
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::default_recipe_name;
+/// assert_eq!(default_recipe_name(3), "solve-3");
+/// ```
+pub fn default_recipe_name(num_disks: usize) -> String {
+    format!("solve-{num_disks}")
+}
+
+/// The win celebration + recipe-discovery message shown on winning.
+///
+/// Realizes the "win is the teaching hinge" of the learning flow (feature-spec
+/// §3.5/§4.9): on *every* win it congratulates and reports the result; on the
+/// player's *first* win of the session it additionally teaches what recipes are
+/// and the "solve small, relabel, replay" method. The save control itself is
+/// each front-end's to present (prefilled with [`default_recipe_name`]); this is
+/// the shared wording, mirroring the Python oracle's `format_win_celebration`
+/// string-for-string (the per-UI tests assert the exact lines).
+///
+/// # Examples
+/// ```
+/// use hanoigame::presenter::format_win_celebration;
+/// let first: Vec<String> = format_win_celebration(3, 7, 7, true);
+/// assert_eq!(first[0], "Congratulations — you solved it in 7 moves!");
+/// assert_eq!(first[1], "Optimal — the fewest possible for 3 discs.");
+/// assert_eq!(first.len(), 5); // 2 result lines + 3 first-win teaching lines
+/// let later: Vec<String> = format_win_celebration(3, 9, 7, false);
+/// assert_eq!(later.len(), 2);
+/// assert_eq!(later[1], "That is 2 more than the optimal 7 for 3 discs.");
+/// ```
+pub fn format_win_celebration(
+    num_disks: usize,
+    moves: u64,
+    min_moves: u64,
+    first_win: bool,
+) -> Vec<String> {
+    let noun: &str = if moves == 1 { "move" } else { "moves" };
+    let mut lines: Vec<String> = vec![format!(
+        "Congratulations — you solved it in {moves} {noun}!"
+    )];
+    if moves == min_moves {
+        lines.push(format!(
+            "Optimal — the fewest possible for {num_disks} discs."
+        ));
+    } else {
+        let extra: u64 = moves - min_moves;
+        lines.push(format!(
+            "That is {extra} more than the optimal {min_moves} for {num_disks} discs."
+        ));
+    }
+    if first_win {
+        lines.push(
+            "You can save this solution as a recipe and replay it on a new game —".to_string(),
+        );
+        lines.push("even a bigger stack — by relabelling the pegs.".to_string());
+        lines.push("That is the method: \"solve small, relabel, replay\".".to_string());
+    }
+    lines
+}
+
 // --- Move translation through the current labelling -------------------------
 
 /// Translate a typed `(from_label, to_label)` pair (1-indexed under

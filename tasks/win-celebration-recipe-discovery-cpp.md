@@ -1,6 +1,15 @@
 # Win celebration + recipe discovery — C++
 
-**Status:** proposed — needs go-ahead.
+**Status:** implemented 2026-11-01 — the header-only core helper
+(`presenter::format_win_celebration` + `default_recipe_name`, with a parity `TEST_CASE` asserting the
+oracle strings) and both GUIs surface the win celebration: `main.cpp` (ImGui) pops a `BeginPopupModal`
+once per win with a "Save as recipe" button (→ the prefilled save modal); `hanoiwx.cpp` (wx) shows a
+`wxMessageDialog` (Save as recipe / Not now), sharing a `save_recipe_prompt` with the Recipe-menu Save.
+Gate green on the **host native toolchain** (clang/SDL2/wx from the same Fedora base): all three targets
+(`hanoi-cpp`, `hanoi-wx`, `hanoi-tests`) compile, doctests pass, clang-format clean. **Pending:** the
+maintainer's `make test`/`make gui`/`make wx` + display run, and `make webassembly` (the wasm build was
+not compiled here — the popup path uses only core ImGui calls, so it should build, but confirm) — then
+this archives.
 **Priority:** 5 **Difficulty:** 5
 **Part of:** `tasks/win-celebration-recipe-discovery.md` (umbrella — the cross-cutting design + the four
 open questions that **block implementation**).
@@ -39,10 +48,11 @@ later wins, wording matches the oracle (a `doctest` `TEST_CASE` asserts it), the
 4. **Verify:** the C++ build + `ctest` (native ImGui, **wasm build**, wx) green via `make` targets;
    maintainer runs the GUIs on display (native + browser for wasm).
 
-## Open questions
+## Open questions — resolved
 
-- Inherit the umbrella's four. **C++-local:** none beyond the ImGui wasm constraint (keep the popup path
-  free of native-only APIs) — implementation discretion.
+- The umbrella's four are **resolved** (2026-11-01; see umbrella): teaching first-win-only; congrats +
+  Save offer every win; shared core helper; spec updated (by the Python task). **C++-local:** none beyond
+  the ImGui wasm constraint (keep the popup path free of native-only APIs) — implementation discretion.
 
 ## Related
 

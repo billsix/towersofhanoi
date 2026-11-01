@@ -68,8 +68,9 @@ the learner's journey**, not all at once. The rationale and the Apple-HIG ground
   meaningless before a win (a recipe can only be saved after winning, §4.5; relabelling has no
   motivation until there is a solved stack to reuse). The **win** (§4.9) is the teaching hinge: on
   winning, the UI offers the next step — save this solve, start a larger stack, reuse it under a
-  relabelling. Tier-2 affordances become available (not forced) at the first win and **stay available
-  for the rest of the session**.
+  relabelling. This is realized as an **explicit win celebration** (§4.9), not merely by enabling the
+  menus. Tier-2 affordances become available (not forced) at the first win and **stay available for the
+  rest of the session**.
 - **Tier 3 — advanced / reference, out of the main workspace.** Recipe list / show / apply (§4.6–4.8)
   and the three-panel rebinding view (§4.8). Present and discoverable, but never competing with the
   board: a **menu** in a GUI, a **secondary tab or toggled panel** in a TUI.
@@ -117,7 +118,8 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   **saved** under a name as a recipe (with its disk count). Saving under an existing name overwrites it
   (reported). Saving is only meaningful after winning. (Source: `Recorder`, `engine.save_recipe`; `save`
   dispatched mid-game returns the "only works after winning" guidance.)
-- **See:** a save confirmation (or overwrite notice); the prompt/affordance to name a recipe on winning.
+- **See:** a save confirmation (or overwrite notice); the prompt/affordance to name a recipe on winning
+  (part of the win celebration, §4.9 — offered on **every** win, prefilled `solve-<N>`).
 - **Default name (required of every UI):** the save prompt MUST **prepopulate** the name field with the
   default **`solve-<N>`**, where N is the current disk count (e.g. a 3-disc game defaults to `solve-3`),
   which the user accepts as-is or edits. This is the Python wx GUI's behaviour — `hanoigui.py`
@@ -161,10 +163,21 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   under the current renaming, become the moves that advance the bigger puzzle. (Rationale:
   `tasks/archive/2026/09/14/record-recipe-bindings-and-show-rebinding.md`.)
 
-### 4.9 Win detection
-- **Does:** detects the win (all disks on the goal peg) and surfaces it (with the move count vs. the
-  optimal `2^N − 1`). **See:** that the game is won + the counts. **Why:** closes the solve and gates the
-  save-recipe affordance.
+### 4.9 Win detection + celebration (the teaching hinge)
+- **Does:** detects the win (all disks on the goal peg) and surfaces it with the move count vs. the
+  optimal `2^N − 1`, **as an explicit celebration + recipe-discovery moment** — not merely by enabling the
+  Tier-2 menus. **On every win** the UI congratulates and reports the result (optimal, or how many over
+  the minimum); **on the player's first win of the session** it additionally **teaches what recipes are**
+  ("solve small, relabel, replay"), so a novice discovers the method instead of missing the quietly
+  unlocked menu. The player is **offered the chance to save the solution as a recipe** (prefilled
+  `solve-<N>`, §4.5) — **where** that offer appears is per UI category: a **text UI** shows it inline at
+  the win; a **GUI** defers it to the **new-game / discard boundary** ("save before starting over?") so it
+  does not compete with the rebinding view (§4.8) on a relabelled winning move/apply. The wording is a
+  **single shared core helper** per implementation (Python `presenter.format_win_celebration`). Full UX
+  rationale + the shared mechanism: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
+- **See:** that the game is won + the counts; the save affordance; on a first win, the recipe teaching.
+- **Why:** the **win is the teaching hinge** (§3.5) — where recipes/relabelling first become meaningful;
+  surfacing it is how the learner discovers the program's core method, rather than a silent menu-enable.
 
 ### 4.10 Help and quit
 - **Help:** show the command/feature reference. **Quit:** exit. **Empty input:** redraw / re-prompt, no
@@ -277,6 +290,11 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
 18. **Tier-3 placement** (§3.5): recipe list/show/apply + the rebinding view live in a menu (GUI) or a
     secondary tab/panel (TUI), not in the first-solve workspace.
 19. **Onboarding for the non-knower** (§3.5): an always-present goal line + a dismissible "How to play".
+20. **Win celebration + recipe discovery** (§4.9): every win surfaces an explicit congratulation +
+    result; the first win of the session additionally teaches what recipes are; the player is offered the
+    save-as-recipe (prefilled `solve-<N>`) — a **text UI** inline at the win, a **GUI** at the new-game /
+    discard boundary (so it doesn't compete with the §4.8 rebinding view). Shared wording via a core
+    helper. UX rationale: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 
@@ -313,6 +331,11 @@ placement, the goal-line + "How to Play" onboarding) and **direct-manipulation d
 the buttons; one shared dispatch) were fanned out to **every** front-end and on-display-verified. Design
 authority: `tasks/reference/ui-design-principles.md` rulings 1–7. Archived fan-out tasks under
 `tasks/archive/2026/11/01/` (learning-flow, drag-drop, move-tally).
+
+**Update (2026-11-01):** row 20 (win celebration + recipe discovery) added. Implemented in **Python**
+(the oracle — `presenter.format_win_celebration` + `default_recipe_name`, wired into all three
+front-ends); **Rust and C++ are scheduled** to mirror it (`tasks/win-celebration-recipe-discovery.md`
+umbrella + the per-language children).
 
 ## Related
 

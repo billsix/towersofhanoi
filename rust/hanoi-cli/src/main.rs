@@ -20,7 +20,7 @@ use std::io::{BufRead, IsTerminal, Write};
 
 use hanoigame::commands::{completions, parse, Command};
 use hanoigame::engine::{DispatchResult, GameSession};
-use hanoigame::presenter::render_with_legend;
+use hanoigame::presenter::{default_recipe_name, format_win_celebration, render_with_legend};
 use hanoigame::recipe::RecipeRegistry;
 
 const MAX_DISKS: u32 = 10;
@@ -171,7 +171,7 @@ fn prompt_disc_count<W: Write>(
 
 /// After a win, offer to save the solution as a recipe.
 fn prompt_save<W: Write>(reader: &mut dyn LineReader, session: &mut GameSession, output: &mut W) {
-    let default: String = format!("solve-{}", session.num_disks());
+    let default: String = default_recipe_name(session.num_disks() as usize);
     let names: Vec<String> = session.registry.names();
     let prompt: String = format!(
         "\nSave this solution as a recipe? Enter to save as '{default}', a name \
@@ -197,8 +197,9 @@ fn play_game<W: Write>(
     reader: &mut dyn LineReader,
     registry: &mut RecipeRegistry,
     n: u32,
+    first_win: bool,
     output: &mut W,
-) -> bool {
+) -> Option<bool> {
     let mut session: GameSession<'_> = GameSession::new(n, registry);
 
     while !session.is_won() {
@@ -207,7 +208,7 @@ fn play_game<W: Write>(
         let _ = writeln!(output, "{}", session.valid_moves_str());
         let names: Vec<String> = session.registry.names();
         let Some(line) = reader.read("> ", output, &names) else {
-            return false;
+            return None;
         };
         let cmd: Command = parse(&line);
         let result: DispatchResult = session.dispatch(&cmd);
@@ -218,28 +219,29 @@ fn play_game<W: Write>(
             let _ = writeln!(output, "{line}");
         }
         if result.quit {
-            return false;
+            return None;
         }
     }
 
     let _ = writeln!(output);
     print_board(&session, output);
-    let min: u64 = session.min_moves();
-    let moves: u64 = u64::from(session.current_moves());
-    let _ = writeln!(output, "\nSolved! {moves} moves (minimum {min}).");
-    if moves == min {
-        let _ = writeln!(output, "Optimal solution!");
-    } else {
-        let _ = writeln!(output, "{} more than the minimum.", moves - min);
+    let _ = writeln!(output);
+    for line in format_win_celebration(
+        session.num_disks() as usize,
+        u64::from(session.current_moves()),
+        session.min_moves(),
+        first_win,
+    ) {
+        let _ = writeln!(output, "{line}");
     }
 
     prompt_save(reader, &mut session, output);
 
     let names: Vec<String> = session.registry.names();
-    match reader.read("\nPlay again? (y/n): ", output, &names) {
+    Some(match reader.read("\nPlay again? (y/n): ", output, &names) {
         Some(again) => again.trim().to_lowercase().starts_with('y'),
         None => false,
-    }
+    })
 }
 
 /// The game loop: greet, then prompt for a disc count and play until the user
@@ -248,15 +250,25 @@ fn game_loop<W: Write>(reader: &mut dyn LineReader, output: &mut W) -> i32 {
     let _ = writeln!(output, "Towers of Hanoi");
     let _ = writeln!(output, "{HOWTO}");
     let mut registry: RecipeRegistry = RecipeRegistry::new();
+    let mut won_before: bool = false;
     loop {
         let names: Vec<String> = registry.names();
         let Some(n) = prompt_disc_count(reader, &names, output) else {
             let _ = writeln!(output, "Bye.");
             return 0;
         };
-        if !play_game(reader, &mut registry, n, output) {
-            let _ = writeln!(output, "Bye.");
-            return 0;
+        match play_game(reader, &mut registry, n, !won_before, output) {
+            None => {
+                let _ = writeln!(output, "Bye.");
+                return 0;
+            }
+            Some(play_again) => {
+                won_before = true;
+                if !play_again {
+                    let _ = writeln!(output, "Bye.");
+                    return 0;
+                }
+            }
         }
     }
 }
@@ -325,8 +337,8 @@ mod tests {
         chunks.extend(WIN_3_OPTIMAL);
         chunks.extend(["-", "n"]);
         let out = drive(&script(&chunks));
-        assert!(out.contains("Solved! 7 moves (minimum 7)."));
-        assert!(out.contains("Optimal solution!"));
+        assert!(out.contains("Congratulations — you solved it in 7 moves!"));
+        assert!(out.contains("Optimal — the fewest possible for 3 discs."));
     }
 
     #[test]
@@ -335,8 +347,8 @@ mod tests {
         chunks.extend(WIN_3_OPTIMAL);
         chunks.extend(["-", "n"]);
         let out = drive(&script(&chunks));
-        assert!(out.contains("Solved! 9 moves (minimum 7)."));
-        assert!(out.contains("2 more than the minimum."));
+        assert!(out.contains("Congratulations — you solved it in 9 moves!"));
+        assert!(out.contains("That is 2 more than the optimal 7 for 3 discs."));
     }
 
     #[test]
@@ -398,7 +410,7 @@ mod tests {
         dash.extend(["-", "n"]);
         let out = drive(&script(&dash));
         assert!(!out.contains("Saved recipe"));
-        assert!(out.contains("Solved!"));
+        assert!(out.contains("Congratulations — you solved it in"));
 
         let mut empty = vec!["2"];
         empty.extend(WIN_2_OPTIMAL);
@@ -430,7 +442,11 @@ mod tests {
         assert!(out.contains("  step 1: 1 -> 2"));
         assert!(out.contains("  step 2: 1 -> 3"));
         assert!(out.contains("  step 3: 2 -> 3"));
-        assert_eq!(out.matches("Solved! 3 moves (minimum 3).").count(), 2);
+        assert_eq!(
+            out.matches("Congratulations — you solved it in 3 moves!")
+                .count(),
+            2
+        );
     }
 
     #[test]
@@ -517,7 +533,11 @@ mod tests {
             "n",
         ];
         let out = drive(&script(&chunks));
-        assert_eq!(out.matches("Solved! 3 moves (minimum 3).").count(), 2);
+        assert_eq!(
+            out.matches("Congratulations — you solved it in 3 moves!")
+                .count(),
+            2
+        );
     }
 
     #[test]

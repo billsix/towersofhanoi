@@ -202,7 +202,7 @@ def _prompt_save(session: GameSession, in_: TextIO, out: TextIO) -> None:
         in_: The stream the name is read from.
         out: The stream the prompt and result are written to.
     """
-    default: str = f"solve-{session.num_disks}"
+    default: str = presenter.default_recipe_name(session.num_disks)
     line: str | None = _read_line(
         f"\nSave this solution as a recipe? "
         f"Enter to save as '{default}', a name to rename, or '-' to skip: ",
@@ -220,8 +220,13 @@ def _prompt_save(session: GameSession, in_: TextIO, out: TextIO) -> None:
 
 
 def _play_game(
-    n: int, registry: RecipeRegistry, in_: TextIO, out: TextIO
-) -> bool:
+    n: int,
+    registry: RecipeRegistry,
+    in_: TextIO,
+    out: TextIO,
+    *,
+    first_win: bool,
+) -> bool | None:
     """Play one game to a win, quit, or EOF.
 
     Args:
@@ -229,10 +234,12 @@ def _play_game(
         registry: The recipe store shared across games.
         in_: The stream commands are read from.
         out: The stream the board and messages are written to.
+        first_win: True when no game has been won yet this run (gates the
+            one-time recipe teaching in the win celebration).
 
     Returns:
-        ``True`` if the user wants to play again, ``False`` to exit the
-        program (quit or EOF).
+        ``None`` if the user left without winning (quit or EOF mid-game);
+        otherwise the game was won and the bool is whether to play again.
     """
     session: GameSession = GameSession(num_disks=n, registry=registry)
 
@@ -242,7 +249,7 @@ def _play_game(
         out.write(session.valid_moves_str() + "\n")
         line: str | None = _read_line("> ", in_, out)
         if line is None:  # EOF
-            return False
+            return None
         cmd: Command = parse(line)
         result: DispatchResult = session.dispatch(cmd)
         output_line: str
@@ -255,20 +262,21 @@ def _play_game(
         for teaching_line in session.move_teaching_lines(cmd, result):
             out.write(teaching_line + "\n")
         if result.quit:
-            return False
+            return None
 
     # Won
     out.write("\n")
     _print_board(session, out)
-    min_moves: int = session.min_moves()
-    out.write(
-        f"\nSolved! {session.current_moves} moves (minimum {min_moves}).\n"
+    out.write("\n")
+    celebration: list[str] = presenter.format_win_celebration(
+        session.num_disks,
+        session.current_moves,
+        session.min_moves(),
+        first_win=first_win,
     )
-    if session.current_moves == min_moves:
-        out.write("Optimal solution!\n")
-    else:
-        extra: int = session.current_moves - min_moves
-        out.write(f"{extra} more than the minimum.\n")
+    line_out: str
+    for line_out in celebration:
+        out.write(line_out + "\n")
 
     _prompt_save(session, in_, out)
 
@@ -295,12 +303,20 @@ def run(in_: TextIO, out: TextIO) -> int:
     out.write(HOWTO + "\n")
     registry: RecipeRegistry = RecipeRegistry()
     _install_completion(registry, in_)
+    won_before: bool = False
     while True:
         n: int | None = _prompt_disc_count(in_, out)
         if n is None:
             out.write("Bye.\n")
             return 0
-        if not _play_game(n, registry, in_, out):
+        play_again: bool | None = _play_game(
+            n, registry, in_, out, first_win=not won_before
+        )
+        if play_again is None:  # left without winning
+            out.write("Bye.\n")
+            return 0
+        won_before = True  # a win happened this game
+        if not play_again:
             out.write("Bye.\n")
             return 0
 

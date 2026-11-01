@@ -455,6 +455,91 @@ def format_move_tally(moves: Sequence[tuple[int, int]]) -> list[str]:
     ]
 
 
+# --- Win celebration / recipe discovery ------------------------------------
+
+
+def default_recipe_name(num_disks: int) -> str:
+    """The default name offered when saving a just-won solution.
+
+    Every front-end prefills its save affordance with this (feature-spec §4.5),
+    so the common case is a single confirmation.
+
+    Args:
+        num_disks: The disk count of the solved game.
+
+    Returns:
+        The canonical default name ``solve-<N>``.
+
+    Examples:
+        >>> default_recipe_name(3)
+        'solve-3'
+    """
+    return f"solve-{num_disks}"
+
+
+def format_win_celebration(
+    num_disks: int, moves: int, min_moves: int, first_win: bool
+) -> list[str]:
+    """The win celebration + recipe-discovery message shown on winning.
+
+    Realizes the "win is the teaching hinge" of the learning flow (feature-spec
+    §3.5/§4.9): on *every* win it congratulates and reports the result; on the
+    player's *first* win of the session it additionally teaches what recipes are
+    and the "solve small, relabel, replay" method, so a novice discovers the
+    save-a-recipe affordance instead of missing the quietly unlocked Tier-2
+    menu. The save control itself (a button, or the ``save <name>`` command) is
+    each front-end's to present, prefilled with `default_recipe_name`; this
+    helper is the shared *wording*, so every UI reads identically.
+
+    Args:
+        num_disks: The disk count of the solved game.
+        moves: How many moves the player took.
+        min_moves: The optimal count (``2 ** num_disks - 1``).
+        first_win: True on the player's first win of the session (adds the
+            one-time recipe teaching); on a later win only the congratulation +
+            result are returned (the save offer stays, presented by the UI).
+
+    Returns:
+        The message as display lines.
+
+    Examples:
+        A first win that is optimal teaches the recipe idea:
+
+        >>> for line in format_win_celebration(3, 7, 7, first_win=True):
+        ...     print(line)
+        Congratulations — you solved it in 7 moves!
+        Optimal — the fewest possible for 3 discs.
+        You can save this solution as a recipe and replay it on a new game —
+        even a bigger stack — by relabelling the pegs.
+        That is the method: "solve small, relabel, replay".
+
+        A later, non-optimal win: congratulation + how far off, no re-teaching:
+
+        >>> for line in format_win_celebration(3, 9, 7, first_win=False):
+        ...     print(line)
+        Congratulations — you solved it in 9 moves!
+        That is 2 more than the optimal 7 for 3 discs.
+    """
+    noun: str = "move" if moves == 1 else "moves"
+    lines: list[str] = [f"Congratulations — you solved it in {moves} {noun}!"]
+    if moves == min_moves:
+        lines.append(f"Optimal — the fewest possible for {num_disks} discs.")
+    else:
+        extra: int = moves - min_moves
+        lines.append(
+            f"That is {extra} more than the optimal {min_moves} "
+            f"for {num_disks} discs."
+        )
+    if first_win:
+        lines.append(
+            "You can save this solution as a recipe and replay it on a "
+            "new game —"
+        )
+        lines.append("even a bigger stack — by relabelling the pegs.")
+        lines.append('That is the method: "solve small, relabel, replay".')
+    return lines
+
+
 # --- Move translation through the current labelling ------------------------
 
 

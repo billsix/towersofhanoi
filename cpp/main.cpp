@@ -77,6 +77,16 @@ struct App {
   bool want_quit = false;    // native: exit the loop
   bool won_once = false;     // Tier-2 unlock: latched at the first win, kept
   bool help_shown = false;   // first-run "How to Play" shown once
+  bool open_win = false;     // request to open the first-win teaching modal
+  std::vector<std::string> win_lines; // shared celebration lines (per win)
+  // Save-on-discard (feature-spec §4.9; the win-celebration UX doc): whether
+  // the current won solution was reached by replaying a recipe and whether it
+  // was already saved; a New Game deferred behind the save-before-discard
+  // modal.
+  bool won_via_apply = false;
+  bool saved_current = false;
+  bool open_discard_save = false;
+  int pending_new_game = -1;
   // Disc drag-drop (spike, mirrored across the GUIs): the physical peg whose
   // top disc is being dragged (-1 = none), its size, and the cursor position.
   int drag_src = -1;
@@ -89,6 +99,12 @@ struct App {
     recorder.reset();
     status.clear();
     view.active = false;
+    open_win = false;
+    win_lines.clear();
+    won_via_apply = false;
+    saved_current = false;
+    open_discard_save = false;
+    pending_new_game = -1;
   }
 
   // Apply a physical move and record it in default-label space (from_peg+1,
@@ -101,6 +117,39 @@ struct App {
 
   [[nodiscard]] bool won() const { return game.check_win_condition(); }
 };
+
+// On a win, capture the shared celebration lines and request the modal (shown
+// once per win by draw_win_modal). The recipe teaching (first_win) keys off the
+// won_once latch, read before the frame's draw latches it. No-op when not won.
+void trigger_win(App &app) {
+  if (!app.won()) {
+    return;
+  }
+  const bool first_win = !app.won_once;
+  app.win_lines = hanoi::format_win_celebration(
+      app.game.num_disks(), app.game.current_moves(),
+      optimal_moves(app.game.num_disks()), first_win);
+  if (!app.win_lines.empty()) {
+    app.status = app.win_lines.front();
+  }
+  // First win: a teaching modal (never collides with the §4.8 rebinding view,
+  // as the first win is always a clean default-label solve). Later wins: the
+  // status line above only; the save is offered at the New Game boundary.
+  if (first_win) {
+    app.open_win = true;
+  }
+}
+
+// New Game / New Game (Same Size): if the finished game was won by hand and not
+// yet saved, defer to the save-before-discard modal; else start immediately.
+void request_new_game(App &app, int n) {
+  if (app.won() && !app.won_via_apply && !app.saved_current) {
+    app.pending_new_game = n;
+    app.open_discard_save = true;
+  } else {
+    app.new_game(n);
+  }
+}
 
 // The reason a physical move is illegal, in the player's labels -- mirrors the
 // Python engine._handle_move messages (empty source / larger-on-smaller).
@@ -348,16 +397,7 @@ void do_board_move(App &app, int fp, int tp) {
     open_view(app, "Rebinding for your move", "Your move",
               {{{from_label, to_label}}});
   }
-  if (app.won()) {
-    const int mm = optimal_moves(app.game.num_disks());
-    const int mv = app.game.current_moves();
-    const std::string verdict = mv == mm ? "Optimal!"
-                                         : std::to_string(mv - mm) +
-                                               " more than the minimum (" +
-                                               std::to_string(mm) + ").";
-    app.status = "Solved in " + std::to_string(mv) + " moves - " + verdict +
-                 "  Save it as a recipe to keep it.";
-  }
+  trigger_win(app);
 }
 
 // View a saved recipe (Recipe menu -> <name> -> View): under a relabelling the
@@ -399,12 +439,9 @@ void apply_recipe(App &app, const std::string &name) {
     open_view(app, "Rebinding for '" + name + "'", "Recipe moves",
               r->default_moves);
   }
+  trigger_win(app);
   if (app.won()) {
-    const int mm = optimal_moves(app.game.num_disks());
-    const int mv = app.game.current_moves();
-    app.status += (mv == mm) ? "  Solved - optimal!"
-                             : "  Solved in " + std::to_string(mv) +
-                                   " moves (min " + std::to_string(mm) + ").";
+    app.won_via_apply = true;
   }
 }
 
@@ -419,13 +456,13 @@ void draw_menubar(App &app) {
       for (int n = 1; n <= 10; ++n) {
         const std::string item = std::to_string(n) + " disks";
         if (ImGui::MenuItem(item.c_str(), nullptr, app.game.num_disks() == n)) {
-          app.new_game(n);
+          request_new_game(app, n);
         }
       }
       ImGui::EndMenu();
     }
     if (ImGui::MenuItem("New Game (Same Size)")) {
-      app.new_game(app.game.num_disks());
+      request_new_game(app, app.game.num_disks());
     }
 #ifndef __EMSCRIPTEN__
     // A browser tab has no app-driven quit; native gets an explicit Quit.
@@ -514,6 +551,7 @@ void draw_save_modal(App &app) {
       const std::string name = app.name_buf;
       const bool overwrote = app.registry.get(name) != nullptr;
       app.registry.save(app.recorder.to_recipe(name, app.game.num_disks()));
+      app.saved_current = true;
       app.status =
           (overwrote ? "Overwrote recipe '" : "Saved recipe '") + name + "'.";
       app.name_buf[0] = '\0';
@@ -521,6 +559,66 @@ void draw_save_modal(App &app) {
     }
     ImGui::SameLine();
     if (ImGui::Button("Cancel")) {
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+}
+
+// The first-win teaching modal (the teaching hinge, feature-spec §4.9): the
+// shared lines (congrats + result + the recipe teaching), dismissed with "Got
+// it". No Save here -- the save is offered at the New Game boundary. Shown only
+// on the first win, which is always a clean default-label solve, so it never
+// collides with the §4.8 rebinding view. Requested by trigger_win().
+void draw_win_modal(App &app) {
+  if (app.open_win) {
+    ImGui::OpenPopup("You solved it!");
+    app.open_win = false;
+  }
+  ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  if (ImGui::BeginPopupModal("You solved it!", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    for (const std::string &line : app.win_lines) {
+      ImGui::TextUnformatted(line.c_str());
+    }
+    ImGui::Separator();
+    if (ImGui::Button("Got it")) {
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+}
+
+// The save-before-discard modal: a New Game requested while a hand-won, unsaved
+// solution is on the board asks whether to save it as "solve-<N>" first (the
+// save-before-you-close pattern; the win-celebration UX doc), then starts the
+// pending new game either way. Requested by request_new_game().
+void draw_discard_save_modal(App &app) {
+  if (app.open_discard_save) {
+    ImGui::OpenPopup("Save solution?");
+    app.open_discard_save = false;
+  }
+  ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                          ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  if (ImGui::BeginPopupModal("Save solution?", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextUnformatted(
+        "Save your solution as a recipe before starting over?");
+    ImGui::Separator();
+    bool decided = false;
+    if (ImGui::Button("Save")) {
+      const std::string name = hanoi::default_recipe_name(app.game.num_disks());
+      app.registry.save(app.recorder.to_recipe(name, app.game.num_disks()));
+      decided = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Don't save")) {
+      decided = true;
+    }
+    if (decided) {
+      const int n = app.pending_new_game >= 1 ? app.pending_new_game : 3;
+      app.new_game(n); // resets pending_new_game + the save flags
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -665,6 +763,8 @@ void draw_frame(App &app) {
 
   draw_menubar(app);
   draw_save_modal(app);
+  draw_win_modal(app);
+  draw_discard_save_modal(app);
   draw_help_modal(app);
   draw_illegal_modal(app);
 
