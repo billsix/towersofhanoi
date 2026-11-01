@@ -4,7 +4,9 @@ FROM registry.fedoraproject.org/fedora:44
 # native desktop binary (`make gui`) and WebAssembly (`make webassembly`). Self-contained:
 # own image, own Makefile, own emacs set. Recipe: tasks/reference/imgui-cpp-native-and-wasm.md.
 
-# USE_EMACS installs emacs + the C/C++ dev set (lsp-mode + clangd). Default 1 in the Makefile.
+# USE_EMACS installs the emacs BINARY only (via 04-install-emacs.sh); the C/C++ LSP backend
+# (clangd) is in 01-install-cpp-base.sh, and the emacs PACKAGES are vendored in the repo and
+# bind-mounted at `make shell` -- never compiled into the image. Default 1 in the Makefile.
 ARG USE_EMACS=0
 # USE_WASM installs the Emscripten SDK (needed only for `make webassembly`; ~1-1.5 GB). The
 # Makefile defaults it to 1; a lean MINIMAL_IMAGE build drops it (native-only image).
@@ -15,8 +17,7 @@ ARG USE_WX=0
 # The pinned Emscripten SDK version (reproducible; bump deliberately).
 ARG EMSDK_VERSION=3.1.74
 
-COPY entrypoint/01-install-cpp-base.sh entrypoint/02-install-emsdk.sh entrypoint/03-install-wx.sh /usr/local/bin/
-COPY entrypoint/dotfiles/.emacs.d/install-melpa-packages.el /root/.emacs.d/install-melpa-packages.el
+COPY entrypoint/01-install-cpp-base.sh entrypoint/02-install-emsdk.sh entrypoint/03-install-wx.sh entrypoint/04-install-emacs.sh /usr/local/bin/
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
@@ -24,10 +25,7 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      dnf upgrade -y && \
      /usr/local/bin/01-install-cpp-base.sh && \
      if [ "$USE_WX" = "1" ]; then /usr/local/bin/03-install-wx.sh ; fi && \
-     if [ "$USE_EMACS" = "1" ]; then \
-       dnf install -y emacs && \
-       emacs --batch --load /root/.emacs.d/install-melpa-packages.el ; \
-     fi && \
+     if [ "$USE_EMACS" = "1" ]; then /usr/local/bin/04-install-emacs.sh ; fi && \
      echo "make gui" >> ~/.bash_history
 
 # emsdk in its own layer (heavy; caches independently of the dnf layer). The script reads
@@ -39,7 +37,9 @@ COPY entrypoint/shell.sh /usr/local/bin/shell.sh
 COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /format.sh
 # Bake the emacs config (init.el + preferences.el) after the package layer so editing it
-# doesn't bust the cache; `make shell` still bind-mounts the live .emacs.d over it.
+# doesn't bust the cache. The config is baked (not mounted): `make shell` bind-mounts only the
+# vendored elpa/ over /root/.emacs.d/elpa (the Makefile's ELPA_MOUNT), so package refreshes are
+# live while config edits need a rebuild -- matching modelviewprojection/geometricalgebra.
 COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
 
 # Bake the source LATE at the mount path. The native binary is built at runtime from the
