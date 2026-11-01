@@ -78,6 +78,11 @@ let wonOnce = false;
 // Whether the win celebration has been shown for the current win, so render()
 // (which runs on every command) pops the modal once per win, not every frame.
 let winCelebrated = false;
+// Save-on-discard (the win-celebration UX doc): whether the current won solution
+// was reached by replaying a recipe and whether it was already saved; both reset
+// when a new game starts.
+let wonViaApply = false;
+let savedCurrent = false;
 // The latest snapshot, so menu actions (Save) can read e.g. the disc count.
 /** @type {Snapshot|null} */
 let latest = null;
@@ -329,17 +334,17 @@ function renderRelabelMenu(s) {
 }
 
 /**
- * Show the win celebration as a modal <dialog> (the teaching hinge): the shared
- * wording from the backend `win_celebration` command (so the webview reads
- * identically to the other front-ends), a "Save as recipe" button (offered
- * every win) and a "Not now" dismiss. The recipe-teaching lines are present
- * only on the first win (the backend keys off `firstWin`).
- * @param {boolean} firstWin
+ * Show the first-win teaching as a modal <dialog> (the teaching hinge): the
+ * shared wording from the backend `win_celebration` command (so the webview
+ * reads identically to the other front-ends), with a single "Got it" dismiss
+ * and NO Save button. Shown only on the first win (always a clean default-label
+ * solve), so it never collides with the inline rebinding view; the save is
+ * offered at the New Game boundary instead (`maybeOfferSaveBeforeDiscard`).
  * @returns {Promise<void>}
  */
-async function showWinDialog(firstWin) {
+async function showWinTeaching() {
   const lines = /** @type {string[]} */ (
-    await invoke("win_celebration", { firstWin })
+    await invoke("win_celebration", { firstWin: true })
   );
   const dialog = document.createElement("dialog");
   dialog.className = "howto";
@@ -353,28 +358,62 @@ async function showWinDialog(firstWin) {
   }
   const form = document.createElement("form");
   form.method = "dialog";
-  const notNow = document.createElement("button");
-  notNow.value = "cancel";
-  notNow.textContent = "Not now";
-  const save = document.createElement("button");
-  save.value = "save";
-  save.textContent = "Save as recipe";
-  form.appendChild(notNow);
-  form.appendChild(save);
+  const gotIt = document.createElement("button");
+  gotIt.value = "ok";
+  gotIt.textContent = "Got it";
+  form.appendChild(gotIt);
   dialog.appendChild(form);
   document.body.appendChild(dialog);
-  dialog.addEventListener("close", async () => {
-    const wantSave = dialog.returnValue === "save";
+  dialog.addEventListener("close", () => {
     dialog.remove();
-    if (wantSave && latest) {
-      render(
-        /** @type {Snapshot} */ (await invoke("save_recipe", {
-          name: `solve-${latest.num_disks}`,
-        })),
-      );
-    }
   });
   dialog.showModal();
+}
+
+/**
+ * Save-before-discard: if a hand-won, unsaved solution is on the board, ask
+ * whether to save it as a recipe before a New Game discards it (the
+ * save-before-you-close pattern). Resolves once the player chooses; a save is
+ * suppressed when the solution was reached by applying a recipe or already
+ * saved.
+ * @returns {Promise<void>}
+ */
+async function maybeOfferSaveBeforeDiscard() {
+  if (!latest || !latest.won || wonViaApply || savedCurrent) {
+    return;
+  }
+  const num = latest.num_disks;
+  const choice = /** @type {string} */ (
+    await new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "howto";
+      const para = document.createElement("p");
+      para.textContent = "Save your solution as a recipe before starting over?";
+      dialog.appendChild(para);
+      const form = document.createElement("form");
+      form.method = "dialog";
+      const dont = document.createElement("button");
+      dont.value = "discard";
+      dont.textContent = "Don't save";
+      const save = document.createElement("button");
+      save.value = "save";
+      save.textContent = "Save";
+      form.appendChild(dont);
+      form.appendChild(save);
+      dialog.appendChild(form);
+      document.body.appendChild(dialog);
+      dialog.addEventListener("close", () => {
+        const value = dialog.returnValue;
+        dialog.remove();
+        resolve(value);
+      });
+      dialog.showModal();
+    })
+  );
+  if (choice === "save") {
+    await invoke("save_recipe", { name: `solve-${num}` });
+    savedCurrent = true;
+  }
 }
 
 /**
@@ -410,12 +449,14 @@ function render(s) {
   const firstWin = s.won && !wonOnce;
   wonOnce = wonOnce || s.won;
 
-  // Win celebration (the teaching hinge): pop the modal once per win.
+  // Win celebration (the teaching hinge): the teaching modal shows on the FIRST
+  // win only (never collides with the rebinding view); later wins are the status
+  // line below, and the save is offered at New Game.
   if (!s.won) {
     winCelebrated = false;
   } else if (!winCelebrated) {
     winCelebrated = true;
-    void showWinDialog(firstWin);
+    if (firstWin) void showWinTeaching();
   }
 
   drawBoard(s);
@@ -646,6 +687,7 @@ async function init() {
           name: `solve-${discs}`,
         })),
       );
+      savedCurrent = true;
     } else if (act === "view" && name) {
       const steps = /** @type {string[]} */ (await invoke("show_recipe", {
         name,
@@ -653,6 +695,7 @@ async function init() {
       alert(steps.join("\n"));
     } else if (act === "apply" && name) {
       render(/** @type {Snapshot} */ (await invoke("apply_recipe", { name })));
+      if (latest && latest.won) wonViaApply = true;
     }
   });
 
@@ -662,7 +705,10 @@ async function init() {
       10,
     ) || 3;
     closeMenus();
+    await maybeOfferSaveBeforeDiscard();
     render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
+    wonViaApply = false;
+    savedCurrent = false;
   });
 
   // New Game (Same Size): restart at the current disc count (no new command --
@@ -670,7 +716,10 @@ async function init() {
   el("newgame-same").addEventListener("click", async () => {
     const discs = latest ? latest.num_disks : 3;
     closeMenus();
+    await maybeOfferSaveBeforeDiscard();
     render(/** @type {Snapshot} */ (await invoke("new_game", { discs })));
+    wonViaApply = false;
+    savedCurrent = false;
   });
 
   // How-to-Play dialog: opens from the Help menu, and once automatically on first run.

@@ -96,6 +96,13 @@ struct HanoiApp {
     /// The win-celebration lines to show in a modal window (None = no dialog);
     /// set by `check_win`, cleared when the player dismisses or saves.
     win_dialog: Option<Vec<String>>,
+    /// Save-on-discard (feature-spec §4.9; the win-celebration UX doc): whether
+    /// the current won solution was reached by replaying a recipe and whether it
+    /// was already saved (both reset per game), and a pending New Game (disc
+    /// count) deferred behind the save-before-discard confirm window.
+    won_via_apply: bool,
+    saved_current: bool,
+    pending_new_game: Option<u32>,
     /// Whether the How-to-Play window is open, and whether it has auto-opened once.
     open_help: bool,
     help_shown: bool,
@@ -137,6 +144,9 @@ impl HanoiApp {
             status: String::new(),
             won_once: false,
             win_dialog: None,
+            won_via_apply: false,
+            saved_current: false,
+            pending_new_game: None,
             open_help: false,
             help_shown: false,
             detail_title: String::new(),
@@ -187,6 +197,20 @@ impl HanoiApp {
         self.status.clear();
         self.detail.clear();
         self.win_dialog = None;
+        self.won_via_apply = false;
+        self.saved_current = false;
+        self.pending_new_game = None;
+    }
+
+    /// New Game / New Game (Same Size): if the finished game was won by hand and
+    /// not yet saved, defer to the save-before-discard confirm window
+    /// (`pending_new_game`); otherwise start the new game immediately.
+    fn request_new_game(&mut self, n: u32) {
+        if self.is_won() && !self.won_via_apply && !self.saved_current {
+            self.pending_new_game = Some(n);
+        } else {
+            self.new_game(n);
+        }
     }
 
     fn is_won(&self) -> bool {
@@ -241,6 +265,7 @@ impl HanoiApp {
         }
         let name: String = default_recipe_name(self.game.num_disks as usize);
         let msg: String = self.save(&name);
+        self.saved_current = true;
         self.status = msg;
     }
 
@@ -259,6 +284,9 @@ impl HanoiApp {
             self.status = last.clone();
         }
         self.check_win();
+        if self.is_won() {
+            self.won_via_apply = true;
+        }
         if relabelled {
             if let Some(moves) = moves {
                 self.show_rebinding(&format!("Rebinding for '{name}'"), &moves);
@@ -287,16 +315,21 @@ impl HanoiApp {
         if !self.is_won() {
             return;
         }
+        let first_win: bool = !self.won_once;
         let lines: Vec<String> = format_win_celebration(
             self.game.num_disks as usize,
             u64::from(self.game.current_moves),
             self.min_moves(),
-            !self.won_once,
+            first_win,
         );
         if let Some(first) = lines.first() {
             self.status = first.clone();
         }
-        self.win_dialog = Some(lines);
+        // Later wins: status line only (a window would collide with the §4.8
+        // rebinding detail). The teaching modal shows on the first win only.
+        if first_win {
+            self.win_dialog = Some(lines);
+        }
     }
 
     /// Board layout from the paint rect (peg centres, disc sizes), shared by the
@@ -516,12 +549,12 @@ impl eframe::App for HanoiApp {
                     });
                     if ui.button("New Game").clicked() {
                         let n: u32 = self.disc_count.clamp(1, MAX_DISKS);
-                        self.new_game(n);
+                        self.request_new_game(n);
                         ui.close_menu();
                     }
                     if ui.button("New Game (Same Size)").clicked() {
                         let n: u32 = self.game.num_disks.max(1);
-                        self.new_game(n);
+                        self.request_new_game(n);
                         ui.close_menu();
                     }
                 });
@@ -692,12 +725,12 @@ impl eframe::App for HanoiApp {
             });
         self.open_help = open && !dismiss;
 
-        // The win celebration (teaching hinge): shown on every win; Save is
-        // offered each time, the teaching lines appear only on a first win.
+        // The win celebration (teaching hinge): shown only on the FIRST win
+        // (teaching), so it never collides with the rebinding detail; later wins
+        // are a status line. Save is offered at the New Game boundary below.
         if let Some(lines) = self.win_dialog.clone() {
             let mut keep_open: bool = true;
-            let mut save: bool = false;
-            let mut close: bool = false;
+            let mut dismiss: bool = false;
             egui::Window::new("You solved it!")
                 .open(&mut keep_open)
                 .collapsible(false)
@@ -708,20 +741,42 @@ impl eframe::App for HanoiApp {
                         ui.label(line);
                     }
                     ui.add_space(4.0);
+                    if ui.button("Got it").clicked() {
+                        dismiss = true;
+                    }
+                });
+            if dismiss || !keep_open {
+                self.win_dialog = None;
+            }
+        }
+
+        // Save-before-discard: a New Game requested while a hand-won, unsaved
+        // solution is on the board defers here (the save-before-you-close
+        // pattern; the win-celebration UX doc).
+        if let Some(n) = self.pending_new_game {
+            let mut decided: Option<bool> = None; // Some(true)=save, else discard
+            egui::Window::new("Save solution?")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    ui.label("Save your solution as a recipe before starting over?");
+                    ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Save as recipe").clicked() {
-                            save = true;
+                        if ui.button("Save").clicked() {
+                            decided = Some(true);
                         }
-                        if ui.button("Not now").clicked() {
-                            close = true;
+                        if ui.button("Don't save").clicked() {
+                            decided = Some(false);
                         }
                     });
                 });
-            if save {
-                self.do_save();
-            }
-            if save || close || !keep_open {
-                self.win_dialog = None;
+            if let Some(save) = decided {
+                if save {
+                    self.do_save();
+                }
+                self.pending_new_game = None;
+                self.new_game(n);
             }
         }
     }
