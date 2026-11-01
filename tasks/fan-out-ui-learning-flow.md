@@ -40,10 +40,13 @@ graphical UI — all need on-display sign-off.
   mirroring the ImGui reference (both immediate-mode): Tier-1 goal line + an always-visible right-hand
   **History** panel (`format_move_tally` over the recorder's default-label moves, with the running count
   vs the optimal `2^N-1`) replacing the old always-on Recipes side panel; Tier-2 `won_once` latch dims
-  **Relabel** (central) and the whole **Recipe menu** until the first win; Tier-3 recipes moved into a
-  top **menu bar** (`egui::menu::bar`) — Recipe menu = Save current solution (enabled at a win) /
-  Reset recording / separator / each saved recipe a submenu → View (`view_recipe`) / Apply
-  (`apply_recipe_named`, which counts from the recipe not the suppressed step-log); the first-run
+  the **Relabel** and **Recipe** menus until the first win; Tier-3 recipes and relabelling both moved
+  into a top **menu bar** (`egui::menu::bar`), matching the wxPython oracle (relabel is a menu there,
+  not inline controls) — Relabel menu = one radio item per permutation (active marked, dimmed while the
+  current game is already solved); Recipe menu = Save current solution (enabled at a win) / Reset
+  recording / separator / each saved recipe a submenu → View (`view_recipe`) / Apply
+  (`apply_recipe_named`, which counts from the recipe not the suppressed step-log). Move/status text
+  uses ASCII `->` (egui's default font has no `→` glyph, matching the text UIs); the first-run
   **How to Play** window (goal + the one rule + the solve-small-relabel-replay method) auto-opens once
   and reopens from a **Help** menu. The web (`#[cfg(wasm32)]`) entry is untouched — same `HanoiApp`.
   `cargo check` clean (own workspace, excluded from `make check`); a headless Xvfb + software-GL launch
