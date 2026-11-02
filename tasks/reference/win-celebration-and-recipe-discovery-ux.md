@@ -96,6 +96,8 @@ makes presentation a per-category choice while the *features* stay mandatory.
 
 - `tasks/reference/ui-design-principles.md` — the Apple-HIG grounding + the three-tier learning flow (the
   win is the Tier-2 hinge).
+- `tasks/reference/learner-knowledge-states.md` — the whole journey as a state machine over what the
+  learner knows; the win→teach→save step here is its S1→S2→S3 transitions.
 - `tasks/reference/feature-spec.md` — §3.5 (learning flow), §4.5 (save a recipe), §4.8 (rebinding view),
   §4.9 (win), §6 (per-category presentation).
 - `tasks/archive/2026/11/01/win-celebration-recipe-discovery.md` (+ the python/rust/cpp children) — the implementation;

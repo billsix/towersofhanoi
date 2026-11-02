@@ -142,6 +142,8 @@ stays the rationale (the *why*, grounded in the Apple HIG).
 - `tasks/reference/win-celebration-and-recipe-discovery-ux.md` — how the **win moment** teaches recipes
   and offers the save (first-win teaching modal; later wins lightweight; GUI save deferred to the
   new-game boundary to avoid colliding with the rebinding view), and why.
+- `tasks/reference/learner-knowledge-states.md` — the journey as a **state machine over the learner's
+  knowledge** (what each step assumes vs. teaches, and the branches), the audit lens behind these tiers.
 - `tasks/reference/feature-spec.md` — the UI-independent feature definitions (the *what*); its §1
   teaching intent and §4.11 move tally motivate tiers 1–2, its §4.8 rebinding view is the Tier-3
   showpiece.
