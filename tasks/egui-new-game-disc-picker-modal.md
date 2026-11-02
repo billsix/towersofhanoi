@@ -1,6 +1,7 @@
 # egui — a "New Game" modal disc picker (mobile-friendly), replacing the inline DragValue
 
-**Status:** proposed — needs go-ahead + a pick among the picker layouts (open question 1).
+**Status:** decided — ready to implement (needs a build go-ahead). Design settled 2026-11-02; both
+open questions resolved (Option 1 button grid, highlight the last-used count).
 **Priority:** 5 **Difficulty:** 3
 **Created:** 2026-11-02 (William Emerison Six <billsix@gmail.com>). From a mobile-web usability
 report: selecting the disc count by dragging is awkward on touch.
@@ -65,21 +66,47 @@ the oracle's flow; all Rust gates green.
    does **not** match the oracle's modal flow the maintainer now prefers, and keeps the picker in a
    cramped menu. Kept here as the fallback if a modal feels heavy.
 
-## Recommendation
+## Decision (William Emerison Six <billsix@gmail.com>, 2026-11-02)
 
-**Option 1** — a "New Game" modal (`egui::Window` + an `open_disc_picker` flag) showing a 1–10 button
-grid, where tapping a count both picks and starts (Cancel to back out), and **"New Game (Same Size)"**
+**Option 1**, with the last-used count highlighted. A "New Game" modal (`egui::Window` + an
+`open_disc_picker` flag) shows a 1–10 button grid; tapping a count both picks and starts (Cancel to back
+out); the button for the last-used count is visually marked (`selected`); **"New Game (Same Size)"**
 stays promptless. Rationale: matches the Python oracle's "How many discs?" modal flow (parity); best
 mobile UX (big tap targets, no drag, pick+start in one tap); removes the inline `DragValue` and the
-`disc_count` field (simplification); reuses the app's existing modal-window pattern (no egui bump). The
-one thing to implement carefully is the save-before-discard **sequencing** above.
+`disc_count` field (simplification); reuses the app's existing modal-window pattern (no egui bump).
+
+## Plan
+
+1. **Add state:** an `open_disc_picker: bool` field (init `false`, next to `open_help` / `pending_new_game`
+   at `main.rs:105-150`), and keep the last-used count — reuse `self.game.num_disks` as the highlight
+   source (so the `disc_count` field at `main.rs:143` can be removed, and its two reads at `:548,551`
+   with it).
+2. **Game menu (`main.rs:545-560`):** delete the `ui.horizontal`/`DragValue` block and the disc-reading
+   "New Game" button; replace with a single **"New Game…"** button that sets `self.open_disc_picker =
+   true` and closes the menu. Leave "New Game (Same Size)" (`:555-559`) unchanged.
+3. **The picker window:** mirror the existing `Window::new(...).open(&mut flag)` dialogs (How-to-Play
+   `:708`, "Save solution?" `:758`). A `Window::new("New Game")`, not resizable, collapsible off,
+   anchored centre; inside, a grid (e.g. `egui::Grid` 5×2) of buttons `1..=MAX_DISKS`. Use
+   `ui.selectable_label(n == self.game.num_disks, text)` (or a `Button` with `.selected(...)`) so the
+   last-used count reads as highlighted. On a click: set `self.open_disc_picker = false`, then
+   `self.request_new_game(n)`.
+4. **Sequencing (the one hazard):** `request_new_game(n)` may raise the "Save solution?" window via
+   `pending_new_game` (`:208-212, 756-779`). Because the picker sets its own flag false *before* calling
+   `request_new_game`, the picker is gone before the save prompt can show — verify the two are never open
+   simultaneously (the two-modal collision; see the win-celebration UX doc). Cancel just clears
+   `open_disc_picker`.
+5. **Gates:** `cd rust && make check-egui` (its own workspace — `make check`/`--workspace` doesn't reach
+   it) + `make check` + `make test` + `make format`. Then display-verify: run `make egui` (native) and,
+   ideally, `make egui-web` + `egui-serve` and tap through on a narrow viewport.
+6. Update `rust/CLAUDE.md`'s egui description if it mentions the disc control; the feature is unchanged
+   (New Game 1..10) so `feature-spec.md` needs no change — this is presentation only.
 
 ## Open questions
 
-1. **Picker layout** — Option 1 (1–10 button grid, recommended) / 2 (stepper) / 3 (combo) / 4 (menu
-   submenu, no modal)? See Options above. Your call; I recommend 1.
-2. **Default selection** — pre-select/highlight the last-used count in the grid (recommended), or no
-   default (every start is an explicit pick)? Minor.
+*(Both resolved 2026-11-02 — see Decision.)*
+
+1. ~~Picker layout~~ — **Option 1** (1–10 button grid, tap-to-start).
+2. ~~Default selection~~ — **highlight the last-used count** in the grid.
 
 ## Related
 
