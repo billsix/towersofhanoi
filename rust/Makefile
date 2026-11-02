@@ -119,10 +119,12 @@ test-lib: image ## (CI) run only the hanoigame library tests + doctests (cargo t
 		-c '$(RUST_SETUP) && cargo test -p hanoigame'
 
 .PHONY: type-check
-type-check: image ## Type-check + lint + fmt-check the Tauri frontend web files via Deno (deno check/lint/fmt; JSDoc + checkJs, no node_modules)
+type-check: image ## Type-check the Tauri frontend JS via Deno (check/lint/fmt; JSDoc + checkJs, no node_modules), AND statically verify no Rust web target (Tauri + egui-web) references a remote resource (must run offline)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
-		-c 'cd $(REPO_MOUNT)/tauri/frontend && s=0; \
+		-c 'cd $(REPO_MOUNT) && s=0; \
+		    bash tools/check-no-network.sh || s=1; \
+		    cd tauri/frontend; \
 		    deno check --check-js --no-lock main.js || s=1; \
 		    deno lint main.js || s=1; \
 		    deno fmt --check || s=1; \

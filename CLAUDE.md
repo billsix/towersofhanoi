@@ -20,7 +20,7 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 - **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
   **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
   app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
-  `make gui | wx | webassembly | serve | format | test | shell`. See `cpp/CLAUDE.md`.
+  `make gui | wx | webassembly | serve | format | check-no-network | test | shell`. See `cpp/CLAUDE.md`.
 - **the root** (this dir) — the **book + workbook + bash + umbrella**: the Sphinx book
   (`docs/`), the printable worksheets (`workbook/`), the bash demos (`bash/`), and a thin
   umbrella Makefile. `make docs` builds the book; `make format`/`make type-check` delegate
@@ -60,7 +60,8 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
   vanilla, no rewrite" and is archived — `tasks/archive/2026/11/01/tauri-frontend-js-options.md`; the
   native-look CSS refresh it spawned is done (token layer + OS light/dark theming) — rationale in
   `tasks/reference/tauri-frontend-native-look.md`, work archived at
-  `tasks/archive/2026/11/01/desktop-native-look-css-tokens.md`; the no-network gate tasks remain live).
+  `tasks/archive/2026/11/01/desktop-native-look-css-tokens.md`; the three no-network static-gate tasks
+  are done — archived at `tasks/archive/2026/11/02/`).
 - **C++** (`cpp/`, header-only engine in `src/`) — **two GUIs** from one `CMakeLists.txt`: a Dear ImGui
   `main.cpp` (native SDL2+OpenGL3 and WebAssembly OpenGL3→WebGL-ES3; ImGui vendored at `cpp/imgui/`), and
   a **wxWidgets `hanoiwx.cpp`** (`make wx`) built from the shared `ui/hanoi.xrc`. Both at feature parity
@@ -125,9 +126,11 @@ pip install -e . && hanoi`.
 
 **CI** (`.github/workflows/checks.yml`, on push + PR): a thin wrapper — one job per
 (subproject × gate), each `checkout` → `cd <sub> && make <target>`. Python: `check-format` /
-`type-check` / `test`. Rust: `check-format` / `type-check` (Deno, Tauri JS) / `check` / `test-lib`
+`type-check` / `test`. Rust: `check-format` / `type-check` (Deno, Tauri JS — also the no-network static
+gate over both web targets) / `check` / `test-lib`
 (`cargo test -p hanoigame`, lib-only so CI skips the wxWidgets-from-source build; `check` still gates
-GUI compilation). C++: `check-format` / `build` (the compiler is the type check) / `test`. CI is
+GUI compilation). C++: `check-format` / `build` (the compiler is the type check) / `test` /
+`check-no-network` (host-side grep of the wasm web source; no image). CI is
 check-only — `check-format` runs the formatter then fails on `git diff`, never reformat-and-push.
 
 ## Conventions

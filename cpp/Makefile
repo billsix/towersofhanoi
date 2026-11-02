@@ -104,6 +104,13 @@ build: image ## (CI) configure + compile all native targets (both GUIs + tests),
 		--entrypoint /bin/bash $(FILES_TO_MOUNT) $(CONTAINER_NAME) \
 		-c 'cd $(REPO_MOUNT) && cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build'
 
+# Static "no-network" gate for the wasm web source. A zero-dependency grep, so it
+# runs HOST-SIDE (no `: image`) -- CI must not build the ~1.5 GB emsdk image just to
+# grep one file. The script is portable (also runnable in a `make shell`).
+.PHONY: check-no-network
+check-no-network: ## (CI) statically verify the wasm web source (shell.html) references NO remote resource -- the app must run fully offline (host-side grep; no image)
+	bash tools/check-no-network.sh
+
 PLAY_FLAGS = --entrypoint /bin/bash $(FILES_TO_MOUNT) \
 	$(X_FLAGS_FOR_CONTAINER) $(WAYLAND_FLAGS_FOR_CONTAINER)
 
