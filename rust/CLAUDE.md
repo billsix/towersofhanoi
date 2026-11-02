@@ -59,7 +59,12 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
   (JSDoc + `checkJs`/strict from `tauri/frontend/deno.json`) + `deno lint` (JS only) + `deno fmt
   --check` (all three files). Deno is a pinned binary baked by `entrypoint/02-install-deno.sh` —
   no `node_modules`, no npm. The JS house style + the Deno-first rationale:
-  `~/.claude/reference/javascript-coding-standard.md`.
+  `~/.claude/reference/javascript-coding-standard.md`. It **also** runs the static *no-network*
+  gate (`tools/check-no-network.sh`) over **both** Rust web targets — the Tauri frontend and the
+  egui-web source (`hanoi-egui/index.html`, `Trunk.toml`) — failing if any references a remote
+  resource (http(s)/ws(s) URL or protocol-relative `//host`); these UIs must run entirely from
+  local/embedded assets. *Runtime proof (offline):* build (`make tauri` / `make egui-web`) and run
+  with the network cut — the UI renders fully from embedded/local assets, no fetch.
 - `make image-export` / `make image-import FILE=…`, `make update-emacs-packages`.
 
 ## Emacs

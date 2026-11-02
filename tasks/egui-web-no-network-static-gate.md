@@ -1,6 +1,8 @@
 # Add a static "no-network" gate for the egui WebAssembly build
 
-**Status:** proposed — needs go-ahead.
+**Status:** DONE 2026-11-02 (William Emerison Six <billsix@gmail.com>) — staged, not committed
+(stage-only default). Ready to archive after the maintainer's work commit. Landed in the same change as
+the template task; full work record + decisions there.
 **Priority:** 6 **Difficulty:** 2
 **Template:** `tasks/tauri-frontend-no-network-static-gate.md` (the proven pattern; read it first for the
 rationale — this doc states only what differs for the egui-web target).
@@ -43,14 +45,25 @@ tree, fails on an injected CDN reference, in CI.
 4. Document the runtime proof: `make egui-web` then serve/open with the network cut — the page renders
    fully from local `dist/` assets.
 
+## Done (2026-11-02)
+
+Covered by the **same** `rust/tools/check-no-network.sh` as the Tauri frontend (one Rust-side script for
+both web targets): it scans `hanoi-egui/index.html` + `Trunk.toml` alongside `tauri/frontend/`. Trunk's
+`data-trunk rel="rust"` directive is correctly allowed (no scheme / `//host`). Folded into the Rust `make
+type-check` (OQ1 resolved: fold in, not a standalone target — rides `rust-type-check`, no new CI job).
+The grep is workspace-agnostic (plain file paths), so it reaches the separate `hanoi-egui` workspace
+fine without needing `rust-check-egui`. OQ2: per-subproject copy (template OQ3). Verified: green; an
+injected protocol-relative `<link href="//…">` in `index.html` made it FAIL with the `file:line`;
+restored. Full details: `tasks/tauri-frontend-no-network-static-gate.md` "Done — what was built".
+
 ## Open questions
 
-1. **Wiring on the Rust side** — fold into `make type-check` (recommended, mirrors the Tauri decision
-   and the egui-web assets are a natural member of the same static gate), or a standalone target? Note
-   the egui-web assets live in the `hanoi-egui` *separate workspace*, so confirm the Rust `make
-   type-check`/CI reaches them (the `rust-check-egui` job is egui's compile gate — the no-network grep
-   is cheap and workspace-agnostic, so either job can host it). Your call.
-2. **Shared script vs per-subproject copy** — same as the Tauri task's open question 3.
+*(Both resolved 2026-11-02 — see Done above.)*
+
+1. ~~Wiring on the Rust side~~ — **folded into `make type-check`** (rides `rust-type-check`); the grep
+   reaches the `hanoi-egui` separate workspace by plain path, no `rust-check-egui` change needed.
+2. ~~Shared script vs per-subproject copy~~ — **per-subproject copy** (template OQ3); one Rust script
+   serves both Rust web targets.
 
 ## Related
 

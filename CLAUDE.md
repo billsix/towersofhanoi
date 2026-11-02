@@ -20,7 +20,7 @@ Each language is a **self-contained subproject** with its own `Dockerfile`, `Mak
 - **`cpp/`** — **two GUIs** over the engine from one `CMakeLists.txt`: a **Dear ImGui** app building
   **native** (`make gui`) **and** **WebAssembly** (`make webassembly`/`make serve`), plus a **wxWidgets**
   app (`make wx`) built from the shared `ui/hanoi.xrc`. `cd cpp`, then
-  `make gui | wx | webassembly | serve | format | test | shell`. See `cpp/CLAUDE.md`.
+  `make gui | wx | webassembly | serve | format | check-no-network | test | shell`. See `cpp/CLAUDE.md`.
 - **the root** (this dir) — the **book + workbook + bash + umbrella**: the Sphinx book
   (`docs/`), the printable worksheets (`workbook/`), the bash demos (`bash/`), and a thin
   umbrella Makefile. `make docs` builds the book; `make format`/`make type-check` delegate
@@ -125,9 +125,11 @@ pip install -e . && hanoi`.
 
 **CI** (`.github/workflows/checks.yml`, on push + PR): a thin wrapper — one job per
 (subproject × gate), each `checkout` → `cd <sub> && make <target>`. Python: `check-format` /
-`type-check` / `test`. Rust: `check-format` / `type-check` (Deno, Tauri JS) / `check` / `test-lib`
+`type-check` / `test`. Rust: `check-format` / `type-check` (Deno, Tauri JS — also the no-network static
+gate over both web targets) / `check` / `test-lib`
 (`cargo test -p hanoigame`, lib-only so CI skips the wxWidgets-from-source build; `check` still gates
-GUI compilation). C++: `check-format` / `build` (the compiler is the type check) / `test`. CI is
+GUI compilation). C++: `check-format` / `build` (the compiler is the type check) / `test` /
+`check-no-network` (host-side grep of the wasm web source; no image). CI is
 check-only — `check-format` runs the formatter then fails on `git diff`, never reformat-and-push.
 
 ## Conventions

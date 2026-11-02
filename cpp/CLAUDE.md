@@ -35,6 +35,13 @@ the `EMSCRIPTEN` variable).
 - `make gui` — build + run the NATIVE app (cmake + system SDL2/OpenGL, on your X11/Wayland display).
 - `make webassembly` — `emcmake cmake` → `web/index.{html,js,wasm}` (needs a `USE_WASM=1` image).
 - `make serve` — serve `web/` over http at :8000 (wasm must be served over http, never `file://`).
+- `make check-no-network` — static *no-network* gate (`tools/check-no-network.sh`): fails if the
+  wasm web source (`shell.html`) references a remote resource (http(s)/ws(s) URL or protocol-relative
+  `//host`); the wasm app must run entirely offline. A zero-dependency grep, so it runs **host-side**
+  (no `image` dep — CI must not build the emsdk image to grep one file); scans only `shell.html`,
+  never the generated `web/` or the vendored emacs `elpa/` (whose third-party HTML carries CDN tags
+  that never ship). *Runtime proof (offline):* `make webassembly` then serve/open with the network
+  cut — the page renders fully from local `web/` assets.
 - `make test` — build + run the engine unit tests (doctest) under `ctest`. The `TEST_CASE`s live
   **inline in the engine headers** (`src/*.hpp`), beside the code they test; the GUI/wasm binaries
   compile them out with `-DDOCTEST_CONFIG_DISABLE` (set per-target in `CMakeLists.txt`), and a

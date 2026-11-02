@@ -1,6 +1,8 @@
 # Add a static "no-network" gate for the C++ WebAssembly build
 
-**Status:** proposed — needs go-ahead.
+**Status:** DONE 2026-11-02 (William Emerison Six <billsix@gmail.com>) — staged, not committed
+(stage-only default). Ready to archive after the maintainer's work commit. Landed in the same change as
+the template task; full work record + decisions there.
 **Priority:** 6 **Difficulty:** 2
 **Template:** `tasks/tauri-frontend-no-network-static-gate.md` (the proven pattern; read it first for the
 rationale — this doc states only what differs for the C++ wasm target).
@@ -45,12 +47,23 @@ the current tree, fails on an injected CDN reference, and is in CI.
 4. Document the runtime proof: `make webassembly` then serve/open with the network cut — the page must
    render fully from local `web/` assets.
 
+## Done (2026-11-02)
+
+`cpp/tools/check-no-network.sh` scans **only** `cpp/shell.html` (never the generated `web/` nor the
+vendored emacs `elpa/` tree, so the elpa CDN tags can't trip it). Wired into a standalone `make
+check-no-network` that runs the grep **host-side** (no `image` dep — OQ1 resolved: standalone, not
+`cpp-build`, and host-side so CI doesn't build the emsdk image) + a new `cpp-check-no-network` CI job.
+OQ2 (shared vs per-copy): per-subproject copy, per the template's OQ3 resolution. Verified: green on the
+clean tree; an injected remote `<script>` in `shell.html` made it FAIL with the `file:line`; restored.
+Full details + the Rust side: `tasks/tauri-frontend-no-network-static-gate.md` "Done — what was built".
+
 ## Open questions
 
-1. **Wiring on the C++ side** — a standalone `make check-no-network` + its own CI step (recommended, no
-   existing static-gate target to fold into), or hang it off `cpp-build`? Your call.
-2. **Shared script vs per-subproject copy** — same as the Tauri task's open question 3; follow whatever
-   is decided there.
+*(Both resolved 2026-11-02 — see Done above.)*
+
+1. ~~Wiring on the C++ side~~ — **standalone `make check-no-network`, host-side** (no image), + its own
+   `cpp-check-no-network` CI job.
+2. ~~Shared script vs per-subproject copy~~ — **per-subproject copy** (template OQ3).
 
 ## Related
 

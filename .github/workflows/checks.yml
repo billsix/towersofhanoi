@@ -68,6 +68,8 @@ jobs:
       # The Tauri frontend's JavaScript, via Deno (deno check/lint/fmt) -- the
       # "type-check incl. the Tauri JS" requirement. The C++ side has no such job
       # (its compiler is the type check); this is where the project's JS is gated.
+      # This target ALSO runs the no-network static gate over both Rust web targets
+      # (Tauri frontend + egui-web): they must reference no remote resource.
       - name: make type-check
         working-directory: rust
         run: make type-check USE_EMACS=0 USE_WASM=0
@@ -144,3 +146,14 @@ jobs:
       - name: make test
         working-directory: cpp
         run: make test USE_EMACS=0 USE_WASM=0 USE_WX=0
+
+  cpp-check-no-network:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The wasm web source (shell.html) must reference no remote resource. A
+      # zero-dependency grep that runs host-side -- no image build (deliberately
+      # not behind `: image`, so CI needn't build the ~1.5 GB emsdk image to grep).
+      - name: make check-no-network
+        working-directory: cpp
+        run: make check-no-network
