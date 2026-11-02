@@ -3,7 +3,7 @@
 **Status:** investigation COMPLETE 2026-11-01 (William Emerison Six <billsix@gmail.com>) — findings +
 recommendation below. **The headline: the maintainer's goal (type-safety) is already met by the live
 setup, so no rewrite is warranted.** The one genuine change worth making is a static *no-network* gate;
-its follow-on is scaffolded (`tasks/tauri-frontend-no-network-static-gate.md`, proposed — needs
+its follow-on is scaffolded (`tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md`, proposed — needs
 go-ahead). This doc is otherwise read-only history now.
 **Priority:** 7 **Difficulty:** 4
 **Depends on:** the lint task — DONE 2026-10-26, `tasks/archive/2026/10/26/tauri-frontend-lint.md`
@@ -177,7 +177,7 @@ checkable). Libraries researched (all MIT, all vendorable offline, all ship TS t
 The frontend currently has no remote references, but **nothing enforces that it stays that way.** The
 maintainer's stated priority ("verify this statically") is best served by a cheap static gate that fails
 if any remote resource creeps in. Scaffolded as the follow-on:
-`tasks/tauri-frontend-no-network-static-gate.md`.
+`tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md`.
 
 ### Caveat for any *future* library adoption (verify in a spike first)
 

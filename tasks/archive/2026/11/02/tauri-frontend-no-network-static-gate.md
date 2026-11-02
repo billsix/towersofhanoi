@@ -75,8 +75,8 @@ in-script, with a reason):
    type-check`** (rides the existing `rust-type-check` CI job; no new target/job). Reflected in Plan
    step 2.
 2. ~~Scope the other web targets now or later?~~ **Decided: now** — sibling tasks scaffolded for the
-   **C++ wasm** gate (`tasks/cpp-wasm-no-network-static-gate.md`) and the **egui-web** gate
-   (`tasks/egui-web-no-network-static-gate.md`). This task is the proven template they adapt; the one
+   **C++ wasm** gate (`tasks/archive/2026/11/02/cpp-wasm-no-network-static-gate.md`) and the **egui-web** gate
+   (`tasks/archive/2026/11/02/egui-web-no-network-static-gate.md`). This task is the proven template they adapt; the one
    real per-target difference is the glob scope (and, for C++, **excluding the vendored emacs `elpa/`
    tree**, which legitimately contains CDN links inside third-party packages that never ship in the
    app).
@@ -120,8 +120,8 @@ Implemented across all three web targets in one change (this task + the two sibl
 
 - Parent investigation: `tasks/archive/2026/11/01/tauri-frontend-js-options.md` (findings + why this is
   the only recommended change).
-- Sibling gates (same pattern, other web targets): `tasks/cpp-wasm-no-network-static-gate.md`,
-  `tasks/egui-web-no-network-static-gate.md`. This task is their template.
+- Sibling gates (same pattern, other web targets): `tasks/archive/2026/11/02/cpp-wasm-no-network-static-gate.md`,
+  `tasks/archive/2026/11/02/egui-web-no-network-static-gate.md`. This task is their template.
 - `tasks/reference/ci-github-actions.md` — where the CI line lands (the `rust-type-check` job).
 - Personal overlay "Self-contained images + live source" — the offline guarantee this statically
   enforces for the web frontend; its runtime-proof is the offline-run test.

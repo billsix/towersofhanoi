@@ -4,7 +4,7 @@
 (stage-only default). Ready to archive after the maintainer's work commit. Landed in the same change as
 the template task; full work record + decisions there.
 **Priority:** 6 **Difficulty:** 2
-**Template:** `tasks/tauri-frontend-no-network-static-gate.md` (the proven pattern; read it first for the
+**Template:** `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md` (the proven pattern; read it first for the
 rationale — this doc states only what differs for the egui-web target).
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). Sibling of the Tauri gate, scaffolded
 at the maintainer's go-ahead to cover every local web target.
@@ -54,7 +54,7 @@ type-check` (OQ1 resolved: fold in, not a standalone target — rides `rust-type
 The grep is workspace-agnostic (plain file paths), so it reaches the separate `hanoi-egui` workspace
 fine without needing `rust-check-egui`. OQ2: per-subproject copy (template OQ3). Verified: green; an
 injected protocol-relative `<link href="//…">` in `index.html` made it FAIL with the `file:line`;
-restored. Full details: `tasks/tauri-frontend-no-network-static-gate.md` "Done — what was built".
+restored. Full details: `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md` "Done — what was built".
 
 ## Open questions
 
@@ -67,7 +67,7 @@ restored. Full details: `tasks/tauri-frontend-no-network-static-gate.md` "Done �
 
 ## Related
 
-- Template + rationale: `tasks/tauri-frontend-no-network-static-gate.md`.
+- Template + rationale: `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md`.
 - `tasks/reference/ci-github-actions.md` — the Rust CI jobs (`rust-type-check`, `rust-check-egui`) a step
   is added to.
 - Root `CLAUDE.md` — the egui-web build targets (`make egui-web` / `egui-serve`, behind `USE_WASM`).

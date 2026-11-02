@@ -4,7 +4,7 @@
 (stage-only default). Ready to archive after the maintainer's work commit. Landed in the same change as
 the template task; full work record + decisions there.
 **Priority:** 6 **Difficulty:** 2
-**Template:** `tasks/tauri-frontend-no-network-static-gate.md` (the proven pattern; read it first for the
+**Template:** `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md` (the proven pattern; read it first for the
 rationale — this doc states only what differs for the C++ wasm target).
 **Created:** 2026-11-01 (William Emerison Six <billsix@gmail.com>). Sibling of the Tauri gate, scaffolded
 at the maintainer's go-ahead to cover every local web target.
@@ -55,7 +55,7 @@ check-no-network` that runs the grep **host-side** (no `image` dep — OQ1 resol
 `cpp-build`, and host-side so CI doesn't build the emsdk image) + a new `cpp-check-no-network` CI job.
 OQ2 (shared vs per-copy): per-subproject copy, per the template's OQ3 resolution. Verified: green on the
 clean tree; an injected remote `<script>` in `shell.html` made it FAIL with the `file:line`; restored.
-Full details + the Rust side: `tasks/tauri-frontend-no-network-static-gate.md` "Done — what was built".
+Full details + the Rust side: `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md` "Done — what was built".
 
 ## Open questions
 
@@ -67,7 +67,7 @@ Full details + the Rust side: `tasks/tauri-frontend-no-network-static-gate.md` "
 
 ## Related
 
-- Template + rationale: `tasks/tauri-frontend-no-network-static-gate.md`.
+- Template + rationale: `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md`.
 - `tasks/reference/imgui-cpp-native-and-wasm.md` — the wasm build (shell-file, offline emsdk, `web/`
   output) this gate guards the source of.
 - `tasks/reference/ci-github-actions.md` — the C++ CI jobs a step is added to.

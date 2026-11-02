@@ -42,4 +42,4 @@ macOS vibrancy / Windows Mica, which are Tauri *window* settings, not CSS) are d
 - `tasks/reference/tauri-frontend-native-look.md` — the durable design rationale this harvested into.
 - Parent: `tasks/archive/2026/11/01/tauri-frontend-js-options.md` (the "stay vanilla, improve CSS" decision).
 - `tasks/reference/ui-design-principles.md` — the information architecture this look preserves unchanged.
-- No-network gate (enforces the theme adds nothing remote): `tasks/tauri-frontend-no-network-static-gate.md`.
+- No-network gate (enforces the theme adds nothing remote): `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md`.

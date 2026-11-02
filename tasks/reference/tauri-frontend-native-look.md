@@ -93,7 +93,7 @@ alone can't reach its painted colours. The mechanism that makes it theme:
 
 The theme adds **nothing remote** (verified: a grep for `https?://` / `src="//"` / `fetch(`
 / `@import` across `frontend/` returns nothing). Keeping it that way is a standing invariant
-the maintainer wants enforced mechanically — see `tasks/tauri-frontend-no-network-static-gate.md`
+the maintainer wants enforced mechanically — see `tasks/archive/2026/11/02/tauri-frontend-no-network-static-gate.md`
 (and the C++ wasm / egui-web siblings). The look pass rides the existing frontend gate:
 `make type-check` (Deno `check --check-js` + `lint` + `fmt --check`) and `make format`
 (`deno fmt`) over the three static files.
