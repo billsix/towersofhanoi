@@ -1,7 +1,8 @@
 # egui — a "New Game" modal disc picker (mobile-friendly), replacing the inline DragValue
 
-**Status:** decided — ready to implement (needs a build go-ahead). Design settled 2026-11-02; both
-open questions resolved (Option 1 button grid, highlight the last-used count).
+**Status:** DONE 2026-11-02 (William Emerison Six <billsix@gmail.com>) — implemented and staged, not
+committed (stage-only default). Ready to archive after the maintainer's work commit. Design settled +
+both open questions resolved 2026-11-02 (Option 1 button grid, highlight the last-used count).
 **Priority:** 5 **Difficulty:** 3
 **Created:** 2026-11-02 (William Emerison Six <billsix@gmail.com>). From a mobile-web usability
 report: selecting the disc count by dragging is awkward on touch.
@@ -100,6 +101,28 @@ mobile UX (big tap targets, no drag, pick+start in one tap); removes the inline 
    ideally, `make egui-web` + `egui-serve` and tap through on a narrow viewport.
 6. Update `rust/CLAUDE.md`'s egui description if it mentions the disc control; the feature is unchanged
    (New Game 1..10) so `feature-spec.md` needs no change — this is presentation only.
+
+## Done — what was built (2026-11-02)
+
+All in `rust/hanoi-egui/src/main.rs`:
+- Removed the `disc_count` field (struct + init + the stale `new_game` assignment) and the inline
+  `egui::DragValue` + "New Game" button from the Game menu.
+- Added an `open_disc_picker: bool` flag; the Game menu now has a single **"New Game…"** button that
+  sets it (plus the unchanged "New Game (Same Size)").
+- Added a **"New Game"** `egui::Window` (same pattern as How-to-Play / Save-solution — egui 0.29 has no
+  `egui::Modal`): a 5×2 `egui::Grid` of `selectable_label` buttons `1..=MAX_DISKS` ("1 disc" / "N
+  discs"), with the current game size highlighted via the `selected` arg; a tap both picks and starts
+  (`request_new_game`), plus a **Cancel** (and the window's close button).
+- **Sequencing:** the picker sets its flag false *before* calling `request_new_game`, and the
+  save-before-discard block is guarded by `pending_new_game.filter(|_| !picker_was_open)`, so the picker
+  and the "Save solution?" window never render in the same frame (no two-modal overlap).
+- No `feature-spec.md`/`CLAUDE.md` change — presentation only; the New Game 1..10 feature is unchanged.
+
+**Gates (2026-11-02, nested podman, cached image — ran the compile directly, not `make … : image`):**
+egui `cargo check --all-targets` clean; `cargo fmt --check` clean (after one wrap fix). Not run: the
+wxWidgets `--workspace` `make check`/`test` (my change is only in the separate `hanoi-egui` workspace,
+which `--workspace` doesn't reach). **Not yet done:** a display verify (`make egui` native / `make
+egui-web` + `egui-serve` on a narrow viewport) — recommended, needs a display.
 
 ## Open questions
 

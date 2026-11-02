@@ -89,7 +89,6 @@ struct HanoiApp {
     game: HanoiGame,
     labelling: Labelling,
     recorder: Recorder,
-    disc_count: u32,
     status: String,
     /// Tier-2 latch: relabel + recipes stay dimmed until the first win, then unlock.
     won_once: bool,
@@ -103,6 +102,9 @@ struct HanoiApp {
     won_via_apply: bool,
     saved_current: bool,
     pending_new_game: Option<u32>,
+    /// Whether the New Game disc-picker window is open. egui 0.29 has no modal
+    /// type, so it is an `egui::Window` like How-to-Play / Save-solution below.
+    open_disc_picker: bool,
     /// Whether the How-to-Play window is open, and whether it has auto-opened once.
     open_help: bool,
     help_shown: bool,
@@ -140,13 +142,13 @@ impl HanoiApp {
             game: HanoiGame::new(DEFAULT_DISKS),
             labelling: Labelling::OneTwoThree,
             recorder: Recorder::new(),
-            disc_count: DEFAULT_DISKS,
             status: String::new(),
             won_once: false,
             win_dialog: None,
             won_via_apply: false,
             saved_current: false,
             pending_new_game: None,
+            open_disc_picker: false,
             open_help: false,
             help_shown: false,
             detail_title: String::new(),
@@ -190,7 +192,6 @@ impl HanoiApp {
     }
 
     fn new_game(&mut self, n: u32) {
-        self.disc_count = n;
         self.game = HanoiGame::new(n);
         self.labelling = Labelling::OneTwoThree;
         self.recorder = Recorder::new();
@@ -543,13 +544,11 @@ impl eframe::App for HanoiApp {
                 // Game menu — pick a disc count for a New Game, or restart at the
                 // current size, matching the wx front-ends' Game menu.
                 ui.menu_button("Game", |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Discs:");
-                        ui.add(egui::DragValue::new(&mut self.disc_count).range(1..=MAX_DISKS));
-                    });
-                    if ui.button("New Game").clicked() {
-                        let n: u32 = self.disc_count.clamp(1, MAX_DISKS);
-                        self.request_new_game(n);
+                    // New Game opens a disc-picker window (the wx oracle's modal
+                    // "How many discs?"), rather than an inline control -- friendlier
+                    // on touch/mobile web, where dragging a value is awkward.
+                    if ui.button("New Game…").clicked() {
+                        self.open_disc_picker = true;
                         ui.close_menu();
                     }
                     if ui.button("New Game (Same Size)").clicked() {
@@ -750,10 +749,62 @@ impl eframe::App for HanoiApp {
             }
         }
 
+        // New Game disc picker (mirrors the wx oracle's modal "How many discs?"):
+        // tap a count to start; the last-used count (current game size) is
+        // highlighted. A Window, not egui::Modal (unavailable at the 0.29 pin) --
+        // like How-to-Play above. It closes before `request_new_game` can raise the
+        // save prompt, and the save block below is skipped on that closing frame
+        // (`picker_was_open`), so the two windows never overlap (the two-modal
+        // collision; the win-celebration UX doc).
+        let picker_was_open: bool = self.open_disc_picker;
+        if picker_was_open {
+            let mut open: bool = true;
+            let mut chosen: Option<u32> = None;
+            let mut cancel: bool = false;
+            egui::Window::new("New Game")
+                .open(&mut open)
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    ui.label("How many discs?");
+                    ui.add_space(4.0);
+                    egui::Grid::new("disc_picker_grid").show(ui, |ui| {
+                        for d in 1..=MAX_DISKS {
+                            let text: String = if d == 1 {
+                                "1 disc".to_string()
+                            } else {
+                                format!("{d} discs")
+                            };
+                            if ui
+                                .selectable_label(d == self.game.num_disks, text)
+                                .clicked()
+                            {
+                                chosen = Some(d);
+                            }
+                            if d % 5 == 0 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                });
+            if let Some(d) = chosen {
+                self.open_disc_picker = false;
+                self.request_new_game(d);
+            } else if cancel || !open {
+                self.open_disc_picker = false;
+            }
+        }
+
         // Save-before-discard: a New Game requested while a hand-won, unsaved
         // solution is on the board defers here (the save-before-you-close
-        // pattern; the win-celebration UX doc).
-        if let Some(n) = self.pending_new_game {
+        // pattern; the win-celebration UX doc). Skipped on the frame the picker
+        // just closed (`picker_was_open`), so it never overlaps the picker window.
+        if let Some(n) = self.pending_new_game.filter(|_| !picker_was_open) {
             let mut decided: Option<bool> = None; // Some(true)=save, else discard
             egui::Window::new("Save solution?")
                 .collapsible(false)
