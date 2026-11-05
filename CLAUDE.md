@@ -88,7 +88,7 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 - `bash/` — 12 scripts (solves + relabel filters).
 - `tools/` — repo dev scripts. `gen_byhand.py` generates `docs/source/byhand4/5.rst`
   (guarded by `python/tests/test_byhand_drift.py`; regenerate, don't hand-edit those pages).
-- `docs/` — Sphinx source; `workbook/` — `hanoi1..4.svg` + `induction-workbook.tex`.
+- `docs/` — Sphinx source; `workbook/` — `induction-workbook.tex` (the kids' fill-in booklet).
 - `tasks/` — active work; `tasks/archive/<YYYY>/<MM>/<DD>/` — completed task docs.
 
 ## Build / container workflow

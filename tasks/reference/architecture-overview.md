@@ -137,16 +137,26 @@ different medium:
   not hand-edit them; regenerate with `tools/gen_byhand.py` (idempotent) if the format
   changes or to add further pages. `python/tests/test_byhand_drift.py` guards this — it
   fails the pytest gate if either page drifts from the generator's output.
-- `workbook/` — printable companions to the RST tutorial, built by `make -C workbook`:
-  - `hanoi1..4.svg` → PDF via Inkscape (four static worksheets).
-  - `induction-workbook.tex` → PDF via pdflatex + TikZ: a fill-in-by-hand booklet
-    (cover + one sheet per n=1..5) teaching the induction method on concrete **numbered
-    pegs 1/2/3**, read **top-to-bottom** (Part 1 move top n−1 discs peg 1→2 / Part 2 move
-    the biggest disc peg 1→3 / Part 3 move n−1 discs peg 2→3). Reusing the n−1 sheet is a
-    constant "swap two numbers" (Part 1 swaps 2↔3, Part 3 swaps 1↔2). Note this differs
-    from the RST book's `byhand*` pages, which teach the same idea with I/T/G role labels.
-    Design rationale (why numbered pegs beat I/T/G and shapes; the box-size/flow choices):
-    archived `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md`.
+- `workbook/` — the printable companion to the RST tutorial, built by `make -C workbook`:
+  - `induction-workbook.tex` → PDF via pdflatex + TikZ: a fill-in-by-hand booklet written
+    at a **fifth-grade reading level** (cover, a worked example, one sheet per n=1..5, a
+    "for grown-ups" page, a cut-out disc page) teaching the method on concrete **numbered
+    pegs 1/2/3**, read **top-to-bottom** (Step A move top n−1 discs peg 1→2 / Step B move
+    the biggest disc peg 1→3 / Step C move n−1 discs peg 2→3). Reusing the n−1 sheet is a
+    constant swap, shown as a printed **key** (Step A: 1 stays 1, 2 becomes 3, 3 becomes 2;
+    Step C: 1 becomes 2, 2 becomes 1, 3 stays 3). Each copy row is **COPY boxes → swap → NEW
+    boxes**, the paper form of the game's three-panel rebinding view (Recipe | Rebinding |
+    Rebound); new moves are numbered 1..2^n−1 straight through A, B, C, so the next sheet
+    copies "old move 1, 2, …" by number. The grown-ups page maps a sheet to the game's
+    `relabel 1 3 2` / `apply solve-<n−1>` / `1 -> 3` / `relabel 2 1 3` / `apply` sequence.
+    Uses only packages the book image ships (tikz, lmodern; no `enumitem`). Note this
+    differs from the RST book's `byhand*` pages, which teach the same idea with I/T/G role
+    labels. Design rationale: archived
+    `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md` (why numbered pegs beat
+    I/T/G and shapes; box size; flow) and
+    `tasks/archive/2026/11/05/workbook-kid-readable-rewrite.md` (reading level, the COPY/NEW
+    columns, step pictures). Extending to 8 discs was analysed and shelved:
+    `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.
 
 ## Documentation & roadmap history
 
