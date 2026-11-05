@@ -78,5 +78,5 @@ Verification: `make -C workbook` built with 0 errors and 0 overfull boxes. Every
 
 - Rewrite approved (William Emerison Six <billsix@gmail.com>, 2026-11-05).
 - SVGs deleted rather than redrawn or kept (William Emerison Six <billsix@gmail.com>, 2026-11-05).
-- Extending to 8 discs was discussed and put on hold. The analysis and options are parked in
-  `tasks/workbook-extend-to-8-discs.md`.
+- Extending to 8 discs was discussed and put on hold. The analysis and options were shelved, unstarted, in
+  `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.

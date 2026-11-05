@@ -153,8 +153,10 @@ different medium:
     differs from the RST book's `byhand*` pages, which teach the same idea with I/T/G role
     labels. Design rationale: archived
     `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md` (why numbered pegs beat
-    I/T/G and shapes; box size; flow) and `tasks/workbook-kid-readable-rewrite.md` (reading
-    level, the COPY/NEW columns, step pictures).
+    I/T/G and shapes; box size; flow) and
+    `tasks/archive/2026/11/05/workbook-kid-readable-rewrite.md` (reading level, the COPY/NEW
+    columns, step pictures). Extending to 8 discs was analysed and shelved:
+    `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.
 
 ## Documentation & roadmap history
 

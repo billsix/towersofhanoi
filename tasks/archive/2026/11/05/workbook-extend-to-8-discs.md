@@ -1,7 +1,8 @@
 # Extend the kids' workbook from 5 discs to 8
 
-**Status:** parked. The maintainer put it on hold on 2026-11-05 after the first discussion. Do not start
-without a go-ahead.
+**Status:** shelved, not done. The maintainer put it on hold after the first discussion, and it was
+archived unstarted on 2026-11-05. To revive it, `git mv` it back to `tasks/` and answer the open
+questions.
 **Priority:** 9
 **Difficulty:** 4
 
