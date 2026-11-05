@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:44
+FROM registry.fedoraproject.org/fedora:45
 
 # Root image of hanoi: the BOOK layer (Sphinx + TeX Live) after the per-language split.
 # The language toolchains moved to the self-contained subprojects (python/ and rust/,

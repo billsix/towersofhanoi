@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:44
+FROM registry.fedoraproject.org/fedora:45
 
 # The Python subproject of hanoi (github.com/billsix/towersofhanoi): the hanoigame
 # package and its three front-ends (hanoi-cli / hanoi / hanoi-gui). Self-contained --

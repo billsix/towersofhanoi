@@ -1,26 +1,19 @@
-# Upgrade the container base from Fedora 44 to Fedora 45
+# Upgrade the container base from Fedora 44 to Fedora 45 (done)
 
-**Status:** in progress
-**Priority:** 3
-**Difficulty:** 6
+Done 2026-11-05 (William Emerison Six <billsix@gmail.com>). Part of a fleet-wide
+Fedora 44 -> 45 bump.
 
-## BLUF
-Bump all four Dockerfiles (`Dockerfile`, `python/`, `cpp/`, `rust/`) to
-`fedora:45` and build each sub-project nested. "Done" = each per-language image
-builds on 45 (python: pytest/doctests; rust: cargo check/test; cpp: ImGui/SDL2/GL
-build + ctest doctests).
+## What changed
 
-## Context
-Fleet-wide Fedora 44 → 45 bump (William Emerison Six <billsix@gmail.com>,
-2026-11-05). Fedora 45: GCC 16.2 / clang LLVM 23, Python 3.15, Rust via rustup/
-dnf. Three toolchains, three risk classes: Python 3.15 wheels (python/), new
-clang/GCC C++ diagnostics (cpp/), and Rust edition/deps (rust/). Build each
-sub-dir's `make image` (and `make check`/`test` where present).
+- Bumped all four Dockerfiles to `fedora:45`: `Dockerfile` (Sphinx book),
+  `python/Dockerfile`, `cpp/Dockerfile`, `rust/Dockerfile`.
 
-## Plan
-1. Bump all four FROM lines. 2. Build python/, rust/, cpp/ in turn nested.
-3. Fix per-toolchain breakage minimally (discretion; log here). 4. Stage by path;
-archive.
+No source changes. All four `make image` builds green nested on the 45 base:
+- **python/** (Python 3.15): pure-Python deps (pytest/pluggy/Pygments/termcolor),
+  wxPython from dnf -- installed fine, no cp315 wheel issues.
+- **rust/**: cargo build/check clean.
+- **cpp/**: the ImGui/SDL2/GL build + ctest doctests clean under clang LLVM 23
+  (no new -Werror diagnostics hit here).
+- **book** (top): the Sphinx + TeX-Live docs toolchain built on 45.
 
-## Notes / findings
-(appended as each sub-build runs)
+Images `localhost/hanoi-*:latest`.

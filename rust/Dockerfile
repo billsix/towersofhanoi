@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:44
+FROM registry.fedoraproject.org/fedora:45
 
 # The Rust subproject of hanoi (github.com/billsix/towersofhanoi): a Cargo workspace
 # reimplementing the Python canonical source feature-for-feature, with four front-ends
