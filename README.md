@@ -93,10 +93,10 @@ cd bash
 ## The book & worksheets
 
 `docs/` is a Sphinx book (`intro`, `byhand1..5`) that teaches the by-hand relabelling
-method; `workbook/` has printable worksheets — the `hanoi1..4.svg` solution diagrams and
-`induction-workbook.tex`, a blank fill-in induction booklet (cover + one sheet per n=1..5).
+method; `workbook/induction-workbook.tex` is a printable, blank fill-in booklet for kids
+(cover, worked example, one sheet per n=1..5, a grown-ups page, cut-out discs).
 From the repo root, `make docs` builds the book (HTML/PDF/EPUB) into `output/towersofhanoi/`.
-Build the worksheet PDFs with `make -C workbook` (needs Inkscape + pdflatex/TikZ).
+Build the workbook PDF with `make -C workbook` (needs pdflatex/TikZ).
 
 ## License
 
