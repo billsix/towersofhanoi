@@ -1,10 +1,10 @@
 # Dear ImGui in C++: one source, native desktop + WebAssembly
 
 **Reference document** — how to build a Dear ImGui C++ app that compiles BOTH to a native desktop
-binary (run in the Fedora-44 container via X11/Wayland) AND to WebAssembly for a browser, from one
+binary (run in the Fedora-45 container via X11/Wayland) AND to WebAssembly for a browser, from one
 codebase. Durable knowledge, reusable beyond hanoi. Created 2026-10-24 (William Emerison Six
 <billsix@gmail.com>) from web research verified against ocornut/imgui `master`, emscripten.org, and live
-Fedora-44 dnf metadata. Drives the hanoi `cpp/` subproject (`tasks/port-to-cpp-imgui-native-and-wasm.md`).
+Fedora-44 dnf metadata. Drives the hanoi `cpp/` subproject (`tasks/archive/2026/10/25/port-to-cpp-imgui-native-and-wasm.md`).
 
 ## The approach: SDL2 + OpenGL3, shared source
 
@@ -45,7 +45,7 @@ Compile these `.cpp` into your binary (same list for native and web); include `-
 `backends/imgui_impl_opengl3.cpp`, plus your `main.cpp`. (`imgui_demo.cpp` only while developing.) **Pin a
 version** (vendor a tagged release) for a reproducible, offline build.
 
-## Native build on Fedora 44
+## Native build on Fedora
 
 dnf packages (verified on F44): `gcc-c++`, `SDL2-devel`, `mesa-libGL-devel`, and `cmake`/`ninja-build`/
 `make`; for the emacs clangd set add `clang`, `clang-tools-extra`. Link flags on Linux: `-lGL -ldl`
@@ -74,7 +74,7 @@ installs nothing system-wide — everything stays under `/opt/emsdk`. **In a con
 emsdk_env.sh` only affects the current shell**, so either source it inside each build `RUN`, or bake the
 three tool dirs onto `PATH` with `ENV` so `emcc`/`em++`/`emcmake` resolve non-interactively. (The official
 `emscripten/emsdk` Docker image is an alternative but is Debian-based — it conflicts with this project's
-Fedora-44 base + native-run story; clone-into-Fedora keeps one image for both `make gui` and `make
+Fedora base + native-run story; clone-into-Fedora keeps one image for both `make gui` and `make
 webassembly`. The old `trzeci/emscripten` image is deprecated.)
 
 ## The build flags (from the current ImGui `Makefile.emscripten`)

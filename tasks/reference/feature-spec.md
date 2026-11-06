@@ -205,8 +205,8 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
 - **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
   ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
 - **Status:** implemented in the **wxPython GUI** (the oracle) 2026-10-26
-  (`tasks/archive/2026/10/26/wxpython-running-move-tally.md`). Fan-out to every other UI is tracked by
-  `tasks/fan-out-move-tally.md`.
+  (`tasks/archive/2026/10/26/wxpython-running-move-tally.md`). Fan-out to every other UI was done in
+  `tasks/archive/2026/11/01/fan-out-move-tally.md`.
 
 ## 5. What a UI must SHOW (summary)
 
