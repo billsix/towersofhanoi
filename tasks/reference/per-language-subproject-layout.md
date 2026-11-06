@@ -23,9 +23,9 @@ repo root is the book + umbrella:
 A new language is added as a sibling subproject in exactly this shape (the `cpp/` subproject was
 added this way).
 
-## Per-subproject contract (Fedora-44 + podman family template)
+## Per-subproject contract (Fedora-45 + podman family template)
 
-- **`Dockerfile`** — `FROM registry.fedoraproject.org/fedora:44`; `ARG` feature flags default **0** (a
+- **`Dockerfile`** — `FROM registry.fedoraproject.org/fedora:45`; `ARG` feature flags default **0** (a
   bare `podman build` is lean); package installs factored into host-runnable `entrypoint/0N-install-*.sh`
   group scripts dispatched by `ARG` `if` blocks; the dnf cache mount + `keepcache` stay in the
   Dockerfile. Third-party deps are installed into **committed layers** (offline-rebuildable); the
