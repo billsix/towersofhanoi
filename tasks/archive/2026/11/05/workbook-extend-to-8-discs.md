@@ -15,7 +15,7 @@ picked below.
 ## Context
 
 - Read first: the workbook bullet in `tasks/reference/architecture-overview.md`, and the rewrite record
-  `tasks/archive/2026/11/05/workbook-kid-readable-rewrite.md`. The booklet's current shape: numbered
+  `tasks/workbook-kid-readable-rewrite.md`. The booklet's current shape: numbered
   pegs, Steps A/B/C, COPY → swap → NEW rows, big boxes.
 - Each sheet is one `\hanoipage{n}{2^(n-1)-1}` call, so adding a sheet is mostly mechanical. The
   pictures and fixed text are not (see below).

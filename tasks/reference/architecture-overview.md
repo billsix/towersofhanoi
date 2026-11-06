@@ -139,24 +139,32 @@ different medium:
   fails the pytest gate if either page drifts from the generator's output.
 - `workbook/` — the printable companion to the RST tutorial, built by `make -C workbook`:
   - `induction-workbook.tex` → PDF via pdflatex + TikZ: a fill-in-by-hand booklet written
-    at a **fifth-grade reading level** (cover, a worked example, one sheet per n=1..5, a
-    "for grown-ups" page, a cut-out disc page) teaching the method on concrete **numbered
-    pegs 1/2/3**, read **top-to-bottom** (Step A move top n−1 discs peg 1→2 / Step B move
-    the biggest disc peg 1→3 / Step C move n−1 discs peg 2→3). Reusing the n−1 sheet is a
-    constant swap, shown as a printed **key** (Step A: 1 stays 1, 2 becomes 3, 3 becomes 2;
-    Step C: 1 becomes 2, 2 becomes 1, 3 stays 3). Each copy row is **COPY boxes → swap → NEW
-    boxes**, the paper form of the game's three-panel rebinding view (Recipe | Rebinding |
-    Rebound); new moves are numbered 1..2^n−1 straight through A, B, C, so the next sheet
-    copies "old move 1, 2, …" by number. The grown-ups page maps a sheet to the game's
-    `relabel 1 3 2` / `apply solve-<n−1>` / `1 -> 3` / `relabel 2 1 3` / `apply` sequence.
-    Uses only packages the book image ships (tikz, lmodern; no `enumitem`). Note this
-    differs from the RST book's `byhand*` pages, which teach the same idea with I/T/G role
-    labels. Design rationale: archived
-    `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md` (why numbered pegs beat
-    I/T/G and shapes; box size; flow) and
-    `tasks/archive/2026/11/05/workbook-kid-readable-rewrite.md` (reading level, the COPY/NEW
-    columns, step pictures). Extending to 8 discs was analysed and shelved:
-    `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.
+    at a **fifth-grade reading level** (cover; "the big idea", the swap keys, move names and
+    how to use the booklet; a picture-led worked example making Sheet 2 from Sheet 1; one
+    sheet per n=1..5; a "for grown-ups" page; an **answer key**; a cut-out disc page)
+    teaching the method on concrete **numbered pegs 1/2/3**, read **top-to-bottom** (Step A
+    move top n−1 discs peg 1→2 / Step B move the biggest disc peg 1→3 / Step C move n−1
+    discs peg 2→3). Reusing the n−1 sheet is a constant swap, shown as a printed **key**
+    (Step A: 1 stays 1, 2 becomes 3, 3 becomes 2; Step C: 1 becomes 2, 2 becomes 1, 3 stays
+    3). **Every move has one fixed name, "Sheet N, move K"** (K = 1..2^N−1 straight through
+    A, B, C), printed where the move is written and wherever it is copied; there is no
+    "old"/"new" wording. A copy row reads: the copied move's name → its from/to boxes → swap
+    → this move's from/to boxes → this move's name, the paper form of the game's three-panel
+    rebinding view (Recipe | Rebinding | Rebound). Each box carries a small "from"/"to" tag,
+    so every box is uniquely named. Each sheet says where the previous sheet's moves sit
+    (Step A / B / C). The answer key at the back lists every row of every sheet under the
+    same names, with the copied move as well as the swapped one. Its rows are data
+    (`\keycopy`/`\keyone`) checked by replaying each sheet on a simulated board. The
+    grown-ups page maps a sheet to the game's `relabel 1 3 2` / `apply solve-<n−1>` /
+    `1 -> 3` / `relabel 2 1 3` / `apply` sequence. Uses only packages the book image ships
+    (tikz, lmodern; no `enumitem` or `needspace`). Gotcha: never draw a peg picture inside a
+    positioned TikZ node (`right=`, `below=`); the inner picture inherits the positioning
+    and every disc number shifts off its disc. Note this differs from the RST book's
+    `byhand*` pages, which teach the same idea with I/T/G role labels. Design rationale:
+    archived `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md` (why numbered
+    pegs beat I/T/G and shapes; box size; flow) and `tasks/workbook-kid-readable-rewrite.md`
+    (reading level, move names, the worked example, the answer key). Extending to 8 discs
+    was analysed and shelved: `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.
 
 ## Documentation & roadmap history
 
