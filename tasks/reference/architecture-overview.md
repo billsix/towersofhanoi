@@ -162,9 +162,9 @@ different medium:
     and every disc number shifts off its disc. Note this differs from the RST book's
     `byhand*` pages, which teach the same idea with I/T/G role labels. Design rationale:
     archived `tasks/archive/2026/09/16/redesign-induction-workbook-flow.md` (why numbered
-    pegs beat I/T/G and shapes; box size; flow) and `tasks/workbook-kid-readable-rewrite.md`
-    (reading level, move names, the worked example, the answer key). Extending to 8 discs
-    was analysed and shelved: `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.
+    pegs beat I/T/G and shapes; box size; flow) and
+    `tasks/archive/2026/11/06/workbook-kid-readable-rewrite.md` (reading level, move names,
+    the worked example, the answer key). Extending to 8 discs was analysed and shelved: `tasks/archive/2026/11/05/workbook-extend-to-8-discs.md`.
 
 ## Documentation & roadmap history
 
