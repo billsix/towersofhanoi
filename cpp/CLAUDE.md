@@ -26,7 +26,7 @@ the behaviour oracle; if it changes, this port must be updated to match, not lef
 
 ## Build / container workflow
 
-Fedora-44 + podman template. Mounts at `/hanoi-cpp`. One `CMakeLists.txt` drives both targets (gated on
+Fedora-45 + podman template. Mounts at `/hanoi-cpp`. One `CMakeLists.txt` drives both targets (gated on
 the `EMSCRIPTEN` variable).
 
 - `make image` — build; `USE_EMACS` (default 1) installs emacs + clangd; `USE_WASM` (default 1) installs

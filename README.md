@@ -94,7 +94,8 @@ cd bash
 
 `docs/` is a Sphinx book (`intro`, `byhand1..5`) that teaches the by-hand relabelling
 method; `workbook/induction-workbook.tex` is a printable, blank fill-in booklet for kids
-(cover, worked example, one sheet per n=1..5, a grown-ups page, cut-out discs).
+(cover, worked example, one sheet per n=1..5, a grown-ups page, an answer key, cut-out
+discs).
 From the repo root, `make docs` builds the book (HTML/PDF/EPUB) into `output/towersofhanoi/`.
 Build the workbook PDF with `make -C workbook` (needs pdflatex/TikZ).
 

@@ -24,7 +24,7 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
 
 ## Build / container workflow
 
-Fedora-44 + podman template. Third-party deps are baked into the image at build time and
+Fedora-45 + podman template. Third-party deps are baked into the image at build time and
 the package is rebuilt editable from the bind-mount at runtime (host edits propagate;
 offline-rebuildable). Mounts at `/hanoi-python`.
 

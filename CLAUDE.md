@@ -93,7 +93,7 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 
 ## Build / container workflow
 
-Fedora-44 + podman family template. **Each subproject builds and runs on its own**; the
+Fedora-45 + podman family template. **Each subproject builds and runs on its own**; the
 root builds the book.
 
 - **Root (book):** `make image` (book image: base + Sphinx/TeX under `BUILD_DOCS=1`, the

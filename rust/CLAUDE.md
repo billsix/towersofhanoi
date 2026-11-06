@@ -28,7 +28,7 @@ sync, never a replacement (the Python stays the behaviour oracle). Self-containe
 
 ## Build / container workflow
 
-Fedora-44 + podman template. Mounts at `/hanoi-rust`. The image installs the Rust toolchain
+Fedora-45 + podman template. Mounts at `/hanoi-rust`. The image installs the Rust toolchain
 + the full native build stack wxDragon needs (see `entrypoint/01-install-rust-base.sh`); the
 crates are built at **runtime** (not image-build), cached in `.container-target` /
 `.container-cargo` on the mount — because wxDragon downloads + builds wxWidgets 3.3.4 from
