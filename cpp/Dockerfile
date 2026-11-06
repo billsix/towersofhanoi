@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:44
+FROM registry.fedoraproject.org/fedora:45
 
 # The C++ subproject of hanoi: a Dear ImGui GUI over the hanoigame engine, building both a
 # native desktop binary (`make gui`) and WebAssembly (`make webassembly`). Self-contained:
