@@ -39,7 +39,6 @@ from curses import (
     init_pair,
     start_color,
 )
-from os.path import commonprefix
 
 from . import presenter
 from .commands import Command, completions, parse
@@ -375,6 +374,48 @@ def _redraw(
 # --- Input ---------------------------------------------------------------
 
 
+def _common_prefix(words: Sequence[str]) -> str:
+    """Return the longest string every word in `words` starts with.
+
+    Compares character by character, so ``"apply"`` and ``"about"`` share
+    ``"a"``. The lexicographically smallest and largest words differ first
+    wherever any two words do, so comparing just those two is enough.
+
+    Args:
+        words: The words to compare.
+
+    Returns:
+        The shared leading characters; ``""`` when `words` is empty or the
+        words share none.
+
+    Examples:
+        >>> words: list[str] = ["apply", "about"]
+        >>> _common_prefix(words)
+        'a'
+        >>> _common_prefix(["show", "shows"])
+        'show'
+        >>> _common_prefix(["help"])
+        'help'
+        >>> _common_prefix(["quit", "relabel"])
+        ''
+        >>> _common_prefix([])
+        ''
+    """
+    if not words:
+        return ""
+    first: str = min(words)
+    last: str = max(words)
+    length: int = next(
+        (
+            index
+            for index, (a, b) in enumerate(zip(first, last, strict=False))
+            if a != b
+        ),
+        len(first),
+    )
+    return first[:length]
+
+
 def _complete_buffer(buffer: str, names: Sequence[str]) -> str:
     """Return `buffer` with a Tab-completion applied to its final token.
 
@@ -397,9 +438,7 @@ def _complete_buffer(buffer: str, names: Sequence[str]) -> str:
         return buffer
     # Every candidate starts with `text`, so the common prefix does too; the
     # part past `text` is what Tab fills in.
-    fill: str = (
-        candidates[0] if len(candidates) == 1 else commonprefix(candidates)
-    )
+    fill: str = _common_prefix(candidates)
     return buffer + fill[len(text) :] if len(fill) > len(text) else buffer
 
 

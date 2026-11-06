@@ -1,62 +1,55 @@
 # Fix `make type-check`: `os.path.commonprefix` is deprecated on Python 3.15
 
-**Status:** proposed — needs go-ahead
-**Priority:** 2
-**Difficulty:** 1
 **Started:** 2026-11-06
+**Finished:** 2026-11-06
 
-## BLUF
+## Summary
 
-`make type-check` (the CI job `python-type-check`) fails. `ty` reports one diagnostic:
-`os.path.commonprefix` is deprecated since Python 3.15, which the Fedora 45 image now ships. The fix
-is to replace that one call in `python/src/hanoigame/hanoigame.py` with a plain string common prefix.
-Done means `make type-check` exits 0 and `make test` stays green.
+`make type-check` (the CI job `python-type-check`) failed with exit 1 on one `ty` diagnostic:
+`os.path.commonprefix` is deprecated since Python 3.15, which the Fedora 45 image ships. The one
+call, in the TUI's Tab completion (`_complete_buffer` in `python/src/hanoigame/hanoigame.py`), was
+replaced with a small typed helper `_common_prefix`. It sits beside its caller and has a doctest.
+The `os.path` import was dropped. `make type-check`, `make test` and `make format` all pass.
 
-## Context
+## What was found
 
-- **Reproduced 2026-11-06:** in a freshly built `hanoi-python` image (ty 0.0.91, Python 3.15.0),
-  `/type-check.sh` exited 1 with the output below. `ty check tests` passed; `ty check src` failed on
-  this one warning. ty exits nonzero on a warning by default, and `python/pyproject.toml` has no
-  `[tool.ty]` section that changes that.
+- Reproduced in a freshly built `hanoi-python` image (ty 0.0.91, Python 3.15.0). `ty check src`
+  failed on this one warning; `ty check tests` passed. ty exits nonzero on a warning by default,
+  and `python/pyproject.toml` has no `[tool.ty]` section that changes that:
 
   ```
   warning[deprecated]: The overload of `commonprefix` is deprecated
      --> src/hanoigame/hanoigame.py:401:52
-      |
-  401 |         candidates[0] if len(candidates) == 1 else commonprefix(candidates)
-      |                                                    ^^^^^^^^^^^^ Deprecated since Python 3.15; use os.path.commonpath() for path prefixes.
+  ... Deprecated since Python 3.15; use os.path.commonpath() for path prefixes.
   ```
 
-- **Why it appeared now:** `ty` and Python come from Fedora `dnf` packages
-  (`python/entrypoint/01-install-base.sh`), not a pin. The Fedora 45 upgrade
+- Why it appeared now: `ty` and Python come from unpinned Fedora `dnf` packages
+  (`python/entrypoint/01-install-base.sh`), and the Fedora 45 upgrade
   (`tasks/archive/2026/11/05/upgrade-to-fedora-45.md`) brought Python 3.15.
-- **The call site:** `_complete` in `python/src/hanoigame/hanoigame.py` (the TUI's Tab completion)
-  fills in the longest common prefix of the matching command / recipe names. It is imported at the
-  top of that file: `from os.path import commonprefix`.
-- **Don't follow ty's hint.** `os.path.commonpath()` compares path components split on `/`, not
-  characters. For command names like `["apply", "about"]` it would return `""` or the whole name,
-  never `"a"`, so Tab completion would stop extending partial words. This needs a character-wise
-  string prefix.
-- This is the only use: `rg -n "commonprefix" python/src` finds just the import and line 401.
-  The readline CLI (`hanoicli.py`) shares the candidate list via `commands.completions`, but readline
-  does its own prefix filling.
-- Rust and C++ ports have their own completion code and are unaffected.
+- ty's suggested replacement was not used. `os.path.commonpath()` compares path components, not
+  characters. For `["apply", "about"]` it would never return `"a"`, so Tab would stop extending
+  partial command words.
+- That was the only use in `python/src`. The readline CLI does its own prefix filling, and the
+  Rust and C++ ports have their own completion code.
 
-## Plan
+## What changed
 
-1. Replace `commonprefix` with a small typed helper, e.g.
-   `common_prefix(words: list[str]) -> str`, that compares characters. One way is
-   `min`/`max` of the list and the shared leading run of those two strings. Give it a doctest
-   (house rule: doctests by default), including the `["apply", "about"] -> "a"` case.
-   Put it beside `_complete`, its only caller.
-2. Drop the `os.path` import.
-3. Gates: `make type-check` exits 0, `make test` green (it collects the new doctest),
-   `make format` clean.
+- `_common_prefix(words: Sequence[str]) -> str` compares the lexicographically smallest and largest
+  words character by character. If any two words differ at some position, those two differ there
+  first, so that comparison gives the common prefix of the whole list. A single word returns itself,
+  so `_complete_buffer` no longer special-cases one candidate. Its doctest covers `["apply",
+  "about"] -> "a"`, a word that is a prefix of another, one word, no shared prefix, and an empty
+  list.
+- Gates (run 2026-11-06):
+  - format: exit 0, no changes.
+  - type-check: exit 0, "All checks passed!" for both `src` and `tests`.
+  - test: exit 0, 136 passed, 2 skipped. That includes the new doctest
+    `hanoigame.py::..._common_prefix` and the four existing `test_complete_buffer_*` tests.
 
 ## Notes
 
-- Verifying in this nested sandbox: `make type-check` depends on `image`, and a nested
+- Verifying in a nested sandbox: `make type-check` depends on `image`, and a nested
   `podman build` without `--network=host` fails at network setup (`pasta ... Couldn't open network
-  namespace ... Permission denied`). That is a sandbox limit, not this bug. On 2026-11-06 the image
-  was built with `podman build --network=host ...` and the gate's own `podman run` line was run
+  namespace ... Permission denied`). That is a sandbox limit, not a project bug. The image was
+  built with `podman build --network=host ...`, and each gate's own `podman run` line was then run
   against it.
