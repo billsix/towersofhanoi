@@ -55,6 +55,17 @@ shell-exec: image ## Run a script/command in the book env (no TTY): make shell-e
 
 .PHONY: docs
 docs: image ## Build the Sphinx book (html/pdf/epub) into ./output/towersofhanoi/
+	@[ "$(BUILD_DOCS)" = 1 ] || { \
+	  echo 'ERROR: make docs needs the Sphinx + TeX Live docs toolchain,'; \
+	  echo '       gated by the build-time flag BUILD_DOCS (currently BUILD_DOCS=$(BUILD_DOCS)).'; \
+	  echo ''; \
+	  echo 'Enable it persistently, then rebuild and run:'; \
+	  echo "  echo 'export BUILD_DOCS=1' >> ~/.bashrc && source ~/.bashrc"; \
+	  echo '  make image'; \
+	  echo '  make docs'; \
+	  echo ''; \
+	  echo '(This session only: run  export BUILD_DOCS=1  instead of the echo/source line.)'; \
+	  exit 2; }
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
 		$(FILES_TO_MOUNT) \
 		$(CONTAINER_NAME)
