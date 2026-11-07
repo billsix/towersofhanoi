@@ -29,6 +29,11 @@ testpaths = ["tests"]
 # the E501 lint. Keep `entrypoint/format.sh` flag-free so the two can't drift
 # (was: format.sh passed --line-length=80 while this defaulted to 88).
 line-length = 80
+# The vendored Emacs tree under entrypoint/ (.emacs.d/elpa/, which ships a few
+# third-party .py helpers, e.g. treemacs's) is upstream code that must never be
+# reformatted. Excluded here so both `ruff check` and `ruff format` skip it however
+# they are invoked (format.sh's `ruff check .`, an editor, a bare `ruff format`).
+extend-exclude = ["entrypoint"]
 
 [tool.ruff.lint]
 select = [
