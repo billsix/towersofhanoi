@@ -69,4 +69,6 @@ repo, not into `elpa/`.
   - python: the full `podman build` passed. The image bakes `helm.el`, `init.el`, and
     `preferences.el`, and its Emacs 31.1 loads the config cleanly with the scratch packages
     mounted. `pyright-langserver` is on PATH.
-  - rust and cpp: recorded in the commit that archives this task.
+  - rust and cpp: the full `podman build` passed for both. Each image bakes `helm.el`, `init.el`,
+    and `preferences.el`, and its Emacs loads the config with helm on and `material` active, with
+    the scratch packages mounted.
