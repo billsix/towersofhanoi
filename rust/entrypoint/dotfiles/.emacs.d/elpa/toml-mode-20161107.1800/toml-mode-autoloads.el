@@ -11,14 +11,18 @@
 
 ;;; Generated autoloads from toml-mode.el
 
-(autoload 'toml-mode "toml-mode" "\
-Major mode for TOML files.
+(autoload 'toml-mode "toml-mode"
+"Major mode for TOML files.
 
 Comments start with `#'.
 
 For details see `https://github.com/toml-lang/toml'.
 
-(fn)" t)
+In addition to any hooks its parent mode `conf-mode' might have run,
+this mode runs the hook `toml-mode-hook', as the final or penultimate
+step during initialization.
+
+\\{toml-mode-map}" t)
 (add-to-list 'auto-mode-alist '("\\.toml\\'" . toml-mode))
 (register-definition-prefixes "toml-mode" '("toml-mode-"))
 
