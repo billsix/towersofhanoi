@@ -58,10 +58,14 @@ the `EMSCRIPTEN` variable).
 ## Emacs
 
 `entrypoint/dotfiles/.emacs.d/` — `init.el` hooks `c/c++-mode` to **lsp-mode** + **clangd** (reads
-`compile_commands.json` from the cmake `build/` dir), with `clang-format` (`C-c f`) and `company`.
-Installed into the image, bind-mounted at runtime, and baked. `init.el` pins the LSP root to
-`/hanoi-cpp`, ignores the build/cache dirs, and enables yasnippet — the hanoi per-language convention
-(repo-root `CLAUDE.md` + `../tasks/reference/per-language-subproject-layout.md`).
+`compile_commands.json` from the cmake `build/` dir), with `clang-format` (`C-c f`, bound once
+cc-mode loads) and `company`, on top of helm (`helm.el`: `C-x C-f`/`M-x`/`C-x b`; `C-x C-f` on a
+repo-root-relative doc path opens it), the shared `preferences.el`, and the `material` theme, as in
+geometricalgebra/modelviewprojection. The config is baked into the image (a config edit needs
+`make image`); only the vendored `elpa/` is bind-mounted at `make shell`, refreshed by
+`make update-emacs-packages`. Package list: `install-melpa-packages.el`. `init.el` pins the LSP root
+to `/hanoi-cpp`, ignores the build/cache dirs, and enables yasnippet — the hanoi per-language
+convention (repo-root `CLAUDE.md` + `../tasks/reference/per-language-subproject-layout.md`).
 
 ## Conventions
 

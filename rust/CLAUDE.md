@@ -70,11 +70,14 @@ source at cargo-build time (needs network; the first `make wx` is minutes-long, 
 ## Emacs
 
 `entrypoint/dotfiles/.emacs.d/` — `init.el` hooks `rust-mode` to **lsp-mode** +
-**rust-analyzer** (installed via dnf, on PATH), `company` completion. Installed into the image
-and bind-mounted at runtime. Package list: `install-melpa-packages.el`. `init.el` **pins the
-lsp project root to `/hanoi-rust`** (this subproject's `REPO_MOUNT`) so rust-analyzer roots at
-the Cargo workspace without prompting — the per-language root-pin convention in the repo-root
-`CLAUDE.md`.
+**rust-analyzer** (installed via dnf, on PATH), with `company` completion, on top of helm
+(`helm.el`: `C-x C-f`/`M-x`/`C-x b`; `C-x C-f` on a repo-root-relative doc path opens it), the
+shared `preferences.el`, and the `material` theme, as in geometricalgebra/modelviewprojection.
+The config is baked into the image (a config edit needs `make image`); only the vendored
+`elpa/` is bind-mounted at `make shell`, refreshed by `make update-emacs-packages`. Package
+list: `install-melpa-packages.el`. `init.el` **pins the lsp project root to `/hanoi-rust`**
+(this subproject's `REPO_MOUNT`) so rust-analyzer roots at the Cargo workspace without
+prompting — the per-language root-pin convention in the repo-root `CLAUDE.md`.
 
 ## Conventions
 

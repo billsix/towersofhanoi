@@ -45,12 +45,15 @@ offline-rebuildable). Mounts at `/hanoi-python`.
 ## Emacs
 
 `entrypoint/dotfiles/.emacs.d/` — `init.el` hooks `python-mode` to **lsp-mode** +
-**pyright** (lsp-pyright; pyright installed via npm in the image under `USE_EMACS`),
-`company` completion, `preferences.el` for editor defaults. Installed into the image and
-bind-mounted at runtime so `make shell` uses the committed packages. Package list:
-`install-melpa-packages.el`. `init.el` **pins the lsp project root to `/hanoi-python`**
-(this subproject's `REPO_MOUNT`) so pyright roots there without prompting — the
-per-language root-pin convention in the repo-root `CLAUDE.md`.
+**pyright** (lsp-pyright, `basic` type checking; pyright installed via npm in the image
+under `USE_EMACS`), with `company` completion, on top of helm (`helm.el`:
+`C-x C-f`/`M-x`/`C-x b`; `C-x C-f` on a repo-root-relative doc path opens it), the shared
+`preferences.el`, and the `material` theme, as in geometricalgebra/modelviewprojection.
+The config is baked into the image (a config edit needs `make image`); only the vendored
+`elpa/` is bind-mounted at `make shell`, refreshed by `make update-emacs-packages`.
+Package list: `install-melpa-packages.el`. `init.el` **pins the lsp project root to
+`/hanoi-python`** (this subproject's `REPO_MOUNT`) so pyright roots there without
+prompting — the per-language root-pin convention in the repo-root `CLAUDE.md`.
 
 ## Conventions
 

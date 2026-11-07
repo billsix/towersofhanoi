@@ -1,66 +1,72 @@
-# Bring hanoi's three Emacs configs onto the geometricalgebra / modelviewprojection setup
+# Bring hanoi's three Emacs configs onto the geometricalgebra / modelviewprojection setup (done 2026-11-07)
 
-**Status:** proposed — needs go-ahead (requested by William Emerison Six <billsix@gmail.com>, 2026-11-07)
-**Priority:** 5
-**Difficulty:** 4
+**Owed by the maintainer:** `make update-emacs-packages` in `python/`, `rust/`, and `cpp/` (needs
+network). Then commit each `elpa/`, `make image`, and confirm the editor in one subproject's
+`make shell`.
 
-## BLUF
+## Scope (William Emerison Six <billsix@gmail.com>, 2026-11-07)
 
-hanoi's subprojects (`cpp/`, `python/`, `rust/`) each vendor a minimal, hand-written Emacs config: plain
-lsp-mode with company and flycheck, the `modus-vivendi` theme, and **no helm**, so `C-x C-f` prefills
-nothing and doc paths can't be opened from the cursor. Make each one use Emacs the way
-github.com/billsix/geometricalgebra and github.com/billsix/modelviewprojection do: helm (`helm.el`
-loaded from `init.el`, `helm-find-files`/`helm-M-x`/`helm-mini`, helm-xref, helm-lsp), the same
-preferences and theme set, and `helm-ff-guess-ffap-filenames` so `C-x C-f` on a repo-root-relative doc
-path opens the file. Keep each subproject's own language server (pyright via lsp-pyright for Python,
-rust-analyzer, clangd). Done = the three configs match the reference layout, their `elpa/` trees are
-regenerated, `tools/check_helm_file_at_point.sh` (github.com/billsix/runClaudeInContainer) passes 7/7
-on each, and the maintainer confirms the editor in one subproject's `make shell`.
+"The configuration and the framework, and the make update-emacs-packages, but not the vendored emacs
+packages themselves." So the `elpa/` trees were not regenerated. **Until they are, helm and the new
+packages are missing from them, and Emacs in `make shell` reports `helm.el` failing to load.** The
+theme question (keep `modus-vivendi` or switch) was settled by the same instruction to port the
+setup over: `material` is active, and the other themes stay commented out on the lines around it.
 
-## Context
+## What was done
 
-- **Reference configs:** geometricalgebra `entrypoint/dotfiles/.emacs.d/{init,helm,preferences,install-melpa-packages}.el`
-  and modelviewprojection's (the two differ slightly in `init.el` and `helm.el`; diff them first and
-  pick the shared shape). Their `helm.el` sets `helm-ff-guess-ffap-filenames` (added 2026-11-07, see
-  runClaudeInContainer `tasks/archive/2026/11/07/doc-file-references-openable-in-editor.md`).
-- **hanoi today** (2026-11-07 diff, `python/` against geometricalgebra): `init.el` has no
-  `(load-file "~/.emacs.d/helm.el")`, no `byte-recompile-directory`, theme `modus-vivendi` instead of
-  `material`, plain `(require 'lsp-mode)` instead of the `use-package lsp-mode` block, no
-  `yafolding`. `preferences.el` lacks the colour, face-height, `region-generate-sha1`, and terminal
-  transparency settings, and serves emacs-lisp with eglot. `install-melpa-packages.el` lacks helm,
-  helm-lsp, helm-xref, lsp-treemacs, hydra, avy, the theme packages, fold-this/yafolding, org-modern
-  (and, for Python, blacken/elpy). `cpp/` and `rust/` follow the same minimal shape (check each).
-- Each subproject is standalone, with its own Makefile `ELPA_MOUNT` (only `elpa/` is bind-mounted; the
-  rest of `.emacs.d` reaches the image by `COPY`), its own `install-emacs` group script, and its own
-  `make update-emacs-packages`. The emacs-vendoring rules are in the personal overlay (dotfiles
-  `.ai-coding-conventions.personal.md`, "emacs … installed BINARY-ONLY"), including **npm pyright,
-  never the pip `pyright`**, for Python.
-- **hanoi's own Emacs rules must survive the change** (`CLAUDE.md` › Conventions › "Emacs (per-language
-  dev tooling)"; full elisp in `tasks/reference/per-language-subproject-layout.md`): every `init.el`
-  (1) pins the LSP root to the subproject's `REPO_MOUNT` (`/hanoi-<lang>`), (2) ignores the build/cache
-  dirs under the mount in `lsp-file-watch-ignored-directories`, and (3) enables yasnippet. The
-  reference configs don't carry these; add helm *on top of* them, and update the layout reference doc's
-  recipe so a new language folder gets helm too.
-- Decision to keep: hanoi chose lsp-mode for Python and eglot only for emacs-lisp so two clients never
-  attach to one Python buffer (comment in `python/.../preferences.el`). Preserve that split, or adopt
-  the reference configs' arrangement only after checking they avoid the double attach too.
+Done for every hanoi subproject that uses Emacs: `python/`, `rust/`, and `cpp/`. The root book image
+has none.
 
-## Plan
+- **`helm.el`** (new) and **`preferences.el`**: byte-identical copies of the shared files. They came
+  from github.com/billsix/Craft, which matches modelviewprojection and the text in
+  github.com/billsix/runClaudeInContainer `tasks/reference/emacs-container-contract.md`.
+  - The shared `preferences.el` hooks eglot to emacs-lisp only, so the project language keeps a
+    single client (lsp-mode).
+  - Its comment says "C/C++" in every language's copy across the fleet, hanoi's included. That
+    wording is a fleet-wide fix; it was not edited here, to keep the file byte-identical.
+- **`init.el`**, in the contract's order: `package-initialize`, then `helm.el` and `preferences.el`,
+  then the theme block, auto-revert, `yafolding`, `lsp-keymap-prefix "C-c l"`, and the language block.
+  - hanoi's three rules are kept unchanged: the LSP root pinned to `/hanoi-<lang>`, the build/cache
+    dirs in `lsp-file-watch-ignored-directories`, and yasnippet.
+  - Added: `lsp-enable-dap-auto-configure nil`; for Python, pyright `basic` type checking and
+    auto-import completions.
+  - Not added: the references' global `(add-hook 'prog-mode-hook #'lsp-deferred)`. hanoi hooks lsp
+    per language mode, so emacs-lisp buffers (eglot's) never get a second client.
+  - `byte-recompile-directory` was left out. It is an open question in runClaudeInContainer
+    `tasks/emacs-contract-conformance.md`, and `elpa/` is source-only.
+  - **cpp fix:** the `clang-format` `C-c f` binding failed at startup on `master` (`c-mode-base-map`
+    void: the map is defined by cc-mode, which had not loaded yet). It now waits with
+    `:after cc-mode`, as Craft's does.
+- **`install-melpa-packages.el`**: the contract's shared set plus each language's own packages.
+  - Shared: lsp-mode, lsp-ui, lsp-treemacs, helm-lsp, helm-xref, yasnippet, projectile, hydra,
+    flycheck, company, avy, which-key, the four themes, fold-this, yafolding, org-modern, discover,
+    better-defaults, magit, markdown-mode, markdown-preview-mode.
+  - Per language: lsp-pyright (Python); rust-mode and toml-mode (Rust); clang-format and cmake-mode
+    (C++).
+- **`make update-emacs-packages`** (Makefile, all three) now has the reference shape:
+  - it mounts only `elpa/`, plus `install-melpa-packages.el` read-only, and runs under `set -e`;
+  - before, it mounted the whole `.emacs.d` read-write, which is how `eln-cache/` came to be written
+    into the checkout.
+- **Dockerfiles** bake `helm.el` with `init.el`/`preferences.el`. The python and rust comments said
+  `make shell` mounted the whole `.emacs.d`; they now say only `elpa/` is mounted.
+- **Docs:** the root `CLAUDE.md` Emacs bullet, the three subproject `CLAUDE.md` "Emacs" sections, and
+  `tasks/reference/per-language-subproject-layout.md` (the recipe, and step 3 of adding a language).
 
-1. Diff geometricalgebra against modelviewprojection's `.emacs.d/*.el`; write down the common shape and
-   which differences are project-specific (language server, mode hooks).
-2. For each of `python/`, `rust/`, `cpp/`: copy in `helm.el` (with the ffap setting), align `init.el` and
-   `preferences.el` to the reference while keeping that language's LSP block, and extend
-   `install-melpa-packages.el` with the helm/theme/folding set.
-3. `make update-emacs-packages` in each subproject (needs network) to regenerate its vendored `elpa/`
-   (source-only, `.elc`/`.eln` stripped, `git add -f`), then `make image`.
-4. Run `tools/check_helm_file_at_point.sh <subproject>/entrypoint/dotfiles/.emacs.d` (runClaudeInContainer)
-   for each: 7/7.
-5. Maintainer: `make shell` in one subproject, open a Python/Rust/C++ file (LSP attaches once, helm
-   completion works) and a task doc (`C-x C-f` on `tasks/reference/…` opens it).
-6. Update `CLAUDE.md` / each subproject's notes where they describe the Emacs set.
+## Verification
 
-## Open questions
+Each subproject's new package list was installed from MELPA into a scratch `~/.emacs.d` outside the
+repo, not into `elpa/`.
 
-1. **Theme:** switch to the references' `material` theme, or keep hanoi's `modus-vivendi`? *Recommend
-   matching the references (that's the point of the task), unless you prefer modus here.*
+- **Loading `init.el` in batch, each language:**
+  - no errors (after the cpp fix);
+  - `material` active, `helm-mode` on, `helm-ff-guess-ffap-filenames` set, yasnippet on;
+  - the LSP root resolves to `/hanoi-python`, `/hanoi-rust`, `/hanoi-cpp`;
+  - each language mode hooks lsp-mode and not `eglot-ensure`;
+  - cpp's `C-c f` is `clang-format-buffer` in a `c++-mode` buffer.
+- **Helm check:** github.com/billsix/runClaudeInContainer `tools/check_helm_file_at_point.sh`
+  passed 7/7 on each.
+- **Image builds:**
+  - python: the full `podman build` passed. The image bakes `helm.el`, `init.el`, and
+    `preferences.el`, and its Emacs 31.1 loads the config cleanly with the scratch packages
+    mounted. `pyright-langserver` is on PATH.
+  - rust and cpp: recorded in the commit that archives this task.

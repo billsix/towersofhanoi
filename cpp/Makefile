@@ -158,13 +158,17 @@ image-import: ## import an OCI image tar: make image-import FILE=foo.tar
 .PHONY: update-emacs-packages
 update-emacs-packages: ## USE_EMACS=1: rebuild, wipe+reinstall vendored elpa, strip *.elc/*.eln, git add -f
 	$(MAKE) image USE_EMACS=1
+	mkdir -p $(CURDIR)/entrypoint/dotfiles/.emacs.d/elpa
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) --rm \
-		-v $(CURDIR)/entrypoint/dotfiles/.emacs.d/:/root/.emacs.d/:U,z \
-		--entrypoint /bin/bash $(CONTAINER_NAME) \
-		-c 'mkdir -p /root/.emacs.d/elpa; find /root/.emacs.d/elpa -mindepth 1 -delete; \
+		-v $(CURDIR)/entrypoint/dotfiles/.emacs.d/elpa:/root/.emacs.d/elpa:U,z \
+		-v $(CURDIR)/entrypoint/dotfiles/.emacs.d/install-melpa-packages.el:/root/.emacs.d/install-melpa-packages.el:ro,z \
+		--entrypoint /bin/bash \
+		$(CONTAINER_NAME) \
+		-c 'set -e; find /root/.emacs.d/elpa -mindepth 1 -delete; \
 		    emacs --batch --load /root/.emacs.d/install-melpa-packages.el'
-	mkdir -p $(CURDIR)/entrypoint/dotfiles/.emacs.d/elpa && cd $(CURDIR)/entrypoint/dotfiles/.emacs.d/elpa && \
-		find . \( -iname '*.elc' -o -iname '*.eln' \) -delete && git add -A -f .
+	cd $(CURDIR)/entrypoint/dotfiles/.emacs.d/elpa && \
+		find . \( -iname '*.elc' -o -iname '*.eln' \) -delete && \
+		git add -A -f .
 	@echo "Done: reinstalled packages, stripped *.elc/*.eln, staged elpa -- review and commit."
 
 .PHONY: help

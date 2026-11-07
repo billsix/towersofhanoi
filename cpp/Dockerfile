@@ -36,11 +36,11 @@ COPY entrypoint/.bashrc /root/
 COPY entrypoint/shell.sh /usr/local/bin/shell.sh
 COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /format.sh
-# Bake the emacs config (init.el + preferences.el) after the package layer so editing it
+# Bake the emacs config (init.el + helm.el + preferences.el) after the package layer so editing it
 # doesn't bust the cache. The config is baked (not mounted): `make shell` bind-mounts only the
 # vendored elpa/ over /root/.emacs.d/elpa (the Makefile's ELPA_MOUNT), so package refreshes are
 # live while config edits need a rebuild -- matching modelviewprojection/geometricalgebra.
-COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
+COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/helm.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
 
 # Bake the source LATE at the mount path. The native binary is built at runtime from the
 # bind-mount (quick, propagates host edits), not here.

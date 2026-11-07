@@ -1,23 +1,32 @@
-;; Emacs config for the hanoi Rust subproject: Rust editing with lsp-mode +
-;; rust-analyzer (installed via dnf, on PATH). lsp-mode uses the Cargo.toml directory
-;; as the project root.
+;; Emacs config for the hanoi Rust subproject: helm, Rust editing with lsp-mode +
+;; rust-analyzer (installed via dnf, on PATH).
+;; Layout: github.com/billsix/runClaudeInContainer tasks/reference/emacs-container-contract.md.
 (package-initialize)
 
+(load-file "~/.emacs.d/helm.el")
 (load-file "~/.emacs.d/preferences.el")
 
 ;; theme
-(load-theme 'modus-vivendi t)
+;(load-theme 'modus-vivendi t)
+(load-theme 'material t)
+;(load-theme 'dracula t)
+;(load-theme 'monokai t)
+;(load-theme 'zenburn t)
 
 (global-auto-revert-mode)
 (setq auto-revert-avoid-polling t)
 
+(use-package yafolding
+  :hook (prog-mode . yafolding-mode))
+
+(setq lsp-keymap-prefix "C-c l")
 (require 'lsp-mode)
 
 ;; Pin the lsp project root. The Rust subproject is ALWAYS mounted at /hanoi-rust in the
 ;; container (REPO_MOUNT in the Makefile), and the Cargo workspace lives there -- so pin
 ;; the root explicitly instead of letting lsp prompt "Import project root?" or guess.
 ;; rust-analyzer then roots at the workspace. SAME convention as every language subproject
-;; -- see "Emacs: pin the LSP project root per subproject" in the repo-root CLAUDE.md.
+;; -- see "Emacs (per-language dev tooling)" in the repo-root CLAUDE.md.
 (setq lsp-auto-guess-root nil)
 (defun hanoi-rust-lsp-root (&rest _)
   "The fixed in-container project root for the hanoi Rust subproject."
@@ -35,6 +44,9 @@
                 "[/\\\\]elpa\\'"
                 "[/\\\\]eln-cache\\'"))
     (add-to-list 'lsp-file-watch-ignored-directories re)))
+
+;; Never load dap-mode.
+(setq lsp-enable-dap-auto-configure nil)
 
 ;; yasnippet must be ACTIVE for lsp to expand completion snippets: rust-analyzer returns
 ;; items like `chunk_by(${1:pred})$0` (${N:..} tab-stops, $0 final point), and lsp only

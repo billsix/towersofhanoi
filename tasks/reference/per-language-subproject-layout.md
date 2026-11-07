@@ -61,12 +61,17 @@ added this way).
 
 ## Emacs + LSP recipe — do ALL of this for every language
 
-Each subproject vendors its own `entrypoint/dotfiles/.emacs.d/` (`init.el`, `preferences.el`,
-`install-melpa-packages.el`, and a vendored `elpa/` tree). The image installs emacs + the MELPA
-packages at build (`USE_EMACS=1`, the Makefile default) and **bakes `init.el`+`preferences.el`** (COPY'd
-after the dnf/MELPA layer so editing them doesn't bust the package cache); `make shell` bind-mounts the
-live `.emacs.d` over the baked one (`ELPA_MOUNT`, `:U,z`) so a pulled image works standalone **and**
-edits stay live. Refresh the vendored packages with `make update-emacs-packages` (network).
+Each subproject vendors its own `entrypoint/dotfiles/.emacs.d/` (`init.el`, `helm.el`,
+`preferences.el`, `install-melpa-packages.el`, and a vendored, source-only `elpa/` tree) in the
+cross-project layout (github.com/billsix/runClaudeInContainer `tasks/reference/emacs-container-contract.md`):
+`helm.el` and `preferences.el` are byte-identical copies of the shared files, `init.el` loads them,
+then the theme block (`material` active), then the language block below. The image installs only the
+emacs **binary** (+ the language server) under `USE_EMACS=1` and **bakes `init.el`/`helm.el`/
+`preferences.el`** (COPY'd late so editing them doesn't bust earlier layers; a config edit needs
+`make image`). `make shell` bind-mounts only the vendored `elpa/` over `/root/.emacs.d/elpa`
+(`ELPA_MOUNT`, `:U,z`). Refresh the packages with `make update-emacs-packages` (network): it mounts
+`elpa/` plus `install-melpa-packages.el` read-only, reinstalls from MELPA, strips `*.elc`/`*.eln`,
+and force-stages the tree. The package list is the contract's shared set plus the language's packages.
 
 `init.el` must do three things, or the LSP experience is broken:
 
@@ -110,7 +115,9 @@ keeps `USE_WX` so `hanoi-wx` compiles). A new language adds its jobs here.
    `0N-install-*.sh` group scripts), `.dockerignore`, `.gitignore`, `CLAUDE.md`, mounting at
    `/hanoi-<lang>`.
 2. Reproduce the shared core from the Python canonical source and keep the front-ends thin.
-3. Add `entrypoint/dotfiles/.emacs.d/` with the language's LSP set and the three must-dos above.
+3. Add `entrypoint/dotfiles/.emacs.d/`: copy `helm.el` and `preferences.el` from a sibling subproject,
+   write `init.el` with the language's LSP block and the three must-dos above, and extend the shared
+   package list in `install-melpa-packages.el`.
 4. Verify nested: `make image` builds, the test gate passes, the GUI/build targets compile; then run
    `make update-emacs-packages` once to vendor `elpa/`.
 5. Add the subproject's **CI jobs** to `.github/workflows/checks.yml` (one per gate) and confirm the

@@ -2,22 +2,44 @@
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (package-initialize)
 
-;; The Rust dev set for the hanoi Rust subproject: lsp-mode + rust-mode (rust-analyzer),
-;; company completion, flycheck, magit, and the usual navigation helpers.
+;; The Rust dev set for the hanoi Rust subproject: helm, lsp-mode + rust-mode (rust-analyzer),
+;; company, flycheck, magit, folding, and the themes init.el chooses between. The shared
+;; part matches the cross-project list (github.com/billsix/runClaudeInContainer
+;; tasks/reference/emacs-container-contract.md). The vendored elpa/ is regenerated from
+;; this list by `make update-emacs-packages`.
 (setq package-selected-packages
       '(lsp-mode
-        rust-mode
         lsp-ui
-        company
-        flycheck
+        lsp-treemacs
+        helm-lsp
+        helm-xref
         yasnippet
         projectile
+        hydra
+        flycheck
+        company
+        avy
         which-key
+
+        material-theme
+        dracula-theme
+        monokai-theme
+        zenburn-theme
+
+        fold-this
+        yafolding
+
+        org-modern
+
+        discover
+        better-defaults
         magit
         markdown-mode
+        markdown-preview-mode
+
+        rust-mode
         toml-mode
-        material-theme
-        dracula-theme))
+        ))
 
 (when (cl-find-if-not #'package-installed-p package-selected-packages)
   (package-refresh-contents)

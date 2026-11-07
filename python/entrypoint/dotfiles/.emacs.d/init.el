@@ -1,23 +1,31 @@
-;; Emacs config for the hanoi Python subproject: Python editing with lsp-mode +
+;; Emacs config for the hanoi Python subproject: helm, Python editing with lsp-mode +
 ;; pyright (lsp-pyright). pyright-langserver is installed globally (npm) in the image.
+;; Layout: github.com/billsix/runClaudeInContainer tasks/reference/emacs-container-contract.md.
 (package-initialize)
 
+(load-file "~/.emacs.d/helm.el")
 (load-file "~/.emacs.d/preferences.el")
 
 ;; theme
-(load-theme 'modus-vivendi t)
+;(load-theme 'modus-vivendi t)
+(load-theme 'material t)
+;(load-theme 'dracula t)
+;(load-theme 'monokai t)
+;(load-theme 'zenburn t)
 
 (global-auto-revert-mode)
 (setq auto-revert-avoid-polling t)
 
+(use-package yafolding
+  :hook (prog-mode . yafolding-mode))
+
+(setq lsp-keymap-prefix "C-c l")
 (require 'lsp-mode)
 
 ;; Pin the lsp project root. The Python subproject is ALWAYS mounted at /hanoi-python in
 ;; the container (REPO_MOUNT in the Makefile), and pyproject.toml / setup.py / src/ live
 ;; there -- so pin the root explicitly instead of letting lsp prompt "Import project
 ;; root?" or guess. pyright then reads pyproject.toml and treats src/ as the project.
-;; (Mirrors the maintainer's per-language template, which pins the root the same way, with
-;; this subproject's mount path.)
 (setq lsp-auto-guess-root nil)
 (defun hanoi-python-lsp-root (&rest _)
   "The fixed in-container project root for the hanoi Python subproject."
@@ -35,8 +43,9 @@
                 "[/\\\\]eln-cache\\'"))
     (add-to-list 'lsp-file-watch-ignored-directories re)))
 
-;; Python via pyright (lsp-pyright). pyright is installed globally (npm) in the image;
-;; the package is installed into the system site-packages, so imports resolve.
+;; Never load dap-mode.
+(setq lsp-enable-dap-auto-configure nil)
+
 ;; yasnippet must be ACTIVE for lsp to expand completion snippets: the server returns
 ;; items with `${N:arg}` tab-stops and a `$0` final point, and lsp only turns those into
 ;; interactive placeholders when yasnippet is on -- without it the raw template text is
@@ -44,10 +53,15 @@
 (use-package yasnippet
   :config (yas-global-mode 1))
 
+;; Python is lsp-mode's (pyright); eglot serves only emacs-lisp (preferences.el), so one
+;; client attaches to a Python buffer.
 (use-package lsp-pyright
   :hook (python-mode . (lambda ()
                          (require 'lsp-pyright)
-                         (lsp-deferred))))
+                         (lsp-deferred)))
+  :config
+  (setq lsp-pyright-typechecking-mode "basic"
+        lsp-pyright-auto-import-completions t))
 
 (use-package lsp-ui :commands lsp-ui-mode)
 

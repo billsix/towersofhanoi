@@ -150,8 +150,12 @@ check-only — `check-format` runs the formatter then fails on `git diff`, never
 - The Python package is the **behaviour oracle** for the Rust/C++ ports — never remove it to
   satisfy a port.
 - **Emacs (per-language dev tooling).** Each subproject vendors its own
-  `entrypoint/dotfiles/.emacs.d/` (lsp-mode + the language's server), installed into the image,
-  bind-mounted at runtime, and baked so a mount-less image works too; refresh with the
+  `entrypoint/dotfiles/.emacs.d/` in the cross-project layout
+  (github.com/billsix/runClaudeInContainer `tasks/reference/emacs-container-contract.md`, the same
+  as geometricalgebra/modelviewprojection): `init.el` loads `helm.el` (helm owns
+  `C-x C-f`/`M-x`/`C-x b`; `C-x C-f` on a repo-root-relative doc path opens it) and the shared
+  `preferences.el`, then the `material` theme and the language's lsp-mode block. The config is baked
+  into the image; only the vendored `elpa/` is bind-mounted at `make shell`; refresh it with the
   subproject's `make update-emacs-packages`. Every `init.el` must (1) **pin the LSP root** to the
   subproject's `REPO_MOUNT` (`/hanoi-<lang>`), (2) **ignore the build/cache dirs** under the mount
   in `lsp-file-watch-ignored-directories`, and (3) **enable yasnippet** (so the `${1:arg}$0`

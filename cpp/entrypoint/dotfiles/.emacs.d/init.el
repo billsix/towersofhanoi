@@ -1,16 +1,26 @@
-;; Emacs config for the hanoi C++ subproject: C/C++ editing with lsp-mode + clangd.
+;; Emacs config for the hanoi C++ subproject: helm, C/C++ editing with lsp-mode + clangd.
 ;; clangd reads compile_commands.json from the cmake build dir (generated with
 ;; CMAKE_EXPORT_COMPILE_COMMANDS=ON).
+;; Layout: github.com/billsix/runClaudeInContainer tasks/reference/emacs-container-contract.md.
 (package-initialize)
 
+(load-file "~/.emacs.d/helm.el")
 (load-file "~/.emacs.d/preferences.el")
 
 ;; theme
-(load-theme 'modus-vivendi t)
+;(load-theme 'modus-vivendi t)
+(load-theme 'material t)
+;(load-theme 'dracula t)
+;(load-theme 'monokai t)
+;(load-theme 'zenburn t)
 
 (global-auto-revert-mode)
 (setq auto-revert-avoid-polling t)
 
+(use-package yafolding
+  :hook (prog-mode . yafolding-mode))
+
+(setq lsp-keymap-prefix "C-c l")
 (require 'lsp-mode)
 
 ;; Pin the lsp project root to the subproject's fixed container mount (REPO_MOUNT =
@@ -30,6 +40,9 @@
                 "[/\\\\]elpa\\'"
                 "[/\\\\]eln-cache\\'"))
     (add-to-list 'lsp-file-watch-ignored-directories re)))
+
+;; Never load dap-mode.
+(setq lsp-enable-dap-auto-configure nil)
 
 ;; C/C++ via clangd.
 (use-package lsp-mode
@@ -51,6 +64,7 @@
         company-idle-delay 0.0))
 
 (use-package clang-format
+  :after cc-mode               ; c-mode-base-map is defined by cc-mode; wait for it
   :bind (:map c-mode-base-map
               ("C-c f" . clang-format-buffer)))
 

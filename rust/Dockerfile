@@ -67,12 +67,12 @@ COPY entrypoint/.bashrc /root/
 COPY entrypoint/shell.sh /usr/local/bin/shell.sh
 COPY entrypoint/entrypoint.sh /entrypoint.sh
 COPY entrypoint/format.sh /format.sh
-# Bake the emacs config (init.el + preferences.el) so the baked image has a usable config;
-# `make shell` bind-mounts the live .emacs.d over this (config AND the vendored elpa), so
-# edits stay live without a rebuild. The dev packages are mounted, not baked (see the emacs
-# RUN above), so a no-mount emacs would have config but no packages -- acceptable here since
-# emacs is only ever launched under `make shell`.
-COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
+# Bake the emacs config (init.el + helm.el + preferences.el). The config is baked, not mounted:
+# `make shell` bind-mounts only the vendored elpa/ over /root/.emacs.d/elpa (the Makefile's
+# ELPA_MOUNT), so package refreshes are live while config edits need a rebuild -- matching
+# modelviewprojection/geometricalgebra. A no-mount emacs has the config but no packages, which is
+# acceptable since emacs is only ever launched under `make shell`.
+COPY entrypoint/dotfiles/.emacs.d/init.el entrypoint/dotfiles/.emacs.d/helm.el entrypoint/dotfiles/.emacs.d/preferences.el /root/.emacs.d/
 
 # Bake the subproject's own source LATE, at the SAME path the bind-mount uses, so a
 # pulled image has the code while `make shell` overrides it via the live mount at

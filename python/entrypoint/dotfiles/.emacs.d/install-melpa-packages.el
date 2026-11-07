@@ -2,21 +2,43 @@
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (package-initialize)
 
-;; The Python dev set for the hanoi Python subproject: lsp-mode + pyright, company
-;; completion, flycheck, magit, and the usual navigation helpers.
+;; The Python dev set for the hanoi Python subproject: helm, lsp-mode + lsp-pyright (pyright),
+;; company, flycheck, magit, folding, and the themes init.el chooses between. The shared
+;; part matches the cross-project list (github.com/billsix/runClaudeInContainer
+;; tasks/reference/emacs-container-contract.md). The vendored elpa/ is regenerated from
+;; this list by `make update-emacs-packages`.
 (setq package-selected-packages
       '(lsp-mode
-        lsp-pyright
         lsp-ui
-        company
-        flycheck
+        lsp-treemacs
+        helm-lsp
+        helm-xref
         yasnippet
         projectile
+        hydra
+        flycheck
+        company
+        avy
         which-key
+
+        material-theme
+        dracula-theme
+        monokai-theme
+        zenburn-theme
+
+        fold-this
+        yafolding
+
+        org-modern
+
+        discover
+        better-defaults
         magit
         markdown-mode
-        material-theme
-        dracula-theme))
+        markdown-preview-mode
+
+        lsp-pyright
+        ))
 
 (when (cl-find-if-not #'package-installed-p package-selected-packages)
   (package-refresh-contents)
