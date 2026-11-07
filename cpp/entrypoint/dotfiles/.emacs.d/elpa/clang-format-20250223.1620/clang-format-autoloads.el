@@ -11,16 +11,16 @@
 
 ;;; Generated autoloads from clang-format.el
 
-(autoload 'clang-format-vc-diff "clang-format" "\
-The same as ‘clang-format-buffer’ but only operates on the vc
+(autoload 'clang-format-vc-diff "clang-format"
+"The same as ‘clang-format-buffer’ but only operates on the vc
 diffs from HEAD in the buffer. If no STYLE is given uses
 ‘clang-format-style’. Use ASSUME-FILE-NAME to locate a style config
 file. If no ASSUME-FILE-NAME is given uses the function
 ‘buffer-file-name’.
 
 (fn &optional STYLE ASSUME-FILE-NAME)" t)
-(autoload 'clang-format-region "clang-format" "\
-Use clang-format to format the code between START and END according
+(autoload 'clang-format-region "clang-format"
+"Use clang-format to format the code between START and END according
 to STYLE.  If called interactively uses the region or the current
 statement if there is no no active region. If no STYLE is given uses
 `clang-format-style'. Use ASSUME-FILE-NAME to locate a style config
@@ -28,16 +28,16 @@ file, if no ASSUME-FILE-NAME is given uses the function
 `buffer-file-name'.
 
 (fn START END &optional STYLE ASSUME-FILE-NAME)" t)
-(autoload 'clang-format-buffer "clang-format" "\
-Use clang-format to format the current buffer according to STYLE.
+(autoload 'clang-format-buffer "clang-format"
+"Use clang-format to format the current buffer according to STYLE.
 If no STYLE is given uses `clang-format-style'. Use ASSUME-FILE-NAME
 to locate a style config file. If no ASSUME-FILE-NAME is given uses
 the function `buffer-file-name'.
 
 (fn &optional STYLE ASSUME-FILE-NAME)" t)
 (defalias 'clang-format 'clang-format-region)
-(autoload 'clang-format-on-save-mode "clang-format" "\
-Clang-format on save minor mode.
+(autoload 'clang-format-on-save-mode "clang-format"
+"Clang-format on save minor mode.
 
 This is a minor mode.  If called interactively, toggle the
 `Clang-Format-On-Save mode' mode.  If the prefix argument is positive,
