@@ -1,0 +1,14 @@
+# Allowlist: the top-level (docs) image is built with the repo root as context, and
+# the root holds ~36 GB that this Dockerfile never reads (rust/ build output, venv/,
+# cpp/build*/, the subprojects' own trees). Exclude everything, then re-include
+# exactly the files the Dockerfile COPYs -- keep this list in step with its COPY lines.
+# The cpp/, python/ and rust/ images use their own directories as context and their
+# own .dockerignore files.
+*
+!entrypoint/01-install-base.sh
+!entrypoint/02-install-docs.sh
+!entrypoint/.bashrc
+!entrypoint/entrypoint.sh
+!entrypoint/format.sh
+!entrypoint/type-check.sh
+!python/requirements.txt
