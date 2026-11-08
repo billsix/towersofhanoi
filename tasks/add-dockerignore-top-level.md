@@ -1,36 +1,27 @@
 # Add a `.dockerignore` to the top-level (docs) image context
 
-**Status:** proposed — needs go-ahead. Created 2026-11-08 (William Emerison Six <billsix@gmail.com>).
-**Priority:** 7
-**Difficulty:** 1
+Done 2026-11-08 (William Emerison Six <billsix@gmail.com> asked for it), on branch `add-dockerignore`.
 
-## BLUF
+## What changed
 
-The top-level `Dockerfile` is built with the repo root as context (`podman build … -t hanoi .`), and that
-root holds about 36 GB: `rust/` build output (35 GB), `venv/` (442 MB), `cpp/build*/`. The `Dockerfile`
-only copies a few named files (`entrypoint/*.sh`, `entrypoint/.bashrc`, `python/requirements.txt`).
-`cpp/`, `python/`, `rust/` already have their own `.dockerignore`, but the root does not. Add an
-allowlist ignore file (`*` then `!` exceptions for exactly those files). Done = `make image` succeeds and
-the ignore file lists only what the `Dockerfile` copies.
+The top-level `Dockerfile` is built with the repo root as context, which held ~36 GB in ~107,000 files
+(`rust/` build output 35 GB, `venv/` 442 MB, `cpp/build*/`). The `Dockerfile` copies only seven small
+files. The new root `.dockerignore` is an allowlist: `*`, then `!` for exactly those seven
+(`entrypoint/01-install-base.sh`, `02-install-docs.sh`, `.bashrc`, `entrypoint.sh`, `format.sh`,
+`type-check.sh`, `python/requirements.txt`). It must be kept in step with the `COPY` lines. The `cpp/`,
+`python/` and `rust/` images keep their own contexts and ignore files.
 
-## Context
+## Verification (2026-11-08, nested podman, a spimulator build running alongside both times)
 
-- Dockerfile contract, `.dockerignore` bullet: the personal overlay (github.com/billsix/dotfiles
-  `.ai-coding-conventions.personal.md`).
-- Measured 2026-11-08 in the sandbox: under local podman, a 3 GB file in the context added ~1 s or less
-  to a build that copies one small file (podman reads the context directory in place instead of
-  uploading it). So the gain here is for Docker / `podman --remote` / CI builders that upload the whole
-  context, plus protection against a future `COPY .`. That is why this is low priority. Step 1 measures
-  the real effect for this repo.
+| fully cached `make image` | run 1 | run 2 |
+|---|---|---|
+| before (no `.dockerignore`) | 99.7 s | 99.0 s |
+| after (allowlist) | 2.6 s | 2.5 s |
 
-## Plan
-
-1. Time `make image` once before the change (warm cache) and once after. Record both here.
-2. Add `.dockerignore`:
-   ```
-   *
-   !entrypoint/
-   !python/requirements.txt
-   ```
-   (Exact list from the `Dockerfile`'s `COPY` lines at the time of the change.)
-3. `make image` succeeds; `make docs` (or the doc target) still builds.
+After the change all 11 steps after `FROM` were cache hits (the copied files are unchanged), and the
+build succeeded. The time went on buildah walking the context's ~107,000 files, not on file size: an
+earlier test with one 3 GB file in a context showed no measurable cost. This corrected the Dockerfile
+contract's `.dockerignore` bullet (personal overlay, github.com/billsix/dotfiles
+`.ai-coding-conventions.personal.md`), which had said context size doesn't matter for local podman.
+`make docs` was not re-run: the ignore file affects only `podman build`, not the run targets' bind
+mounts.
