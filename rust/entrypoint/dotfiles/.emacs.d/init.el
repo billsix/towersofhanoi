@@ -2,6 +2,16 @@
 ;; rust-analyzer (installed via dnf, on PATH).
 ;; Layout: github.com/billsix/runClaudeInContainer tasks/reference/emacs-container-contract.md.
 (package-initialize)
+;; Byte-compile each vendored package that has no .elc yet, through package.el's own
+;; compile (package-recompile), the same path package-install uses. The .elc land in
+;; the bind-mounted elpa/ and persist, so later starts find them and compile nothing;
+;; a package whose files cannot all compile (compat's compat-2x.el backports on a
+;; newer Emacs) still gets its other .elc and is not retried on every start.
+(dolist (entry package-alist)
+  (let ((desc (cadr entry)))
+    (unless (directory-files-recursively (package-desc-dir desc) "\\.elc\\'")
+      (with-demoted-errors "Error while compiling: %S"
+        (package-recompile desc)))))
 
 (load-file "~/.emacs.d/helm.el")
 (load-file "~/.emacs.d/preferences.el")
