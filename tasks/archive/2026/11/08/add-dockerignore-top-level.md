@@ -11,17 +11,16 @@ files. The new root `.dockerignore` is an allowlist: `*`, then `!` for exactly t
 `type-check.sh`, `python/requirements.txt`). It must be kept in step with the `COPY` lines. The `cpp/`,
 `python/` and `rust/` images keep their own contexts and ignore files.
 
-## Verification (2026-11-08, nested podman, a spimulator build running alongside both times)
+## Verification (2026-11-08, nested podman)
 
-| fully cached `make image` | run 1 | run 2 |
-|---|---|---|
-| before (no `.dockerignore`) | 99.7 s | 99.0 s |
-| after (allowlist) | 2.6 s | 2.5 s |
+`make image` succeeded with the allowlist, all 11 steps after `FROM` cache hits.
 
-After the change all 11 steps after `FROM` were cache hits (the copied files are unchanged), and the
-build succeeded. The time went on buildah walking the context's ~107,000 files, not on file size: an
-earlier test with one 3 GB file in a context showed no measurable cost. This corrected the Dockerfile
-contract's `.dockerignore` bullet (personal overlay, github.com/billsix/dotfiles
-`.ai-coding-conventions.personal.md`), which had said context size doesn't matter for local podman.
-`make docs` was not re-run: the ignore file affects only `podman build`, not the run targets' bind
-mounts.
+The change has **no measurable effect on local podman build time**. Fully cached builds, with nothing
+else running: 2.0 s with the allowlist, 2.0 s with `--ignorefile /dev/null`, 2.1 s with the file
+removed. Local `podman build` reads the context in place and only checksums the paths a `COPY` names.
+The benefit is for builders that upload the whole context (Docker/BuildKit, `podman --remote`, CI), and
+it protects against a future `COPY .` of the 36 GB root.
+
+An earlier measurement (99 s before, 2.6 s after) was wrong. During the "before" runs a spimulator
+image build was committing layers and holding podman's storage lock; during the "after" runs it was
+compiling. Timing builds while another build runs measures the lock, not the change.
