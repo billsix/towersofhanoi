@@ -24,8 +24,10 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 # The book pulls code listings from python/src and runs the hanoigame package / the
 # by-hand generator, so install the Python deps (wxPython from dnf, so strip it here).
 COPY python/requirements.txt /requirements.txt
+# The uv cache mount is a different filesystem from the image layer, so uv must copy
+# rather than hardlink (it warns otherwise); the copy is what the layer needs anyway.
+ENV UV_LINK_MODE=copy
 RUN  --mount=type=cache,target=/root/.cache/uv \
-     uv pip install --system setuptools && \
      grep -v -i wxpython /requirements.txt > /requirements-nowx.txt && \
      uv pip install --system -r /requirements-nowx.txt && \
      rm /requirements.txt /requirements-nowx.txt

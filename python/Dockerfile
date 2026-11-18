@@ -46,8 +46,10 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 # (offline-rebuildable). wxPython comes from dnf (python3-wxpython4), so strip it from
 # the pip set. Manifest COPY'd before the source so a source edit doesn't bust this layer.
 COPY requirements.txt /requirements.txt
+# The uv cache mount is a different filesystem from the image layer, so uv must copy
+# rather than hardlink (it warns otherwise); the copy is what the layer needs anyway.
+ENV UV_LINK_MODE=copy
 RUN  --mount=type=cache,target=/root/.cache/uv \
-     uv pip install --system setuptools && \
      grep -v -i wxpython /requirements.txt > /requirements-nowx.txt && \
      uv pip install --system -r /requirements-nowx.txt && \
      rm /requirements.txt /requirements-nowx.txt
