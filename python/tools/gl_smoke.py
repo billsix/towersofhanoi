@@ -12,7 +12,10 @@ llvmpipe in Xvfb is enough). Run it from the Python subproject:
           python tools/gl_smoke.py [frame.ppm]'
 
 Prints "GL SMOKE OK" on success. It runs imgui frames (menus, panel, dialogs);
-picks the top disc through the offscreen colour-ID pass and drags it to peg 3;
+checks that a left press on the background does not turn the camera and that a
+right-button drag does (the board follows the hand, and an unusable cursor
+position does not spin it); picks the top disc through the offscreen colour-ID
+pass and drags it to peg 3;
 tries an illegal drop; wins a 1-disc game, saves the recipe, relabels and
 applies it (the three-panel view); and reviews the history, declining and
 then accepting "Continue from here?". With an argument, it also writes the
@@ -27,7 +30,14 @@ import OpenGL.GL as GL
 from imgui_bundle import imgui
 from imgui_bundle.python_backends.glfw_backend import GlfwRenderer
 
-from hanoigame.hanoigl import HanoiGL, major_radius, peg_x, rest_y
+from hanoigame.hanoigl import (
+    DISC_THICKNESS,
+    HOLE_RADIUS,
+    HanoiGL,
+    outer_radius,
+    peg_x,
+    rest_y,
+)
 
 
 def run_frames(app: HanoiGL, renderer: GlfwRenderer, count: int) -> None:
@@ -48,10 +58,13 @@ def drag(
     press/cursor/release handlers)."""
     n: int = app.session.num_disks
     index: int = len(app.shown_game().towers[from_peg]) - 1
-    # The torus centre is its hole, so aim at the tube on the near-right side.
+    # The disc's centre is its hole (the peg), so aim at the top face, midway
+    # between the hole and the edge on the right side.
     app.press(
         *app.screen_point(
-            peg_x(from_peg) + major_radius(size, n), rest_y(index), 0.0
+            peg_x(from_peg) + (HOLE_RADIUS + outer_radius(size, n)) / 2.0,
+            rest_y(index) + DISC_THICKNESS / 2.0,
+            0.0,
         )
     )
     assert app.moving is not None, f"disc {size} not picked: {app.status}"
@@ -85,6 +98,35 @@ run_frames(app, renderer, 3)  # menus, panel, the first-run How to Play
 
 # A point above the board hits only the background clear colour: ID 0.
 assert app.pick_at(*app.screen_point(0.0, 9.0, 0.0)) == 0
+
+# A left press on the background does not turn the camera; it says how to.
+app.press(*app.screen_point(0.0, 9.0, 0.0))
+assert not app.orbiting and "right or middle" in app.status, app.status
+app.release()
+
+# A right-button drag to the right turns the board's near side to the right,
+# and a drag down tilts the near side down (the camera looks from higher).
+near_before: tuple[float, float] = app.screen_point(0.0, 0.0, 2.0)
+app.start_orbit()
+app.orbit_to(600.0, 400.0, valid=True)
+app.orbit_to(640.0, 420.0, valid=True)
+# An unusable position (unfocused window: (-1, -1)) restarts the drag
+# instead of turning by the jump to it.
+yaw_before_jump: float = app.camera.target_yaw
+app.orbit_to(-1.0, -1.0, valid=True)
+app.orbit_to(640.0, 420.0, valid=True)
+app.orbit_to(10.0, 10.0, valid=False)
+assert app.camera.target_yaw == yaw_before_jump
+app.end_orbit()
+_step: int
+for _step in range(60):
+    app.camera.follow(1 / 60)
+near_after: tuple[float, float] = app.screen_point(0.0, 0.0, 2.0)
+assert near_after[0] > near_before[0], (near_before, near_after)
+assert near_after[1] > near_before[1], (near_before, near_after)
+app.camera.yaw = app.camera.target_yaw = 0.0
+app.camera.pitch = app.camera.target_pitch = 0.35
+run_frames(app, renderer, 2)
 
 # Smallest disc 1 -> 3: lifted, carried, lowered, recorded by the engine.
 drag(app, renderer, size=1, from_peg=0, to_peg=2)

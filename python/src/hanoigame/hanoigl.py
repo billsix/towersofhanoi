@@ -5,9 +5,9 @@ with the three-panel rebinding view, the always-visible move history with
 review, the keyboard move, the valid moves, the learning-flow tiers, How to
 Play and the win celebration. The interface is Dear ImGui through
 imgui-bundle, the way github.com/billsix/modelviewprojection's demos use it;
-the board is drawn in 3D underneath. Discs are tori and pegs cylinders,
-generated in code, and an orbit camera turns around the board (drag the
-background, or with the right button; the wheel zooms).
+the board is drawn in 3D underneath. Discs are thin washers and pegs
+cylinders, generated in code, and a turntable camera turns around the board
+(drag with the right or middle button; the wheel zooms).
 
 The board teaches **selection by colour ID**:
 
@@ -79,7 +79,8 @@ if typing.TYPE_CHECKING:
 
 PEG_SPACING: float = 3.0
 PEG_RADIUS: float = 0.12
-TUBE_RADIUS: float = 0.18  # a disc's thickness is twice this
+DISC_THICKNESS: float = 0.2
+HOLE_RADIUS: float = PEG_RADIUS + 0.06  # every disc's hole, with clearance
 BASE_TOP: float = 0.0
 BASE_HEIGHT: float = 0.3
 MAX_DISKS: int = 8  # the disc colours run out after 8
@@ -107,18 +108,18 @@ def nearest_peg(x: float) -> int:
     return min(range(3), key=lambda peg: abs(x - peg_x(peg)))
 
 
-def major_radius(size: int, num_disks: int) -> float:
-    """A disc's torus radius (centre of the hole to the centre of the tube).
+def outer_radius(size: int, num_disks: int) -> float:
+    """A disc's outer radius; every disc has the same hole (`HOLE_RADIUS`).
 
-    The smallest disc's hole just fits around a peg; the largest disc's outer
+    The smallest disc is a narrow ring around its hole; the largest disc's
     edge stays clear of the neighbouring disc stacks.
 
     Examples:
-        >>> round(major_radius(1, 3), 2), round(major_radius(3, 3), 2)
-        (0.35, 1.27)
+        >>> round(outer_radius(1, 3), 2), round(outer_radius(3, 3), 2)
+        (0.48, 1.45)
     """
-    smallest: float = PEG_RADIUS + TUBE_RADIUS + 0.05
-    largest: float = PEG_SPACING / 2.0 - 0.05 - TUBE_RADIUS
+    smallest: float = HOLE_RADIUS + 0.3
+    largest: float = PEG_SPACING / 2.0 - 0.05
     return smallest + (size - 1) * (largest - smallest) / max(num_disks - 1, 1)
 
 
@@ -127,24 +128,24 @@ def rest_y(stack_index: int) -> float:
 
     Examples:
         >>> round(rest_y(0), 2), round(rest_y(2), 2)
-        (0.18, 0.9)
+        (0.1, 0.5)
     """
-    return BASE_TOP + TUBE_RADIUS + stack_index * 2.0 * TUBE_RADIUS
+    return BASE_TOP + DISC_THICKNESS / 2.0 + stack_index * DISC_THICKNESS
 
 
 def peg_height(num_disks: int) -> float:
     """How far a peg stands above the base: the full stack plus a margin."""
-    return num_disks * 2.0 * TUBE_RADIUS + 0.6
+    return num_disks * DISC_THICKNESS + 0.6
 
 
 def carry_y(num_disks: int) -> float:
     """The centre height of a carried disc: its bottom just above the pegs.
 
     Examples:
-        >>> carry_y(3) > BASE_TOP + peg_height(3) + TUBE_RADIUS
+        >>> carry_y(3) > BASE_TOP + peg_height(3) + DISC_THICKNESS / 2.0
         True
     """
-    return BASE_TOP + peg_height(num_disks) + TUBE_RADIUS + 0.15
+    return BASE_TOP + peg_height(num_disks) + DISC_THICKNESS / 2.0 + 0.15
 
 
 def collides_with_peg(
@@ -152,9 +153,9 @@ def collides_with_peg(
 ) -> bool:
     """Whether a disc centred at (x, y) would intersect a peg's cylinder.
 
-    The disc is a torus lying flat. It misses the peg if it is entirely above
-    the peg top, or if the peg passes wholly through its hole, or if the peg
-    is wholly outside its outer edge.
+    The disc is a flat washer. It misses the peg if it is entirely above the
+    peg top, or if the peg passes wholly through its hole, or if the peg is
+    wholly outside its outer edge.
 
     Args:
         x: The disc centre's x (the disc stays in the z = 0 plane).
@@ -177,12 +178,11 @@ def collides_with_peg(
         False
     """
     peg_top: float = BASE_TOP + peg_height(num_disks)
-    if y - TUBE_RADIUS >= peg_top:
+    if y - DISC_THICKNESS / 2.0 >= peg_top:
         return False
     distance: float = abs(x - peg_x(peg))
-    radius: float = major_radius(size, num_disks)
-    inside_hole: bool = distance + PEG_RADIUS <= radius - TUBE_RADIUS
-    outside_edge: bool = distance - PEG_RADIUS >= radius + TUBE_RADIUS
+    inside_hole: bool = distance + PEG_RADIUS <= HOLE_RADIUS
+    outside_edge: bool = distance - PEG_RADIUS >= outer_radius(size, num_disks)
     return not (inside_hole or outside_edge)
 
 
@@ -236,48 +236,69 @@ def rgb_bytes_to_id(red: int, green: int, blue: int) -> int:
 # --- Meshes: generated geometry, interleaved position + normal --------------
 
 
-def torus_mesh(
-    radius: float, tube: float, rings: int = 48, sides: int = 16
+def disc_mesh(
+    inner_radius: float, outer_radius: float, thickness: float, sides: int = 48
 ) -> tuple[NDArray[np.float32], NDArray[np.uint32]]:
-    """A torus lying flat (its axis is y), as vertices and triangle indices.
+    """A flat washer lying in the xz plane, centred on y = 0, as vertices and
+    triangle indices.
 
-    A point on it is (R + r cos v) (cos u, 0, sin u) + r sin v (0, 1, 0), for
-    u around the ring and v around the tube; the normal is that point minus
-    the tube's centre line, (cos v cos u, sin v, cos v sin u).
+    Four bands, each a (2 x (sides + 1))-vertex grid: the top and bottom
+    faces (normals up and down) and the outer and inner walls (normals out
+    from and in toward the axis). Every band has its own vertices, so the
+    rims are hard edges.
 
     Args:
-        radius: R, centre of the hole to the centre of the tube.
-        tube: r, the radius of the tube.
-        rings: Steps of u around the ring.
-        sides: Steps of v around the tube.
+        inner_radius: The hole's radius.
+        outer_radius: The outer edge's radius.
+        thickness: The height from the bottom face to the top face.
+        sides: Steps around the axis.
 
     Returns:
         ``(vertices, indices)``: an (N, 6) float32 array of x, y, z, nx, ny, nz
         rows, and the uint32 indices of the triangles.
 
     Examples:
-        >>> vertices, indices = torus_mesh(1.0, 0.25, rings=8, sides=4)
+        >>> vertices, indices = disc_mesh(0.2, 1.0, 0.1, sides=6)
         >>> vertices.shape, indices.shape
-        ((45, 6), (192,))
+        ((56, 6), (144,))
+        >>> heights: list[float] = [float(y) for y in vertices[:, 1]]
+        >>> round(max(heights), 3), round(min(heights), 3)
+        (0.05, -0.05)
     """
-    u: NDArray[np.float64] = np.linspace(0.0, 2.0 * math.pi, rings + 1)
-    v: NDArray[np.float64] = np.linspace(0.0, 2.0 * math.pi, sides + 1)
-    uu: NDArray[np.float64]
-    vv: NDArray[np.float64]
-    uu, vv = np.meshgrid(u, v, indexing="ij")
-    normals: NDArray[np.float64] = np.stack(
-        [np.cos(vv) * np.cos(uu), np.sin(vv), np.cos(vv) * np.sin(uu)], axis=-1
+    angles: NDArray[np.float64] = np.linspace(0.0, 2.0 * math.pi, sides + 1)
+    ring: NDArray[np.float64] = np.stack(
+        [np.cos(angles), np.zeros_like(angles), np.sin(angles)], axis=-1
     )
-    centre_line: NDArray[np.float64] = np.stack(
-        [radius * np.cos(uu), np.zeros_like(uu), radius * np.sin(uu)], axis=-1
-    )
-    positions: NDArray[np.float64] = centre_line + tube * normals
-    vertices: NDArray[np.float32] = (
-        np.concatenate([positions, normals], axis=-1)
-        .reshape(-1, 6)
-        .astype(np.float32)
-    )
-    return vertices, _grid_indices(rings, sides)
+    lift: NDArray[np.float64] = np.array([0.0, thickness / 2.0, 0.0])
+    up: NDArray[np.float64] = np.tile([0.0, 1.0, 0.0], (sides + 1, 1))
+    # Each band is (first row, second row, normals); the rows are rings.
+    bands: list[
+        tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]
+    ] = [
+        (outer_radius * ring + lift, inner_radius * ring + lift, up),
+        (inner_radius * ring - lift, outer_radius * ring - lift, -up),
+        (outer_radius * ring - lift, outer_radius * ring + lift, ring),
+        (inner_radius * ring + lift, inner_radius * ring - lift, -ring),
+    ]
+    vertices: NDArray[np.float32] = np.concatenate(
+        [
+            np.concatenate(
+                [
+                    np.concatenate([first, normals], axis=-1),
+                    np.concatenate([second, normals], axis=-1),
+                ]
+            )
+            for first, second, normals in bands
+        ]
+    ).astype(np.float32)
+    band_size: int = 2 * (sides + 1)
+    indices: NDArray[np.uint32] = np.concatenate(
+        [
+            _grid_indices(1, sides) + band * band_size
+            for band in range(len(bands))
+        ]
+    ).astype(np.uint32)
+    return vertices, indices
 
 
 def _grid_indices(rows: int, columns: int) -> NDArray[np.uint32]:
@@ -538,22 +559,39 @@ DISC_COLOURS: list[tuple[float, float, float]] = [
 WOOD: tuple[float, float, float] = (0.62, 0.45, 0.28)
 
 
+@dataclasses.dataclass(eq=False)
 class Mesh:
-    """Geometry uploaded to the GPU: one VAO with position and normal."""
+    """Geometry uploaded to the GPU: one VAO with position and normal.
 
-    def __init__(
+    Attributes:
+        vertices: Interleaved x, y, z, nx, ny, nz rows (uploaded, not kept).
+        indices: The triangles' vertex indices (uploaded, not kept).
+        count: How many indices `draw` draws.
+        vao: The vertex array object.
+        vbo: The vertex buffer.
+        ebo: The index buffer.
+    """
+
+    vertices: dataclasses.InitVar[NDArray[np.float32]]
+    indices: dataclasses.InitVar[NDArray[np.uint32]]
+    count: int = dataclasses.field(init=False)
+    vao: int = dataclasses.field(init=False)
+    vbo: int = dataclasses.field(init=False)
+    ebo: int = dataclasses.field(init=False)
+
+    def __post_init__(
         self, vertices: NDArray[np.float32], indices: NDArray[np.uint32]
     ) -> None:
-        """Upload interleaved x, y, z, nx, ny, nz vertices and indices."""
-        self.count: int = int(indices.size)
-        self.vao: int = GL.glGenVertexArrays(1)
+        """Upload the vertices and indices into a new VAO."""
+        self.count = int(indices.size)
+        self.vao = GL.glGenVertexArrays(1)
         GL.glBindVertexArray(self.vao)
-        self.vbo: int = GL.glGenBuffers(1)
+        self.vbo = GL.glGenBuffers(1)
         GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo)
         GL.glBufferData(
             GL.GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL.GL_STATIC_DRAW
         )
-        self.ebo: int = GL.glGenBuffers(1)
+        self.ebo = GL.glGenBuffers(1)
         GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo)
         GL.glBufferData(
             GL.GL_ELEMENT_ARRAY_BUFFER,
@@ -579,17 +617,30 @@ class Mesh:
         )
 
 
+@dataclasses.dataclass(eq=False)
 class PickBuffer:
-    """The offscreen framebuffer the pick pass draws into; never shown."""
+    """The offscreen framebuffer the pick pass draws into; never shown.
 
-    def __init__(self, width: int, height: int) -> None:
+    Attributes:
+        width: The framebuffer's width in pixels.
+        height: The framebuffer's height in pixels.
+        fbo: The framebuffer object.
+        color: Its RGBA8 colour renderbuffer.
+        depth: Its 24-bit depth renderbuffer.
+    """
+
+    width: int
+    height: int
+    fbo: int = dataclasses.field(init=False)
+    color: int = dataclasses.field(init=False)
+    depth: int = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
         """Create the framebuffer with a colour and a depth attachment."""
-        self.fbo: int = GL.glGenFramebuffers(1)
-        self.color: int = GL.glGenRenderbuffers(1)
-        self.depth: int = GL.glGenRenderbuffers(1)
-        self.width: int = 0
-        self.height: int = 0
-        self.resize(width, height)
+        self.fbo = GL.glGenFramebuffers(1)
+        self.color = GL.glGenRenderbuffers(1)
+        self.depth = GL.glGenRenderbuffers(1)
+        self.resize(self.width, self.height)
 
     def resize(self, width: int, height: int) -> None:
         """Match the window's framebuffer size (one pick pixel per pixel)."""
@@ -626,23 +677,66 @@ class PickBuffer:
 
 @dataclasses.dataclass
 class OrbitCamera:
-    """A camera on a sphere around the board's centre.
+    """A turntable camera on a sphere around the board's centre: it turns
+    around the vertical axis and tilts, but never rolls.
+
+    A drag moves the target angles; `follow` eases the shown angles toward
+    them each frame, which smooths an uneven stream of mouse events without a
+    lag you can feel.
 
     Attributes:
-        yaw: Turn around the vertical axis, in radians.
-        pitch: Tilt down toward the board, in radians.
+        yaw: Turn around the vertical axis, in radians (shown).
+        pitch: Tilt down toward the board, in radians (shown).
         distance: Distance from the point it looks at.
+        target_yaw: The yaw the camera is easing toward.
+        target_pitch: The pitch the camera is easing toward.
     """
 
     yaw: float = 0.0
     pitch: float = 0.35
     distance: float = 11.0
+    target_yaw: float = 0.0
+    target_pitch: float = 0.35
 
-    def orbit(self, dx: float, dy: float) -> None:
-        """Turn by a mouse drag of (dx, dy) pixels; the pitch stays above the
-        board and short of straight down."""
-        self.yaw += dx * 0.01
-        self.pitch = min(max(self.pitch + dy * 0.01, 0.05), 1.45)
+    def orbit(self, dx: float, dy: float, height: float) -> None:
+        """Turn by a drag of (dx, dy) pixels over a board `height` pixels
+        tall.
+
+        The board follows the hand: dragging right turns its near side to the
+        right, and dragging down tilts its near side down, so you look from
+        higher. A drag the board's full height turns half a circle, whatever
+        the window size (three.js OrbitControls turns a whole circle; half is
+        calmer for a board that tilts through only 80 degrees). The pitch
+        stays above the board and short of straight down.
+
+        Examples:
+            >>> camera: OrbitCamera = OrbitCamera()
+            >>> camera.orbit(100.0, 0.0, height=200.0)
+            >>> round(camera.target_yaw, 3), camera.yaw
+            (1.571, 0.0)
+            >>> camera.orbit(0.0, 1000.0, height=200.0)
+            >>> camera.target_pitch
+            1.45
+        """
+        turn: float = math.pi / max(height, 1.0)
+        self.target_yaw += dx * turn
+        self.target_pitch = min(max(self.target_pitch + dy * turn, 0.05), 1.45)
+
+    def follow(self, dt: float) -> None:
+        """Ease the shown angles toward the targets for `dt` seconds.
+
+        The step is frame-rate independent: after 0.1 s about 92% of the
+        remaining turn is done, at 30 or 144 frames per second alike.
+
+        Examples:
+            >>> camera: OrbitCamera = OrbitCamera(target_yaw=1.0)
+            >>> camera.follow(0.1)
+            >>> round(camera.yaw, 2)
+            0.92
+        """
+        blend: float = 1.0 - math.exp(-25.0 * dt)
+        self.yaw += (self.target_yaw - self.yaw) * blend
+        self.pitch += (self.target_pitch - self.pitch) * blend
 
     def zoom(self, steps: float) -> None:
         """Move closer (positive steps) or further away, within limits."""
@@ -716,71 +810,102 @@ class PendingAction:
     apply_name: str | None = None
 
 
+@dataclasses.dataclass(eq=False)
 class HanoiGL:
     """The 3D board with a Dear ImGui interface: every feature of the other
     GUIs (feature-spec §7), with the board drawn in 3D and picked by colour.
 
     `frame` draws one frame (UI, input, the 3D scene). The game actions
     (`make_move`, `relabel`, `apply_recipe`, ...) are plain methods, so a
-    test can drive them without the mouse.
+    test can drive them without the mouse. Construct it with the window's GL
+    context current and an imgui context created; `__post_init__` builds the
+    shaders, the pick buffer and the meshes.
+
+    Attributes:
+        window: The GLFW window.
+        num_disks: Discs in the first game (the session keeps the count).
+        registry: The saved recipes.
+        session: The game, its labelling and its move history.
+        camera: The turntable camera.
+        moving: The disc being lifted, carried or lowered, or None.
+        orbiting: Whether the right or middle button is turning the camera.
+        orbit_from: The cursor at the last orbit step, or None when there is
+            no usable position yet (just pressed, or the window lost focus).
+        cursor_x: Where the carried disc is heading, in world x.
+        show_pick_buffer: Draw the pick pass instead of the lit scene.
+        want_quit: Game -> Quit was chosen.
+        status: The status line under the goal.
+        won_once: Tier-2 gating (feature-spec §3.5): relabel and recipes
+            unlock at the first win and stay unlocked for the session.
+        win_lines: The win celebration's shared lines (§4.9).
+        won_via_apply: The win came from replaying a recipe.
+        saved_current: The current hand-won solution was saved.
+        pending_new_game: A New Game held behind the "Save solution?" question.
+        view: The open rebinding view or recipe list, or None.
+        review_count: History review (§4.11): how many moves the board shows,
+            or None for the live game.
+        pending: A move or apply waiting on "Continue from here?".
+        illegal_message: Why the last drop was refused.
+        recipe_name: The name typed in the Save Recipe dialog.
+        pending_from: The keyboard move's typed from-peg label, waiting for
+            the to-peg.
+        popups_to_open: Popups to open on the next frame (imgui opens them
+            by name).
+        lit: The lit shader program.
+        pick: The flat pick shader program.
+        pick_buffer: The offscreen framebuffer for picking.
+        disc_meshes: Each disc size's washer mesh.
+        peg_mesh: The peg cylinder mesh.
+        base_mesh: The base box mesh.
     """
 
-    def __init__(
-        self, window: "GLFWWindow", num_disks: int = DEFAULT_DISKS
-    ) -> None:
-        """Build the GL resources for `window` (its context must be current,
-        and an imgui context must exist).
+    window: "GLFWWindow"
+    num_disks: dataclasses.InitVar[int] = DEFAULT_DISKS
+    registry: RecipeRegistry = dataclasses.field(default_factory=RecipeRegistry)
+    session: GameSession = dataclasses.field(init=False)
+    camera: OrbitCamera = dataclasses.field(default_factory=OrbitCamera)
+    moving: MovingDisc | None = None
+    orbiting: bool = False
+    orbit_from: tuple[float, float] | None = None
+    cursor_x: float = 0.0
+    show_pick_buffer: bool = False
+    want_quit: bool = False
+    status: str = ""
+    won_once: bool = False
+    win_lines: list[str] = dataclasses.field(default_factory=list)
+    won_via_apply: bool = False
+    saved_current: bool = False
+    pending_new_game: int | None = None
+    view: RebindingView | None = None
+    review_count: int | None = None
+    pending: PendingAction | None = None
+    illegal_message: str = ""
+    recipe_name: str = ""
+    pending_from: int | None = None
+    popups_to_open: list[str] = dataclasses.field(
+        default_factory=lambda: ["How to Play"]
+    )
+    lit: int = dataclasses.field(init=False)
+    pick: int = dataclasses.field(init=False)
+    pick_buffer: PickBuffer = dataclasses.field(init=False)
+    disc_meshes: dict[int, Mesh] = dataclasses.field(init=False)
+    peg_mesh: Mesh = dataclasses.field(init=False)
+    base_mesh: Mesh = dataclasses.field(init=False)
 
-        Args:
-            window: The GLFW window.
-            num_disks: Discs in the first game.
-        """
-        self.window: GLFWWindow = window
-        self.registry: RecipeRegistry = RecipeRegistry()
-        self.session: GameSession = GameSession(num_disks, self.registry)
-        self.camera: OrbitCamera = OrbitCamera()
-        self.moving: MovingDisc | None = None
-        self.orbiting: bool = False
-        self.last_cursor: tuple[float, float] = (0.0, 0.0)
-        self.cursor_x: float = 0.0
-        self.show_pick_buffer: bool = False
-        self.want_quit: bool = False
-        self.status: str = ""
-        # Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the
-        # first win and stay unlocked for the session.
-        self.won_once: bool = False
-        # Win celebration and save-before-discard (§4.9): the shared lines,
-        # whether the win came from replaying a recipe or was already saved,
-        # and a New Game held behind the save question.
-        self.win_lines: list[str] = []
-        self.won_via_apply: bool = False
-        self.saved_current: bool = False
-        self.pending_new_game: int | None = None
-        self.view: RebindingView | None = None
-        # History review (§4.11): how many moves the board shows (None = the
-        # live game), and a move or apply waiting on "Continue from here?".
-        self.review_count: int | None = None
-        self.pending: PendingAction | None = None
-        self.illegal_message: str = ""
-        self.recipe_name: str = ""
-        # The keyboard move's typed from-peg label, waiting for the to-peg.
-        self.pending_from: int | None = None
-        # Popups to open on the next frame (imgui opens them by name).
-        self.popups_to_open: list[str] = ["How to Play"]
-        self.lit: int = shaders.compileProgram(
+    def __post_init__(self, num_disks: int) -> None:
+        """Start the first game and build the GL resources for `window`."""
+        self.session = GameSession(num_disks, self.registry)
+        self.lit = shaders.compileProgram(
             shaders.compileShader(LIT_VERTEX_SHADER, GL.GL_VERTEX_SHADER),
             shaders.compileShader(LIT_FRAGMENT_SHADER, GL.GL_FRAGMENT_SHADER),
             validate=False,
         )
-        self.pick: int = shaders.compileProgram(
+        self.pick = shaders.compileProgram(
             shaders.compileShader(PICK_VERTEX_SHADER, GL.GL_VERTEX_SHADER),
             shaders.compileShader(PICK_FRAGMENT_SHADER, GL.GL_FRAGMENT_SHADER),
             validate=False,
         )
-        self.pick_buffer: PickBuffer = PickBuffer(1, 1)
-        self.disc_meshes: dict[int, Mesh] = {}
-        self.peg_mesh: Mesh
-        self.base_mesh: Mesh
+        self.pick_buffer = PickBuffer(1, 1)
         self._build_meshes()
 
     # --- Game state ------------------------------------------------------
@@ -822,10 +947,12 @@ class HanoiGL:
         self._build_meshes()
 
     def _build_meshes(self) -> None:
-        """Generate the tori for this disc count, the pegs and the base."""
+        """Generate the discs for this disc count, the pegs and the base."""
         n: int = self.session.num_disks
         self.disc_meshes = {
-            size: Mesh(*torus_mesh(major_radius(size, n), TUBE_RADIUS))
+            size: Mesh(
+                *disc_mesh(HOLE_RADIUS, outer_radius(size, n), DISC_THICKNESS)
+            )
             for size in range(1, n + 1)
         }
         self.peg_mesh = Mesh(*cylinder_mesh(PEG_RADIUS, peg_height(n)))
@@ -994,8 +1121,14 @@ class HanoiGL:
         # Read bottom-up: centre the board, turn it, tilt it, back away.
         ms.translate(ms.MatrixStack.view, 0.0, 0.0, -self.camera.distance)
         ms.rotate_x(ms.MatrixStack.view, self.camera.pitch)
-        ms.rotate_y(ms.MatrixStack.view, -self.camera.yaw)
-        ms.translate(ms.MatrixStack.view, 0.0, -1.2, 0.0)
+        ms.rotate_y(ms.MatrixStack.view, self.camera.yaw)
+        # Turn around the middle of the scene: from the base to a carried disc.
+        ms.translate(
+            ms.MatrixStack.view,
+            0.0,
+            -carry_y(self.session.num_disks) / 2.0,
+            0.0,
+        )
         ms.set_to_identity_matrix(ms.MatrixStack.model)
 
     def _board_pixel(self, x: float, y: float) -> tuple[float, float]:
@@ -1271,9 +1404,9 @@ class HanoiGL:
         return float(near_point[0] + along * direction[0])
 
     def press(self, x: float, y: float) -> None:
-        """Mouse-down on the board at (x, y): pick up a top disc of the board
-        shown, or start orbiting."""
-        self.last_cursor = (x, y)
+        """Left mouse-down on the board at (x, y): pick up a top disc of the
+        board shown. The background does nothing but say how to turn the
+        camera (the right and middle buttons do that, `start_orbit`)."""
         if self.moving is not None:
             return
         picked: int = self.pick_at(x, y)
@@ -1282,7 +1415,9 @@ class HanoiGL:
             stack[-1]: peg for peg, stack in enumerate(board.towers) if stack
         }
         if picked == 0:
-            self.orbiting = True
+            self.status = (
+                "Drag with the right or middle button to turn the camera."
+            )
         elif board.check_win_condition():
             self.status = "Solved! Start a new game from the Game menu."
         elif picked not in tops:
@@ -1298,18 +1433,48 @@ class HanoiGL:
             self.cursor_x = self.moving.x
 
     def cursor(self, x: float, y: float) -> None:
-        """Mouse moved to (x, y): orbit the camera, or steer a carried disc."""
-        if self.orbiting:
-            self.camera.orbit(x - self.last_cursor[0], y - self.last_cursor[1])
-        elif self.moving is not None and not self.moving.released:
+        """Mouse at (x, y): steer a carried disc toward it."""
+        if self.moving is not None and not self.moving.released:
             self.cursor_x = self.board_x(x, y)
-        self.last_cursor = (x, y)
+
+    def start_orbit(self) -> None:
+        """Right or middle mouse-down on the board: start turning the camera
+        (from the next usable cursor position)."""
+        self.orbiting = True
+        self.orbit_from = None
+
+    def orbit_to(self, x: float, y: float, valid: bool) -> None:
+        """While orbiting, the cursor is at (x, y): turn by the step from the
+        last position.
+
+        A position is unusable when imgui has no mouse (`valid` False) or
+        when the glfw backend reports (-1, -1) for an unfocused window; a step
+        to or from one would spin the board, so the drag restarts from the
+        next usable position instead.
+        """
+        if not valid or (x, y) == (-1.0, -1.0):
+            self.orbit_from = None
+            return
+        if self.orbit_from is not None:
+            board_height: int
+            scale: float
+            _width, board_height, scale, _top = self._board_rect()
+            self.camera.orbit(
+                x - self.orbit_from[0],
+                y - self.orbit_from[1],
+                board_height / scale,
+            )
+        self.orbit_from = (x, y)
+
+    def end_orbit(self) -> None:
+        """Right or middle mouse-up: stop turning the camera."""
+        self.orbiting = False
+        self.orbit_from = None
 
     def release(self) -> None:
-        """Mouse-up: stop orbiting, or drop the carried disc on the nearest
-        peg if that move is legal; an illegal one slides back home and the
-        reason pops up."""
-        self.orbiting = False
+        """Left mouse-up: drop the carried disc on the nearest peg if that
+        move is legal; an illegal one slides back home and the reason pops
+        up."""
         if self.moving is None or self.moving.released:
             return
         moving: MovingDisc = self.moving
@@ -1333,8 +1498,10 @@ class HanoiGL:
         moving.target_y = rest_y(resting_on)
 
     def update(self, dt: float) -> None:
-        """Advance the moving disc; when it lands on another peg, make the
-        move through the same path as the keyboard move."""
+        """Ease the camera, and advance the moving disc; when the disc lands
+        on another peg, make the move through the same path as the keyboard
+        move."""
+        self.camera.follow(dt)
         if self.moving is None:
             return
         moving: MovingDisc = self.moving
@@ -1352,20 +1519,28 @@ class HanoiGL:
         io: imgui.IO = imgui.get_io()
         x: float = io.mouse_pos.x
         y: float = io.mouse_pos.y
+        turn_buttons: tuple[imgui.MouseButton_, ...] = (
+            imgui.MouseButton_.right,
+            imgui.MouseButton_.middle,
+        )
         if not io.want_capture_mouse:
             if imgui.is_mouse_clicked(imgui.MouseButton_.left):
                 self.press(x, y)
-            if imgui.is_mouse_clicked(imgui.MouseButton_.right):
-                self.orbiting = True
-                self.last_cursor = (x, y)
+            if any(imgui.is_mouse_clicked(button) for button in turn_buttons):
+                self.start_orbit()
             if io.mouse_wheel:
                 self.camera.zoom(io.mouse_wheel)
-        if (x, y) != self.last_cursor:
+        valid: bool = imgui.is_mouse_pos_valid()
+        if self.orbiting:
+            self.orbit_to(x, y, valid)
+        if valid:
             self.cursor(x, y)
-        if imgui.is_mouse_released(
-            imgui.MouseButton_.left
-        ) or imgui.is_mouse_released(imgui.MouseButton_.right):
+        if imgui.is_mouse_released(imgui.MouseButton_.left):
             self.release()
+        if self.orbiting and not any(
+            imgui.is_mouse_down(button) for button in turn_buttons
+        ):
+            self.end_orbit()
         if not io.want_capture_keyboard and not imgui.is_popup_open(
             "", imgui.PopupFlags_.any_popup_id
         ):
@@ -1687,8 +1862,8 @@ class HanoiGL:
                 " the target peg's number."
             )
             imgui.text(
-                "Drag the background (or the right button) to turn the"
-                " camera; the wheel zooms."
+                "Drag with the right or middle button to turn the camera;"
+                " the wheel zooms."
             )
             if imgui.button("Got it"):
                 imgui.close_current_popup()

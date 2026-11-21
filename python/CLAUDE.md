@@ -20,9 +20,10 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
   - `hanoi-gl` — OpenGL 3.3 core 3D board (`hanoigl.py`) with a **Dear ImGui** interface
     (imgui-bundle, as modelviewprojection uses it) at full feature parity: menu bar with the
     learning-flow tiers, a Game panel (goal, valid moves, the keyboard-move hint, history with review,
-    the three-panel rebinding view), and the dialogs. The board: generated torus discs and
-    cylinder pegs, an orbit camera, and **colour-ID picking** through an offscreen framebuffer;
-    a picked disc slides up its peg, follows the cursor and drops with collision checks. Uses
+    the three-panel rebinding view), and the dialogs. The board: generated washer discs and
+    cylinder pegs, a turntable camera (right or middle button; the wheel zooms), and
+    **colour-ID picking** through an offscreen framebuffer; a picked disc slides up its peg,
+    follows the cursor and drops with collision checks. Uses
     glfw, PyOpenGL, imgui-bundle and gacalc's matrix stack. Design:
     `../tasks/reference/opengl-color-id-picking.md`. (`make gl`)
 - `tests/` — pytest suite, run by `make test`; `pytest.ini` also collects the library

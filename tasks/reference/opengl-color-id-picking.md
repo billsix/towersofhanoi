@@ -15,7 +15,7 @@ moves into github.com/billsix/modelviewprojection. Written 2026-11-21 (William E
    hide discs behind them. Without that, a click on a peg in front of a disc would pick the disc.
 2. **Read one pixel.** Window coordinates are scaled to framebuffer pixels (they differ on HiDPI screens)
    and y is flipped (GL rows count from the bottom); `glReadPixels` reads that one RGBA pixel, and
-   `rgb_bytes_to_id` decodes it. 0 means background: the press orbits the camera instead.
+   `rgb_bytes_to_id` decodes it. 0 means background: a left press there does nothing but say how to turn the camera.
 3. **Draw the real frame.** The window's framebuffer was never touched; the next `draw` is the lit scene.
 
 View → Show pick buffer (or `P`) draws the pick pass to the board instead (IDs multiplied by a `brightness` uniform, since 1/255 is
@@ -24,13 +24,30 @@ black to the eye); the real pick always uses brightness 1, so the colours stay e
 ## Moving a disc (`MovingDisc.advance`)
 
 Phases `LIFTING` → `CARRYING` → `LOWERING`. A sideways step is taken only if `collides_with_any_peg` says
-the disc at its new position would not intersect a peg's cylinder (a torus misses a peg when it is above
+the disc at its new position would not intersect a peg's cylinder (a washer misses a peg when it is above
 the peg top, when the peg passes wholly through its hole, or when the peg is wholly outside its edge). So
 a disc has to rise above the peg top before it can leave, and the carry height `carry_y` keeps it above
 every peg. On release the target is the nearest peg; an illegal target (larger on smaller) becomes the
 source, with the reason in the title. The disc lowers along the target peg until it rests on the top
 disc (`rest_y` of the stack height). Only on landing is the move dispatched through
 `engine.GameSession.dispatch`, so the engine stays the single place the rules live.
+
+## The camera (`OrbitCamera`)
+
+A turntable: yaw around the vertical axis and a pitch clamped to 0.05–1.45 rad, never a roll, turning
+around the middle of the scene (half of `carry_y`, so the pivot rises with the disc count). The right or
+middle button turns it; the left button belongs to the discs.
+
+- **The board follows the hand:** a drag right turns the near side right; a drag down tilts the near side
+  down, so you look from higher (the same directions as three.js `OrbitControls`).
+- **Rate by board height, not pixels:** a drag the board's full height turns π, at any window size.
+  `OrbitControls` turns 2π; half is calmer for a board that tilts through only 80°.
+- **Easing:** a drag moves `target_yaw`/`target_pitch`, and `follow(dt)` blends the shown angles toward
+  them by `1 − exp(−25·dt)` each frame, frame-rate independent. That smooths the uneven stream of mouse
+  events without a lag you can feel; there is no inertia after release.
+- **No spin on focus loss:** imgui-bundle's glfw backend reports the cursor as (-1, -1) while the window
+  is unfocused, a valid position to imgui, so a step to it would spin the board. `HanoiGL.orbit_to`
+  treats it, and imgui's invalid position, as unusable and restarts the drag from the next real one.
 
 ## The imgui layer (`HanoiGL.frame`)
 

@@ -137,7 +137,7 @@ wx: image ## Run the wxPython GUI front-end (hanoi-gui)
 # Wayland; GLFW picks at run time), as github.com/billsix/geometricalgebra does. The
 # /dev/dri device, when the host has one, gives hardware GL; without it Mesa renders in
 # software (llvmpipe).
-gl: image ## Run the OpenGL 3.3 3D front-end (hanoi-gl): torus discs, orbit camera, colour-ID picking
+gl: image ## Run the OpenGL 3.3 3D front-end (hanoi-gl): washer discs, turntable camera, colour-ID picking
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(DRI_DEVICE) \
 		-e PYGLFW_LIBRARY=/usr/lib64/libglfw.so.3 $(CONTAINER_NAME) \
 		-c '$(PYTHON_SETUP) && exec hanoi-gl'
