@@ -49,7 +49,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .hanoimodel import HanoiGame
+from .hanoimodel import HanoiGame, ValidMove
 from .presenter import Labelling, label_to_tower, labels_to_towers
 
 
@@ -110,6 +110,20 @@ class Recorder:
         """Discard all recorded moves, resetting to an empty log."""
         self.default_moves.clear()
 
+    def truncate(self, count: int) -> None:
+        """Keep only the first `count` recorded moves, dropping the rest.
+
+        Args:
+            count: How many moves to keep (0 keeps none).
+
+        Examples:
+            >>> rec: Recorder = Recorder([(1, 3), (1, 2), (3, 2)])
+            >>> rec.truncate(1)
+            >>> rec.default_moves
+            [(1, 3)]
+        """
+        del self.default_moves[count:]
+
     def to_recipe(self, name: str, disk_count: int) -> Recipe:
         """Freeze the recorded moves into a named `Recipe`.
 
@@ -125,6 +139,50 @@ class Recorder:
             disk_count=disk_count,
             default_moves=tuple(self.default_moves),
         )
+
+
+def replay_default_moves(
+    num_disks: int, moves: Sequence[tuple[int, int]]
+) -> HanoiGame:
+    """Replay recorded moves on a fresh game: the board after those moves.
+
+    This is how a front-end shows "the board as it was after move k" when
+    the student reviews the move history: replay the first k moves.
+
+    Args:
+        num_disks: The disc count of the game the moves came from.
+        moves: Moves in default-label space (1-indexed physical pegs), as a
+            `Recorder` stores them; each must be legal in turn.
+
+    Returns:
+        A new game in the state after every move in `moves`.
+
+    Raises:
+        ValueError: If a move is not legal at its point in the replay.
+
+    Examples:
+        >>> game: HanoiGame = replay_default_moves(2, [(1, 2), (1, 3)])
+        >>> game.towers, game.current_moves
+        ([[], [1], [2]], 2)
+        >>> replay_default_moves(2, [])
+        HanoiGame(towers=[[2, 1], [], []], num_disks=2, current_moves=0)
+    """
+    game: HanoiGame = HanoiGame(num_disks=num_disks)
+    from_default: int
+    to_default: int
+    for from_default, to_default in moves:
+        legal: list[ValidMove] = [
+            vm
+            for vm in game.move_options()
+            if (vm.move.from_peg, vm.move.to_peg)
+            == (from_default - 1, to_default - 1)
+        ]
+        if not legal:
+            raise ValueError(
+                f"illegal move {from_default} -> {to_default} in replay"
+            )
+        legal[0].action()
+    return game
 
 
 @dataclass

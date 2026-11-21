@@ -209,8 +209,19 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   default-space list + live count, moves-only, reset-per-game. **Per the learning flow (§3.5), the
   always-visible panel is the preferred Tier-1 presentation**; an on-demand dialog/menu item may remain
   as an additional way to focus it, but the history should not be hidden by default.
+- **Review a past move (GUIs; decided 2026-11-21, William Emerison Six <billsix@gmail.com>):** clicking
+  (or arrowing to) move *k* in the history shows the board as it was **after move *k*** (the first *k*
+  moves replayed: `recipe.replay_default_moves`, `GameSession.state_after`), under the **current**
+  labelling, with a "Back to current" control; the last move is the live game. While reviewing, the move
+  buttons and dragging follow the reviewed board. A move or recipe apply made while reviewing first asks
+  **"Continue from move *k*? This deletes moves *k+1*…*n*."**: yes truncates the game to *k* moves
+  (`GameSession.truncate_to`), which un-wins a won game and disables Save until the next win, then makes
+  the move; no stays in review. The board takes no other move until the student answers. Text UIs have no
+  review command (a possible follow-up).
 - **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
   ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
+  Review lets the student study a solve step by step without being able to reach a board that no game
+  produced.
 - **Status:** implemented in the **wxPython GUI** (the oracle) 2026-10-26
   (`tasks/archive/2026/10/26/wxpython-running-move-tally.md`). Fan-out to every other UI was done in
   `tasks/archive/2026/11/01/fan-out-move-tally.md`.
@@ -303,6 +314,8 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
     save-as-recipe (prefilled `solve-<N>`) — a **text UI** inline at the win, a **GUI** at the new-game /
     discard boundary (so it doesn't compete with the §4.8 rebinding view). Shared wording via a core
     helper. UX rationale: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
+21. **History review** (§4.11, GUIs): clicking a history move shows the board after it; a move while
+    reviewing asks to continue from there, deleting the later moves.
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 

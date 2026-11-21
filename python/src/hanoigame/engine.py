@@ -59,6 +59,7 @@ from .recipe import (
     StepResult,
     apply_iter,
     format_rebinding_table,
+    replay_default_moves,
 )
 
 
@@ -110,6 +111,50 @@ class GameSession:
     def min_moves(self) -> int:
         """Return the optimal move count for this game (2**n - 1)."""
         return (2**self.num_disks) - 1
+
+    def state_after(self, count: int) -> HanoiGame:
+        """The board as it was after the first `count` moves of this game.
+
+        Used to review the move history; the session itself is unchanged.
+
+        Args:
+            count: How many of the recorded moves to replay (0 = the start).
+
+        Examples:
+            >>> session: GameSession = GameSession(2, RecipeRegistry())
+            >>> for cmd in (MoveCmd(1, 2), MoveCmd(1, 3), MoveCmd(2, 3)):
+            ...     _ = session.dispatch(cmd)
+            >>> session.state_after(1).towers
+            [[2], [1], []]
+            >>> session.is_won(), session.state_after(3).check_win_condition()
+            (True, True)
+        """
+        return replay_default_moves(
+            self.num_disks, self.recorder.default_moves[:count]
+        )
+
+    def truncate_to(self, count: int) -> None:
+        """Continue this game from move `count`: drop every later move.
+
+        The board and the move history go back to their state after the
+        first `count` moves; a won game becomes unwon if the win came later.
+
+        Args:
+            count: How many of the recorded moves to keep.
+
+        Examples:
+            >>> session: GameSession = GameSession(1, RecipeRegistry())
+            >>> _ = session.dispatch(MoveCmd(1, 3))
+            >>> session.is_won()
+            True
+            >>> session.truncate_to(0)
+            >>> session.is_won(), session.current_moves
+            (False, 0)
+            >>> session.recorder.default_moves
+            []
+        """
+        self.game = self.state_after(count)
+        self.recorder.truncate(count)
 
     def valid_moves_str(self) -> str:
         """Return a sorted 'Valid moves: a -> b, ...' line in current labels."""

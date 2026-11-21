@@ -360,6 +360,12 @@ select {
   list-style: none;
   padding-left: 0.3rem;
 }
+.history li[data-count] {
+  cursor: pointer;
+}
+.history li.reviewing {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
 .history .muted {
   color: var(--fg-subtle);
 }

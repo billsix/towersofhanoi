@@ -20,7 +20,10 @@ use crate::model::{HanoiGame, Move};
 use crate::presenter::{
     change_labels_on_pegs, format_move_tally, labelling_for, labels_to_towers, Labelling,
 };
-use crate::recipe::{apply, format_rebinding_table, Recipe, RecipeRegistry, Recorder, StepResult};
+use crate::recipe::{
+    apply, format_rebinding_table, replay_default_moves, Recipe, RecipeRegistry, Recorder,
+    StepResult,
+};
 
 /// The fallout from [`GameSession::dispatch`]: the front-end renders `lines` and
 /// breaks its loop if `quit` is true.
@@ -82,6 +85,44 @@ impl<'r> GameSession<'r> {
     /// The optimal move count for this game (`2^n - 1`).
     pub fn min_moves(&self) -> u64 {
         (1u64 << self.num_disks()) - 1
+    }
+
+    /// The board as it was after the first `count` moves of this game (for
+    /// reviewing the move history); the session itself is unchanged.
+    ///
+    /// # Examples
+    /// ```
+    /// use hanoigame::{Command, GameSession, RecipeRegistry};
+    /// let mut registry: RecipeRegistry = RecipeRegistry::new();
+    /// let mut session: GameSession = GameSession::new(2, &mut registry);
+    /// for (from, to) in [(1, 2), (1, 3), (2, 3)] {
+    ///     session.dispatch(&Command::Move { from_label: from, to_label: to });
+    /// }
+    /// assert_eq!(session.state_after(1).towers, [vec![2], vec![1], vec![]]);
+    /// ```
+    pub fn state_after(&self, count: usize) -> HanoiGame {
+        let count: usize = count.min(self.recorder.default_moves.len());
+        replay_default_moves(self.num_disks(), &self.recorder.default_moves[..count])
+            .expect("the recorder only holds moves that were legal when made")
+    }
+
+    /// Continue this game from move `count`: the board and the move history go
+    /// back to their state after the first `count` moves (a later win is undone).
+    ///
+    /// # Examples
+    /// ```
+    /// use hanoigame::{Command, GameSession, RecipeRegistry};
+    /// let mut registry: RecipeRegistry = RecipeRegistry::new();
+    /// let mut session: GameSession = GameSession::new(1, &mut registry);
+    /// session.dispatch(&Command::Move { from_label: 1, to_label: 3 });
+    /// assert!(session.is_won());
+    /// session.truncate_to(0);
+    /// assert!(!session.is_won());
+    /// assert!(session.recorder.default_moves.is_empty());
+    /// ```
+    pub fn truncate_to(&mut self, count: usize) {
+        self.game = self.state_after(count);
+        self.recorder.truncate(count);
     }
 
     /// A sorted `Valid moves: a -> b, ...` line in the current labels.

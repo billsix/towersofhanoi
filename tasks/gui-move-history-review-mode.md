@@ -1,48 +1,58 @@
-# Click a move in the history panel to review the board as it was then
+# Click a move in the history to review the board as it was then (done 2026-11-21)
 
-**Status:** proposed — needs go-ahead (decisions recorded 2026-11-21; no open questions)
-**Priority:** 4
-**Difficulty:** 6 (a core change in Python and Rust, then five GUIs)
-**Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>)
+**Priority:** 4 **Difficulty:** 6
+**Created / done:** 2026-11-21 (William Emerison Six <billsix@gmail.com>); branch `gui-batch-2026-11-21`.
 
-## BLUF
+## What was done
 
-Make each row of the always-visible **move history** panel clickable. Clicking move *k* shows the
-board as it stood right after move *k*, so the student can step back through what they did and study
-it. While reviewing a past state the student must not end up in a state that makes no sense: either
-moves are blocked until they return to the present, or making a move asks "Continue from move *k*?
-This deletes moves *k+1*…*n*." Done = review mode works in every graphical UI, built on one
-shared-core API, and the feature spec describes it.
+In every graphical UI, clicking (or arrowing to) move *k* in the always-visible move history shows the
+board as it stood after move *k*, so a student can step back through a solve. While reviewing, the move
+buttons and dragging follow the reviewed board; "Back to current" (or selecting the last move) returns
+to the live game. A move or recipe apply made while reviewing asks "Continue from move *k*? This deletes
+moves *k+1*…*n*.": yes truncates the game to *k* moves and makes the move, no stays in review. The
+behaviour is in `tasks/reference/feature-spec.md` §4.11 ("Review a past move") and compliance row 21.
 
-## Context
+Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21, "go with your recommendations"): ask
+rather than block; truncating a won game is allowed (it un-wins it and disables Save until the next win;
+the saved/replayed-win flags reset); past states are shown under the current labelling, so the history
+model is unchanged; no text-UI command in this task.
 
-- Read first: `tasks/reference/feature-spec.md` §4.11 (move history contract: numbered, default
-  1-2-3 labels, moves only, reset per game) and §3.5 (learning-flow tiers),
-  `tasks/reference/ui-design-principles.md`, `tasks/reference/learner-knowledge-states.md`.
-- The history is moves only, in **default-label space**; relabels are not listed. So "the state at
-  move *k*" = replay the first *k* moves from the start position. The labelling shown while
-  reviewing is the current one (Decisions).
-- Keep the front-ends thin (repo `CLAUDE.md`): put "state after *k* moves" and "truncate to *k*
-  moves" in the shared core (Python `python/src/hanoigame/engine.py` / `hanoimodel.py`, mirrored in
-  `rust/hanoigame/`; C++ has its own engine in `cpp/`), with unit tests, then have each GUI call it.
-- The Python wx history panel: `HanoiFrame._build_history_panel` / `_update_history` in
-  `python/src/hanoigame/hanoigui.py` (a `wx.ListBox`, `self._history_list`).
-- Interaction with other state: the move count vs optimal, the win state (reviewing a won game's
-  middle should not un-win it), the "Save recipe" item (enabled only on a win), and drag-and-drop
-  (`set_interactive(False)` in review mode, as after a win).
+### Shared core (one rule, every UI)
 
-## Plan
+- Python: `recipe.replay_default_moves(num_disks, moves)` (replays default-space moves on a fresh game,
+  raising `ValueError` on an illegal one), `Recorder.truncate(count)`, and
+  `GameSession.state_after(count)` / `GameSession.truncate_to(count)` in `engine.py`, each with doctests.
+- Rust (`rust/hanoigame/`): `recipe::replay_default_moves` (returns the `MoveError`), `Recorder::truncate`,
+  `GameSession::state_after` / `truncate_to`, with doctests.
+- C++ (`cpp/src/recipe.hpp`): `replay_default_moves` (an empty `std::optional` on an illegal move) and
+  `Recorder::truncate`, with doctest cases.
 
-1. Core: `state_after(k)` (pure replay) and `truncate_to(k)`, plus tests, in Python then Rust (and the
-   C++ engine).
-2. Python wx oracle: click a row → review mode (board shows state *k*, a banner "Reviewing move *k*
-   of *n*" with a "Back to current" button, the row highlighted); arrow keys step through rows.
-3. Maintainer's on-display check, then fan out to C++ ImGui, C++ wx, Rust wxDragon, egui, Tauri.
-4. Feature spec §4.11 + a compliance row; each subproject's gate.
+### Per UI
 
-## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "go with your recommendations")
+- **Python wx** (`hanoigui.py`): `_review_count`, `_on_history_select`, `_on_history_back`,
+  `_confirm_leave_review` (a Yes/No `wx.MessageDialog`, so the board takes nothing else until answered),
+  `_shown_game`; `_refresh` draws and enables from the shown game; `_update_history` keeps the reviewed row
+  selected and enables "Back to current".
+- **C++ wx** (`hanoiwx.cpp`): the same shape (`on_history_select`, `confirm_leave_review`, `shown_game`).
+- **Rust wxDragon** (`hanoi-gui`): the same shape with `MessageDialog` Yes/No.
+- **C++ ImGui** and **Rust egui**: no blocking dialog in an immediate-mode loop, so the move or apply is
+  held (`pending_*` / `PendingAction`) and a "Continue from here?" modal/window asks; dragging and the
+  move buttons are off while it is open. History rows are `Selectable`/`selectable_label`.
+- **Rust Tauri**: the backend holds `review` and adds `review_move`, `review_back` and
+  `continue_from_review` commands; the snapshot's `board`/`towers`/`legal` describe the shown board, with
+  `won` (live) and `board_won` (shown) kept apart so the win celebration doesn't refire. The frontend's
+  history items are clickable and the question is an HTML `<dialog>`.
 
-- **A move while reviewing asks:** "Continue from move *k*? Moves *k+1*…*n* will be deleted." Yes truncates and applies the move; No returns to review. The board is not interactive until the student answers.
-- **Truncating a won game is allowed:** it un-wins the game and disables Save until the next win.
-- **Past states are shown under the current labelling** (no change to the history model).
-- **Text UIs:** a `history <k>` command is a follow-up task, filed when this one is archived, not part of it.
+## Verification
+
+- Python: `format`, `type-check`, `test` (140 passed, 2 skipped) green; `python/tools/gui_smoke.py` now
+  also drives review → "no" (game unchanged) → "yes" (truncated, new move made); prints `SMOKE OK 2`.
+- C++: format clean; full native build with no warnings; doctest 20/20 cases.
+- Rust: `format`, `check --workspace --all-targets`, `test --workspace`, the egui and Tauri `cargo check`s,
+  and the Deno type-check gate green.
+- Not checked: the feel on a real display (all six UIs). That is the maintainer's on-display check.
+
+## Follow-up (not filed)
+
+A text-UI `history <k>` command (print the board after move *k*) was left out by decision; file it if
+wanted.

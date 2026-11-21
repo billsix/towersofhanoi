@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use crate::model::{HanoiGame, Move};
+use crate::model::{HanoiGame, Move, MoveError};
 use crate::presenter::{label_to_tower, labels_to_towers, Labelling};
 
 /// A saved sequence of moves in default-label space (1-indexed).
@@ -81,10 +81,50 @@ impl Recorder {
         self.default_moves.clear();
     }
 
+    /// Keep only the first `count` recorded moves, dropping the rest.
+    ///
+    /// # Examples
+    /// ```
+    /// use hanoigame::Recorder;
+    /// let mut rec: Recorder = Recorder { default_moves: vec![(1, 3), (1, 2), (3, 2)] };
+    /// rec.truncate(1);
+    /// assert_eq!(rec.default_moves, vec![(1, 3)]);
+    /// ```
+    pub fn truncate(&mut self, count: usize) {
+        self.default_moves.truncate(count);
+    }
+
     /// Freeze the recorded moves into a named [`Recipe`].
     pub fn to_recipe(&self, name: &str, disk_count: u32) -> Recipe {
         Recipe::new(name, disk_count, self.default_moves.clone())
     }
+}
+
+/// Replay recorded moves on a fresh game: the board after those moves. This is
+/// how a front-end shows "the board as it was after move k" when the student
+/// reviews the move history (replay the first k moves).
+///
+/// `moves` are in default-label space (1-indexed physical pegs), as a
+/// [`Recorder`] stores them; a move that is illegal at its point in the replay
+/// returns its [`MoveError`].
+///
+/// # Examples
+/// ```
+/// use hanoigame::recipe::replay_default_moves;
+/// let game = replay_default_moves(2, &[(1, 2), (1, 3)]).unwrap();
+/// assert_eq!(game.towers, [vec![], vec![1], vec![2]]);
+/// assert_eq!(game.current_moves, 2);
+/// assert!(replay_default_moves(2, &[(2, 3)]).is_err()); // peg 2 is empty
+/// ```
+pub fn replay_default_moves(num_disks: u32, moves: &[(u32, u32)]) -> Result<HanoiGame, MoveError> {
+    let mut game: HanoiGame = HanoiGame::new(num_disks);
+    for &(from_default, to_default) in moves {
+        game.apply_move(Move::new(
+            from_default as usize - 1,
+            to_default as usize - 1,
+        ))?;
+    }
+    Ok(game)
 }
 
 /// In-memory recipe store, scoped to a single session.

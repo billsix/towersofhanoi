@@ -27,6 +27,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -750,12 +751,91 @@ private:
     history_list_->SetFont(mono);
     const int row_h = std::max(1, history_list_->GetCharHeight());
     history_list_->SetMinSize(wxSize(240, row_h * 12 + 8));
+    // Clicking a move (or arrowing through them) shows the board as it was
+    // after that move; "Back to current" returns to the live game.
+    history_list_->Bind(wxEVT_LISTBOX, &HanoiFrame::on_history_select, this);
+    history_back_ = new wxButton(panel, wxID_ANY, "Back to current");
+    history_back_->Bind(wxEVT_BUTTON, &HanoiFrame::on_history_back, this);
+    history_back_->Enable(false);
     wxBoxSizer *sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(title, 0, wxALL, 6);
     sizer->Add(history_header_, 0, wxLEFT | wxRIGHT | wxBOTTOM, 6);
     sizer->Add(history_list_, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
+    sizer->Add(history_back_, 0, wxLEFT | wxRIGHT | wxBOTTOM, 6);
     panel->SetSizer(sizer);
     return panel;
+  }
+
+  // Review the board as it was after the selected move; selecting the last
+  // move is the live game, so it leaves review.
+  void on_history_select(wxCommandEvent &) {
+    const int row = history_list_->GetSelection();
+    if (row == wxNOT_FOUND) {
+      return;
+    }
+    const int count = row + 1;
+    const int total = static_cast<int>(recorder_.moves().size());
+    if (count >= total) {
+      review_count_ = -1;
+      review_game_.reset();
+      set_status("");
+    } else {
+      const std::vector<std::array<int, 2>> first(
+          recorder_.moves().begin(),
+          recorder_.moves().begin() + static_cast<std::ptrdiff_t>(count));
+      review_count_ = count;
+      review_game_ = hanoi::replay_default_moves(game_.num_disks(), first);
+      set_status(wxString::Format("Reviewing move %d of %d. Make a move to "
+                                  "continue from here, or Back to current.",
+                                  count, total));
+    }
+    refresh();
+  }
+
+  void on_history_back(wxCommandEvent &) {
+    review_count_ = -1;
+    review_game_.reset();
+    set_status("");
+    refresh();
+  }
+
+  // The game the board shows: the reviewed state, or the live game.
+  const hanoi::Game &shown_game() const {
+    return review_game_ ? *review_game_ : game_;
+  }
+
+  // Before a move or an apply while reviewing, ask whether to continue from
+  // the reviewed move, deleting every later one. True when the caller may go
+  // on (not reviewing, or the student said yes and the later moves were
+  // deleted).
+  bool confirm_leave_review() {
+    if (review_count_ < 0 || !review_game_) {
+      return true;
+    }
+    const int count = review_count_;
+    const int total = static_cast<int>(recorder_.moves().size());
+    const wxString later =
+        count + 1 == total
+            ? wxString::Format("move %d", total)
+            : wxString::Format("moves %d%s%d", count + 1,
+                               wxString::FromUTF8("\u2013"), total);
+    wxMessageDialog dlg(
+        this,
+        wxString::Format("Continue from move %d? This deletes %s.", count,
+                         later),
+        "Continue from here?", wxYES_NO | wxICON_QUESTION);
+    if (dlg.ShowModal() != wxID_YES) {
+      refresh(); // snap a dragged disc back onto the reviewed board
+      return false;
+    }
+    game_ = *review_game_;
+    recorder_.truncate(static_cast<std::size_t>(count));
+    review_count_ = -1;
+    review_game_.reset();
+    // The game changed, so a saved or replayed win no longer describes it.
+    saved_current_ = false;
+    won_via_apply_ = false;
+    return true;
   }
 
   // --- Engine helpers --------------------------------------------------
@@ -773,6 +853,8 @@ private:
     disk_count_ = n;
     game_ = hanoi::Game(n);
     recorder_.reset();
+    review_count_ = -1;
+    review_game_.reset();
     labelling_ = hanoi::Labelling::OneTwoThree;
     won_via_apply_ = false;
     saved_current_ = false;
@@ -837,6 +919,9 @@ private:
   // already redrew the true state). Mirrors the wxPython
   // _on_board_drop/_on_move.
   void on_board_drop(int from_peg, int to_peg) {
+    if (!confirm_leave_review()) {
+      return;
+    }
     const int from_label =
         hanoi::change_labels_on_pegs(labelling_, from_peg) + 1;
     const int to_label = hanoi::change_labels_on_pegs(labelling_, to_peg) + 1;
@@ -871,6 +956,9 @@ private:
   }
 
   void on_move(int from_label, int to_label) {
+    if (!confirm_leave_review()) {
+      return;
+    }
     const bool relabelled = labelling_ != hanoi::Labelling::OneTwoThree;
     const std::optional<std::array<int, 2>> physical =
         hanoi::labels_to_towers(labelling_, from_label, to_label);
@@ -914,6 +1002,9 @@ private:
   void apply_recipe_by_name(const std::string &name) {
     const hanoi::Recipe *r = registry_.get(name);
     if (r == nullptr) {
+      return;
+    }
+    if (!confirm_leave_review()) {
       return;
     }
     const bool relabelled = labelling_ != hanoi::Labelling::OneTwoThree;
@@ -1208,13 +1299,16 @@ private:
   }
 
   void refresh() {
-    board_.set_state(&game_, labelling_);
-    const bool w = won();
+    // The board, dragging and the move buttons follow the board shown (a
+    // reviewed state can have legal moves even when the live game is won).
+    const hanoi::Game &shown = shown_game();
+    board_.set_state(&shown, labelling_);
+    const bool w = shown.check_win_condition();
     board_.set_interactive(!w); // disc dragging off once solved
-    SetStatusText(wxString::Format("Moves: %d", game_.current_moves()), 2);
+    SetStatusText(wxString::Format("Moves: %d", shown.current_moves()), 2);
 
     std::array<bool, 6> legal{};
-    for (const hanoi::Move &m : game_.move_options()) {
+    for (const hanoi::Move &m : shown.move_options()) {
       const int fl = hanoi::change_labels_on_pegs(labelling_, m.from_peg) + 1;
       const int tl = hanoi::change_labels_on_pegs(labelling_, m.to_peg) + 1;
       legal[static_cast<std::size_t>(label_pair_index(fl, tl))] = true;
@@ -1246,7 +1340,7 @@ private:
     if (recipe_menu_pos_ >= 0) {
       mb->EnableTop(static_cast<std::size_t>(recipe_menu_pos_), won_once_);
     }
-    recipe_save_item_->Enable(w); // can only save a won game
+    recipe_save_item_->Enable(won()); // can only save a won game
     // Keep the Recipe menu's submenus in sync with the registry; recipes
     // change only on save, so rebuild only when the set differs.
     if (registry_.names() != recipe_menu_names_) {
@@ -1268,6 +1362,12 @@ private:
     for (std::size_t i = 0; i < moves.size(); ++i) {
       history_list_->Append(
           wxString::Format("%zu. %d -> %d", i + 1, moves[i][0], moves[i][1]));
+    }
+    if (review_count_ > 0) {
+      history_list_->SetSelection(review_count_ - 1);
+    }
+    if (history_back_ != nullptr) {
+      history_back_->Enable(review_count_ > 0);
     }
     const std::size_t count = moves.size();
     history_header_->SetLabel(wxString::Format(
@@ -1343,6 +1443,11 @@ private:
   wxPanel *history_panel_ = nullptr;
   wxStaticText *history_header_ = nullptr;
   wxListBox *history_list_ = nullptr;
+  wxButton *history_back_ = nullptr;
+  // History review (clicking a history row): how many moves the board shows
+  // (-1 = the live game) and the board after them.
+  int review_count_ = -1;
+  std::optional<hanoi::Game> review_game_;
 };
 
 const std::array<std::array<int, 3>, 6> HanoiFrame::kRelabelPerms{

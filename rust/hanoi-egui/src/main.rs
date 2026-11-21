@@ -20,7 +20,7 @@ use hanoigame::presenter::{
     change_labels_on_pegs, default_recipe_name, format_move_tally, format_win_celebration,
     Labelling,
 };
-use hanoigame::recipe::{rebinding, rebound_moves, RecipeRegistry, Recorder};
+use hanoigame::recipe::{rebinding, rebound_moves, replay_default_moves, RecipeRegistry, Recorder};
 
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
@@ -114,6 +114,12 @@ struct HanoiApp {
     /// The three-panel rebinding view (feature-spec §4.8), shown in the detail
     /// area instead of `detail` while set.
     rebind: Option<RebindView>,
+    /// History review (clicking a history row): how many moves the board shows
+    /// and the board after them, or None for the live game.
+    review: Option<(usize, HanoiGame)>,
+    /// A move or apply made while reviewing, waiting on the "continue from
+    /// here?" window; the board and move buttons are off until it is answered.
+    pending_continue: Option<PendingAction>,
     /// Disc drag-drop (spike, mirrored across the GUIs): the physical peg (0,1,2)
     /// whose top disc is being dragged, its size, and the pointer position.
     drag_src: Option<usize>,
@@ -157,6 +163,8 @@ impl HanoiApp {
             detail_title: String::new(),
             detail: Vec::new(),
             rebind: None,
+            review: None,
+            pending_continue: None,
             drag_src: None,
             drag_size: 0,
             drag_pos: egui::Pos2::ZERO,
@@ -202,6 +210,8 @@ impl HanoiApp {
         self.status.clear();
         self.detail.clear();
         self.rebind = None;
+        self.review = None;
+        self.pending_continue = None;
         self.win_dialog = None;
         self.won_via_apply = false;
         self.saved_current = false;
@@ -227,9 +237,44 @@ impl HanoiApp {
         (1u64 << self.game.num_disks) - 1
     }
 
+    /// The game the board shows: the reviewed state, or the live game.
+    fn board(&self) -> &HanoiGame {
+        self.review.as_ref().map_or(&self.game, |(_, game)| game)
+    }
+
+    /// Review the board as it was after the first `count` moves; the last move
+    /// is the live game, so reviewing it leaves review.
+    fn review_move(&mut self, count: usize) {
+        let total: usize = self.recorder.default_moves.len();
+        if count >= total {
+            self.review = None;
+            self.status.clear();
+            return;
+        }
+        let game: HanoiGame =
+            replay_default_moves(self.game.num_disks, &self.recorder.default_moves[..count])
+                .expect("the recorder only holds moves that were legal when made");
+        self.review = Some((count, game));
+        self.status = format!(
+            "Reviewing move {count} of {total}. Make a move to continue from here, or Back to current."
+        );
+    }
+
+    /// Continue from the reviewed move: the live game becomes the reviewed
+    /// board and every later move is deleted.
+    fn continue_from_review(&mut self) {
+        if let Some((count, game)) = self.review.take() {
+            self.game = game;
+            self.recorder.truncate(count);
+            // The game changed, so a saved or replayed win no longer describes it.
+            self.saved_current = false;
+            self.won_via_apply = false;
+        }
+    }
+
     /// The legal (from_label, to_label) moves in the current labelling.
     fn legal_moves(&self) -> Vec<(u32, u32)> {
-        self.game
+        self.board()
             .move_options()
             .iter()
             .map(|mv| {
@@ -242,6 +287,10 @@ impl HanoiApp {
     }
 
     fn do_move(&mut self, from_label: u32, to_label: u32) {
+        if self.review.is_some() {
+            self.pending_continue = Some(PendingAction::Move(from_label, to_label));
+            return;
+        }
         let relabelled: bool = self.labelling != Labelling::OneTwoThree;
         let result: DispatchResult = self.dispatch(&Command::Move {
             from_label,
@@ -279,6 +328,10 @@ impl HanoiApp {
     /// relabelled, the per-step log is suppressed by the core, so the move count
     /// comes from the recipe itself and a rebinding table is shown.
     fn apply_recipe_named(&mut self, name: &str) {
+        if self.review.is_some() {
+            self.pending_continue = Some(PendingAction::Apply(name.to_string()));
+            return;
+        }
         let relabelled: bool = self.labelling != Labelling::OneTwoThree;
         let moves: Option<Vec<(u32, u32)>> =
             self.registry.get(name).map(|r| r.default_moves.clone());
@@ -423,7 +476,7 @@ impl HanoiApp {
         }
 
         // Discs (bottom-up), coloured by size; omit the one being dragged.
-        for (p, stack) in self.game.towers.iter().enumerate() {
+        for (p, stack) in self.board().towers.iter().enumerate() {
             let cx: f32 = peg_centres[p];
             for (idx, &size) in stack.iter().enumerate() {
                 if self.drag_src == Some(p) && idx + 1 == stack.len() {
@@ -489,7 +542,7 @@ impl HanoiApp {
     /// nearest peg (forgiving) and dispatches through `do_move`. Off once won.
     /// Mirrors the wxPython GraphicsBoardRenderer spike + the ImGui port.
     fn handle_board_drag(&mut self, response: &egui::Response, geom: &BoardGeom) {
-        if self.is_won() {
+        if self.board().check_win_condition() || self.pending_continue.is_some() {
             self.drag_src = None;
             return;
         }
@@ -505,7 +558,7 @@ impl HanoiApp {
         if response.drag_started() {
             if let Some(pos) = response.interact_pointer_pos() {
                 let peg: usize = nearest(pos.x);
-                if let Some(&top) = self.game.towers[peg].last() {
+                if let Some(&top) = self.board().towers[peg].last() {
                     self.drag_src = Some(peg);
                     self.drag_size = top;
                     self.drag_pos = pos;
@@ -528,6 +581,14 @@ impl HanoiApp {
             }
         }
     }
+}
+
+/// A move or recipe apply asked for while reviewing the history, held until
+/// the student answers "continue from here?".
+#[derive(Clone)]
+enum PendingAction {
+    Move(u32, u32),
+    Apply(String),
 }
 
 /// The three-panel rebinding view (feature-spec §4.8) as one grid: your move /
@@ -603,6 +664,10 @@ impl eframe::App for HanoiApp {
             self.help_shown = true;
         }
         let legal: Vec<(u32, u32)> = self.legal_moves();
+        // The move buttons follow the board shown (a reviewed state can have
+        // legal moves even when the live game is won).
+        let board_won: bool = self.board().check_win_condition();
+        let waiting: bool = self.pending_continue.is_some();
         let current: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
         let n: u32 = self.game.num_disks;
@@ -713,11 +778,24 @@ impl eframe::App for HanoiApp {
                 if tally.is_empty() {
                     ui.weak("(no moves yet)");
                 } else {
-                    for line in &tally {
-                        ui.monospace(line);
+                    // Clicking a move shows the board as it was after it.
+                    let reviewing: Option<usize> = self.review.as_ref().map(|(count, _)| *count);
+                    for (i, line) in tally.iter().enumerate() {
+                        let text: egui::RichText = egui::RichText::new(line).monospace();
+                        if ui
+                            .selectable_label(reviewing == Some(i + 1), text)
+                            .clicked()
+                        {
+                            self.review_move(i + 1);
+                        }
                     }
                 }
             });
+            if self.review.is_some() && ui.button("Back to current").clicked() {
+                self.review = None;
+                self.pending_continue = None;
+                self.status.clear();
+            }
             if let Some(view) = self.rebind.as_mut() {
                 ui.separator();
                 ui.label(&self.detail_title);
@@ -770,7 +848,7 @@ impl eframe::App for HanoiApp {
                 for from in 1..=3u32 {
                     ui.vertical(|ui| {
                         for &(f, t) in MOVE_PAIRS.iter().filter(|(f, _)| *f == from) {
-                            let enabled: bool = !won && legal.contains(&(f, t));
+                            let enabled: bool = !board_won && !waiting && legal.contains(&(f, t));
                             if ui
                                 .add_enabled(enabled, egui::Button::new(format!("{f} -> {t}")))
                                 .clicked()
@@ -879,6 +957,49 @@ impl eframe::App for HanoiApp {
                 self.request_new_game(d);
             } else if cancel || !open {
                 self.open_disc_picker = false;
+            }
+        }
+
+        // A move or apply made while reviewing: continue from the reviewed move
+        // (deleting the later ones) or stay in review.
+        if let (Some(action), Some((count, _))) =
+            (self.pending_continue.clone(), self.review.as_ref())
+        {
+            let count: usize = *count;
+            let total: usize = self.recorder.default_moves.len();
+            let later: String = if count + 1 == total {
+                format!("move {total}")
+            } else {
+                format!("moves {}-{total}", count + 1)
+            };
+            let mut decided: Option<bool> = None;
+            egui::Window::new("Continue from here?")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    ui.label(format!("Continue from move {count}? This deletes {later}."));
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Yes").clicked() {
+                            decided = Some(true);
+                        }
+                        if ui.button("No").clicked() {
+                            decided = Some(false);
+                        }
+                    });
+                });
+            if let Some(yes) = decided {
+                self.pending_continue = None;
+                if yes {
+                    self.continue_from_review();
+                    match action {
+                        PendingAction::Move(from_label, to_label) => {
+                            self.do_move(from_label, to_label)
+                        }
+                        PendingAction::Apply(name) => self.apply_recipe_named(&name),
+                    }
+                }
             }
         }
 
