@@ -809,6 +809,16 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
     }
 }
 
+/// The fixed-width font every text view that shows aligned columns uses (the
+/// text board, the move history, the recipe and rebinding views), as the
+/// Python oracle's `wx.FONTFAMILY_TELETYPE`. `None` if the font can't be built.
+fn monospace_font() -> Option<Font> {
+    Font::builder()
+        .with_point_size(11)
+        .with_family(FontFamily::Teletype)
+        .build()
+}
+
 /// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
 /// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
 /// a proportional font, which collapses the columns. A read-only teletype `TextCtrl`
@@ -818,11 +828,7 @@ fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
     let text: TextCtrl = TextCtrl::builder(&dlg)
         .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
         .build();
-    if let Some(mono) = Font::builder()
-        .with_point_size(11)
-        .with_family(FontFamily::Teletype)
-        .build()
-    {
+    if let Some(mono) = monospace_font() {
         text.set_font(&mono);
     }
     text.set_value(&lines.join("\n"));
@@ -887,10 +893,7 @@ fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: L
         return;
     }
     let dlg: Dialog = Dialog::builder(frame, title).with_size(640, 460).build();
-    let mono: Option<Font> = Font::builder()
-        .with_point_size(11)
-        .with_family(FontFamily::Teletype)
-        .build();
+    let mono: Option<Font> = monospace_font();
     let rows: Vec<String> = rebinding_rows(moves, labelling, None);
     let header: StaticText = StaticText::builder(&dlg).with_label(&rows[0]).build();
     let list: ListBox = ListBox::builder(&dlg).build();
@@ -1373,6 +1376,11 @@ fn main() {
         let board_text: TextCtrl = TextCtrl::builder(&board_slot)
             .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
             .build();
+        // The text board is ASCII art: its columns line up only in a fixed-width
+        // font (and `centred_board_text` pads by the character width).
+        if let Some(mono) = monospace_font() {
+            board_text.set_font(&mono);
+        }
         board_text.show(false); // graphics is the default view
         let slot_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         slot_sizer.add(&board_graphics, 1, SizerFlag::Expand, 0);
@@ -1427,11 +1435,7 @@ fn main() {
         }
         let history_header: StaticText = StaticText::builder(&history_panel).with_label("").build();
         let history_list: ListBox = ListBox::builder(&history_panel).build();
-        if let Some(mono) = Font::builder()
-            .with_point_size(11)
-            .with_family(FontFamily::Teletype)
-            .build()
-        {
+        if let Some(mono) = monospace_font() {
             history_list.set_font(&mono);
         }
         history_list.set_min_size(Size::new(240, 220));

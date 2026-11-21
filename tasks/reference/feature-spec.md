@@ -276,6 +276,10 @@ These are recommendations for *how* a category of UI presents the features above
   treats a non-empty move result as an error — `engine.move_teaching_lines` docstring.)
 - Colour the pegs by **label** (so colour tracks a label across relabels). Offer the save-recipe
   **prompt on winning**. A 2D-graphics board or a text board are both acceptable.
+- **Every text view that shows aligned columns uses a fixed-width font** — the text board, the move
+  history, the recipe view and the rebinding view. The shared lines (`presenter.render`,
+  `recipe.format_rebinding_table`, `presenter.format_move_tally`) are aligned by character count, so a
+  proportional font makes the columns drift (the Rust wx text board did, until 2026-11-21).
 
 ## 7. Compliance checklist (per implementation / UI)
 
@@ -316,6 +320,8 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
     helper. UX rationale: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
 21. **History review** (§4.11, GUIs): clicking a history move shows the board after it; a move while
     reviewing asks to continue from there, deleting the later moves.
+22. **Fixed-width text views** (§6.2, GUIs): the text board, move history, recipe view and rebinding
+    view use a monospace font.
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 

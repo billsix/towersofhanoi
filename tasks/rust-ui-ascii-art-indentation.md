@@ -1,60 +1,38 @@
-# Investigate the ASCII-art indentation problems in the Rust UIs
+# ASCII-art indentation in the Rust UIs (done 2026-11-21)
 
-**Status:** proposed — needs go-ahead
-**Priority:** 5
-**Difficulty:** 3
-**Created:** 2026-11-05 (William Emerison Six <billsix@gmail.com>)
+**Priority:** 5 **Difficulty:** 3
+**Created:** 2026-11-05; **done:** 2026-11-21 (William Emerison Six <billsix@gmail.com>); branch
+`gui-batch-2026-11-21`.
 
-## BLUF
+## What was found
 
-The maintainer sees indentation problems in the ASCII art (the text board, and possibly the recipe and
-rebinding tables) in the Rust wx GUI, and maybe the other Rust UIs. Find each place where it breaks, find
-the cause, and fix it so every Rust UI lines up the same way the Python wx GUI (the oracle) does. Done
-means a screenshot of each Rust UI's text views lines up column-for-column with the Python wx GUI.
+The Rust wx GUI's **text board** (`rust/hanoi-gui/src/main.rs`, the `board_text` `TextCtrl`) was drawn in
+the default proportional font. Reproduced on screen under Xvfb: with the text board selected, the pegs,
+discs and label row drifted out of their columns, and the board sat left of centre because
+`centred_board_text` pads by `get_char_width()`, which is an average width in a proportional font. This
+was the lead recorded when the task was written, confirmed.
 
-## Context (read first)
+The other Rust text views were already fine, checked 2026-11-21:
 
-- `tasks/reference/feature-spec.md` §4.3 (board label rows) and §4.8 (the three-panel rebinding table)
-  say what the text views show. `python/src/hanoigame/presenter.py` `render` and
-  `recipe.format_rebinding_table` produce the lines; the Rust `hanoigame` crate mirrors them.
-- Rust UIs: `rust/hanoi-gui/` (wxDragon), `rust/hanoi-egui/` (egui, native + web), `rust/tauri/`
-  (webview), plus the ratatui TUI and the CLI.
-- How to see a GUI headless: Xvfb + screenshot, per the nested-run-and-gates.md reference doc in
-  github.com/billsix/runClaudeInContainer.
+- wx history list, recipe dialog (`show_monospace_dialog`) and rebinding view: teletype font.
+- TUI (`rust/hanoi`): every board line is `presenter::total_width(n)` wide (the
+  `board_lines_match_presenter_width` test asserts it), so per-line centring keeps the columns.
+- egui: the board is painted graphics; the text views use `monospace`.
+- Tauri: the board is a `<pre>` with the `--font-mono` stack.
+- No `trim()` touches any rendered line.
 
-## Lead found while writing this task (2026-11-05, not yet verified on screen)
+## What was done
 
-**The Rust wx text board never gets a monospace font.** In `rust/hanoi-gui/src/main.rs`, the
-`board_text` `TextCtrl` built in the frame setup (`TextCtrl::builder(&board_slot)` with
-`MultiLine | ReadOnly`) has no `set_font` call. The Python oracle sets a teletype font on its text board
-(`python/src/hanoigame/board_renderers.py`, the text renderer's control, `wx.FONTFAMILY_TELETYPE`), and
-the Rust GUI already does this for its other text views (`show_monospace_dialog`, and the history
-`ListBox`). In a proportional font, spaces are narrower than `*` and `|`, so the board's columns drift.
-It has a second effect: `centred_board_text` pads using `get_char_width()`, which is an *average* width
-in a proportional font, so the centring is off too.
+- `monospace_font()` in `rust/hanoi-gui/src/main.rs`: one helper for the 11 pt teletype font, now set on
+  the text board too, and used by the history list, the recipe dialog and the rebinding view.
+- `tasks/reference/feature-spec.md` §6.2 now says every text view with aligned columns uses a
+  fixed-width font, with compliance row 22.
 
-Already checked, less likely to be the cause:
+## Verification
 
-- The C++ wx GUI (`cpp/hanoiwx.cpp`) sets `wxFONTFAMILY_TELETYPE` on its text views.
-- Tauri renders the board in a `<pre id="board">` with a monospace font stack (`--font-mono` in
-  `rust/tauri/frontend/style.css`).
-- egui uses `ui.monospace(line)` for the rebinding and recipe lines. Its win dialog uses `ui.label`,
-  but that text isn't ASCII art.
-
-## Plan
-
-1. Reproduce: run each Rust UI under Xvfb, switch to the text board, make a few moves, relabel, and
-   apply a recipe. Screenshot the board, the recipe view, the rebinding table, and the move history next
-   to the Python wx GUI's.
-2. For each misaligned view, find the cause. Candidates: a proportional font; leading whitespace
-   trimmed by a widget or a `trim()`; tabs; centring maths that assumes fixed-width characters;
-   non-ASCII characters (`—`, `→`) that render wider than one column in some fonts.
-3. Fix it in the UI layer (front-ends stay thin; the shared `presenter` lines are correct as long as the
-   CLI/TUI line up). Prefer one shared helper per front-end for "make a monospace text control".
-4. Check that the egui web build and the Tauri app still render the same.
-5. Add the "text views use a monospace font" rule to the feature spec's GUI guidance (§6.2) and its
-   compliance checklist (§7), if it isn't already there.
-
-## Open questions
-
-None yet. Step 1 may show the problem is somewhere else than the lead suggests.
+- Before/after screenshots of the text board (Xvfb, driven by clicks): after the fix the columns line up
+  and the board is centred, matching the Python wx text board. The click script and its image are
+  `tasks/adhoc/rust-ui-ascii-art-indentation/shot.sh` and `Containerfile` (one-shot, removed at
+  archive). The same run showed the history-review mode of the previous task working on screen.
+- Rust gates green: `format`, `check --workspace --all-targets`, `test --workspace`, the egui and Tauri
+  `cargo check`s, and the Deno type-check.
