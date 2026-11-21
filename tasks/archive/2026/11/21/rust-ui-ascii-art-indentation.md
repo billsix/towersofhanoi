@@ -31,8 +31,8 @@ The other Rust text views were already fine, checked 2026-11-21:
 ## Verification
 
 - Before/after screenshots of the text board (Xvfb, driven by clicks): after the fix the columns line up
-  and the board is centred, matching the Python wx text board. The click script and its image are
-  `tasks/adhoc/rust-ui-ascii-art-indentation/shot.sh` and `Containerfile` (one-shot, removed at
-  archive). The same run showed the history-review mode of the previous task working on screen.
+  and the board is centred, matching the Python wx text board. The one-shot click script and its image
+  (`shot.sh`, `Containerfile`) were committed under `tasks/adhoc/rust-ui-ascii-art-indentation/` with the
+  fix and removed at archive; `git show d1f4623 -- tasks/adhoc` recovers them. The same run showed the history-review mode of the previous task working on screen.
 - Rust gates green: `format`, `check --workspace --all-targets`, `test --workspace`, the egui and Tauri
   `cargo check`s, and the Deno type-check.

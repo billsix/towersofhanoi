@@ -1,2 +1,0 @@
-FROM localhost/hanoi-rust:latest
-RUN dnf install -y xorg-x11-server-Xvfb xorg-x11-xauth xdotool ImageMagick && dnf clean all
