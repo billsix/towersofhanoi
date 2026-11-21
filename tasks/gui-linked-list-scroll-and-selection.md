@@ -1,6 +1,6 @@
 # Link side-by-side lists in the GUIs: scrolling or selecting in one moves the other
 
-**Status:** proposed — needs go-ahead (open questions below)
+**Status:** proposed — needs go-ahead (decisions recorded 2026-11-21; no open questions)
 **Priority:** 3
 **Difficulty:** 4 (per-toolkit mechanics differ; five GUIs)
 **Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>)
@@ -22,7 +22,7 @@ graphical UI is linked, and the behaviour is written into the feature spec.
   `rebound_moves` (`python/src/hanoigame/recipe.py`; Rust `rust/hanoigame/src/recipe.rs`). The left
   and right lists have one row per move, so row *i* ↔ row *i*. The middle panel is the label→peg key
   (three rows), not a per-move list. Whether it should highlight the row the selected move uses is
-  Open question 2.
+  Decisions: yes, it highlights them.
 - Per UI, where the three-panel view lives:
   - Python wx (oracle): `RebindingDialog` in `ui/hanoi.xrc` (`rebind_left`, `rebind_key` (a
     `wx.StaticText`), `rebind_right`), filled in `hanoigui.py` (look for `rebind_left`). wx has no
@@ -49,11 +49,7 @@ graphical UI is linked, and the behaviour is written into the feature spec.
 2. Write the behaviour into feature-spec §4.8 and a new compliance row.
 3. Fan out to the other four GUIs, one checklist item each; run each subproject's gate.
 
-## Open questions
+## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "go with your recommendations")
 
-1. **Single table instead of linked lists?** Replacing the three lists with one three-column table
-   gives linked scroll and selection for free in every toolkit. Is that acceptable, or must they
-   stay three separate panels? *Recommend a single table where the toolkit has one (ImGui, egui,
-   Tauri), and linked `ListBox`es in the wx UIs, keeping the visual three-panel look.*
-2. **Middle panel:** when a move is selected, should the label→peg key highlight the two bindings
-   that move uses? *Recommend yes; it is the point of the view.*
+- **One table where the toolkit has one** (ImGui `BeginTable`, egui `TableBuilder`, the Tauri DOM): linked scroll and selection for free, drawn to keep the three-panel look. The wx UIs keep three `ListBox`es, linked by mirroring selection and the first visible row.
+- **The middle panel highlights** the two label→peg bindings the selected move uses.

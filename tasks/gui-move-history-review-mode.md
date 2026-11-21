@@ -1,6 +1,6 @@
 # Click a move in the history panel to review the board as it was then
 
-**Status:** proposed — needs go-ahead (open questions below)
+**Status:** proposed — needs go-ahead (decisions recorded 2026-11-21; no open questions)
 **Priority:** 4
 **Difficulty:** 6 (a core change in Python and Rust, then five GUIs)
 **Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>)
@@ -21,7 +21,7 @@ shared-core API, and the feature spec describes it.
   `tasks/reference/ui-design-principles.md`, `tasks/reference/learner-knowledge-states.md`.
 - The history is moves only, in **default-label space**; relabels are not listed. So "the state at
   move *k*" = replay the first *k* moves from the start position. The labelling shown while
-  reviewing is Open question 3.
+  reviewing is the current one (Decisions).
 - Keep the front-ends thin (repo `CLAUDE.md`): put "state after *k* moves" and "truncate to *k*
   moves" in the shared core (Python `python/src/hanoigame/engine.py` / `hanoimodel.py`, mirrored in
   `rust/hanoigame/`; C++ has its own engine in `cpp/`), with unit tests, then have each GUI call it.
@@ -40,16 +40,9 @@ shared-core API, and the feature spec describes it.
 3. Maintainer's on-display check, then fan out to C++ ImGui, C++ wx, Rust wxDragon, egui, Tauri.
 4. Feature spec §4.11 + a compliance row; each subproject's gate.
 
-## Open questions
+## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "go with your recommendations")
 
-1. **A move made while reviewing:** (a) block it until "Back to current" is pressed, or (b) ask
-   "Continue from move *k*? Moves *k+1*…*n* will be deleted" and truncate on yes? *Recommend (b),
-   with the board non-interactive until the student answers; it is the one you described as the goal.*
-2. **After a win:** should truncating a won game (continuing from an earlier move) be allowed, so the
-   student can try a different line? *Recommend yes; it un-wins the game and disables Save until the
-   next win.*
-3. **Labelling while reviewing:** show the past board under the **current** labelling, or under the
-   labelling that was active at move *k*? The history does not record relabels today, so the second
-   needs relabel events added to the history model. *Recommend the current labelling (no model change).*
-4. **Text UIs:** should the CLI/TUI get a matching command (e.g. `history <k>` to print the board at
-   move *k*)? *Recommend yes, but as a follow-up task, not part of this one.*
+- **A move while reviewing asks:** "Continue from move *k*? Moves *k+1*…*n* will be deleted." Yes truncates and applies the move; No returns to review. The board is not interactive until the student answers.
+- **Truncating a won game is allowed:** it un-wins the game and disables Save until the next win.
+- **Past states are shown under the current labelling** (no change to the history model).
+- **Text UIs:** a `history <k>` command is a follow-up task, filed when this one is archived, not part of it.

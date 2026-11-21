@@ -1,6 +1,6 @@
 # Python OpenGL 3.3 3D board: torus discs, orbit camera, color-ID picking, discs slide up the peg
 
-**Status:** proposed — needs go-ahead (open questions below)
+**Status:** proposed — needs go-ahead (decisions recorded 2026-11-21; no open questions)
 **Priority:** 5
 **Difficulty:** 7
 **Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>)
@@ -26,7 +26,7 @@ picking code clear enough to teach from.
   rows it skips).
 - **The later destination is modelviewprojection** (github.com/billsix/modelviewprojection). It uses
   `glfw`, PyOpenGL and `gacalc[gl]` (its `requirements.txt`). Using the same stack and
-  coordinate-frame style makes the port to it a copy, not a rewrite (Open question 1).
+  coordinate-frame style makes the port to it a copy, not a rewrite (Decisions: same stack).
 - Keep the front-end thin: a drop becomes a `<from>→<to>` move through `engine.dispatch` /
   `commands.parse`, as the wx drag does (`python/src/hanoigame/hanoigui.py` `_on_board_drop`).
 - Picking, as the maintainer specified it:
@@ -36,7 +36,7 @@ picking code clear enough to teach from.
   3. `glReadPixels` the one pixel under the cursor (flip y), decode the ID.
   4. Unbind the FBO and draw the real frame, now knowing what was selected.
   Pickable: the **top** disc of each peg (others ignored, or picked but rejected with the usual
-  message); possibly the pegs as drop targets (Open question 3).
+  message); pegs are not pickable (Decisions).
 - Disc motion: lift along the peg's axis until the disc's hole clears the peg top, then move with the
   cursor in a plane above the pegs, then lower onto the target peg. Collision: the lifted disc must
   not intersect a peg or another stack while moving (bounding cylinders are enough); the drop target
@@ -59,17 +59,10 @@ picking code clear enough to teach from.
 6. A `make gl` target, a headless smoke test if feasible (Xvfb + Mesa llvmpipe supports 3.3 core),
    and a short reference note on the picking design for the modelviewprojection port.
 
-## Open questions
+## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "go with your recommendations")
 
-1. **Windowing stack:** (a) `glfw` + PyOpenGL, the same as modelviewprojection, or (b) a
-   `wx.glcanvas.GLCanvas` inside the existing wxPython app (menus, history panel and recipes come for
-   free)? *Recommend (a): the stated goal is importing it into modelviewprojection, and (b) ties the
-   picking lesson to wx.*
-2. **Torus meshes:** (a) generate them in code (parametric torus → vertex/normal/index buffers), or
-   (b) export from Blender and load (needs a loader and committed asset files)? *Recommend (a): no
-   asset pipeline, any disc size from one function, and the math is itself teachable.*
-3. **Peg pick IDs:** should pegs get IDs too (so a drop target is "the peg under the cursor"), or is
-   nearest-peg targeting by position enough? *Recommend nearest-peg by position, matching ruling #7;
-   pick only discs.*
-4. **Use gacalc for the transforms** (as modelviewprojection does), or plain matrices? *Recommend
-   gacalc if (a) in question 1, for consistency with modelviewprojection.*
+- **Stack: `glfw` + PyOpenGL**, as modelviewprojection uses, so the port to it is a copy.
+- **Tori are generated in code** (parametric torus → vertex/normal/index buffers); no Blender assets.
+- **Only discs get pick IDs;** the drop target is the nearest peg by position (ruling #7).
+- **Transforms use gacalc,** as modelviewprojection does.
+- The Mesa + `glfw` image dependency is accepted with these decisions.

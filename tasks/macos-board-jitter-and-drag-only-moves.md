@@ -1,6 +1,6 @@
 # macOS: the window seems to resize on a move — find why; then consider drag-only moves (drop the buttons)
 
-**Status:** proposed — needs go-ahead (open questions below)
+**Status:** proposed — needs go-ahead (decisions recorded 2026-11-21; no open questions)
 **Priority:** 3
 **Difficulty:** 5 (part 1 is an investigation on a real Mac; part 2 is a fan-out across five GUIs)
 **Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>)
@@ -32,7 +32,7 @@ macOS, and the button decision has been made and applied to every GUI.
 
 ## Part 1 — leads for the macOS jump (unverified; reproduce first)
 
-Which UI the maintainer saw is not yet known (Open question 1). Leads in the wx oracle, read
+The maintainer saw it in the wx GUIs (Decisions); it happens as a disc is moved and the move buttons enable/disable (see Decisions). Leads in the wx oracle, read
 2026-11-21:
 
 - `HanoiFrame._refresh` (`hanoigui.py`) runs after **every** command and ends with
@@ -54,18 +54,14 @@ UIs that show the same symptom.
 ## Part 2 — drag-only moves (if approved)
 
 1. Remove the move-button row from every GUI (in the shared XRC for the three wx ones).
-2. Keep a keyboard path if Open question 2 says so.
+2. Add the keyboard move (Decisions).
 3. Update ruling #7, feature-spec §6.2, and the compliance checklist; run each subproject's gate
    (`make format` / `type-check` / `test`), and `python/tools/gui_smoke.py` for the oracle.
 
-## Open questions
+## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "go with your recommendations")
 
-1. **Which UI and how was it run** on the Mac when it jumped (Python wx, C++ wx, Rust wxDragon,
-   egui, ImGui, Tauri)? And did it happen on a drag, a button click, or both? *Part 1 starts from
-   that UI.*
-2. **Keyboard / accessibility after the buttons go:** (a) a keyboard move, e.g. press the from-peg
-   number then the to-peg number, (b) the CLI/TUI are the accessible path and the GUIs become
-   mouse-only, or (c) keep the buttons after all. *Recommend (a): small, and it keeps the
-   accessibility reason behind ruling #7.*
-3. **Is part 2 conditional on part 1?** If the buttons turn out to cause the jump, do you still want
-   them removed even though a fix exists? *Recommend yes; the two parts are independent.*
+- **The jump was seen in the wx GUIs** (Python wx, C++ wx, Rust wxDragon, which share `ui/hanoi.xrc`). Part 1 starts in the Python wx oracle and the fix goes to all three; the shared layout makes a common cause likely.
+- **Keyboard path after the buttons go:** a keyboard move: press the from-peg number, then the to-peg number (Esc cancels). It keeps the accessibility reason behind ruling #7; update the ruling to say so.
+- **Part 2 is independent of part 1:** remove the buttons even if they turn out to cause the jump.
+
+- **When it happens** (William Emerison Six <billsix@gmail.com>, 2026-11-21): "when the disk got moved and the buttons got highlighted or turned off, I think." So start with the move buttons: the `btn.Enable(...)` loop in `_refresh` and the `self.panel.Layout()` / `self.Layout()` right after it. On Cocoa, check whether a button's best size or focus ring changes when it is disabled or re-enabled (a focused button that gets disabled moves focus, and the default/highlighted button style can change its size), and whether that re-layout shifts the board. The label-width leads are second.
