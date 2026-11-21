@@ -111,7 +111,8 @@ impl Recorder {
 /// # Examples
 /// ```
 /// use hanoigame::recipe::replay_default_moves;
-/// let game = replay_default_moves(2, &[(1, 2), (1, 3)]).unwrap();
+/// use hanoigame::HanoiGame;
+/// let game: HanoiGame = replay_default_moves(2, &[(1, 2), (1, 3)]).unwrap();
 /// assert_eq!(game.towers, [vec![], vec![1], vec![2]]);
 /// assert_eq!(game.current_moves, 2);
 /// assert!(replay_default_moves(2, &[(2, 3)]).is_err()); // peg 2 is empty
