@@ -6,7 +6,8 @@ FROM registry.fedoraproject.org/fedora:45
 # repo root (they are not a "language").
 
 # USE_X_WINDOWS installs the X11/Wayland client libs (03-install-xwindows.sh) so the
-# wxPython GUI (hanoi-gui) can open a window. Makefile defaults it to 1; a bare
+# wxPython GUI (hanoi-gui) can open a window, and the GL stack (05-install-gl.sh) for the
+# 3D front-end (hanoi-gl). Makefile defaults it to 1; a bare
 # `podman build` stays lean (0). A lean MINIMAL_IMAGE build drops it.
 ARG USE_X_WINDOWS=0
 # USE_EMACS installs emacs + the vendored Python dev set (lsp-pyright over pyright).
@@ -17,7 +18,7 @@ ARG USE_EMACS=0
 # host-runnable with no container runtime; the scripts take no options -- WHICH optional
 # groups run is decided here by the ARG `if` blocks. The dnf cache mount + keepcache stay
 # in the Dockerfile (build plumbing). 01-install-base.sh also does `dnf upgrade`.
-COPY entrypoint/01-install-base.sh entrypoint/03-install-xwindows.sh entrypoint/04-install-emacs.sh /usr/local/bin/
+COPY entrypoint/01-install-base.sh entrypoint/03-install-xwindows.sh entrypoint/04-install-emacs.sh entrypoint/05-install-gl.sh /usr/local/bin/
 
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
@@ -41,6 +42,12 @@ RUN  --mount=type=cache,target=/var/cache/libdnf5 \
 RUN  --mount=type=cache,target=/var/cache/libdnf5 \
      --mount=type=cache,target=/var/lib/dnf \
      if [ "$USE_X_WINDOWS" = "1" ]; then /usr/local/bin/03-install-xwindows.sh; fi
+
+# The 3D front-end (hanoi-gl): GLFW + Mesa GL. Its own layer so a GL-list edit doesn't
+# rebuild the X11/GTK one. Same USE_X_WINDOWS gate: a GL window needs the display libs.
+RUN  --mount=type=cache,target=/var/cache/libdnf5 \
+     --mount=type=cache,target=/var/lib/dnf \
+     if [ "$USE_X_WINDOWS" = "1" ]; then /usr/local/bin/05-install-gl.sh; fi
 
 # Third-party Python deps: fetched + installed into a committed layer at build time
 # (offline-rebuildable). wxPython comes from dnf (python3-wxpython4), so strip it from

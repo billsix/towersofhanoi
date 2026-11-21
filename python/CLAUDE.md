@@ -8,7 +8,7 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
 ## Status
 
 - `src/hanoigame/` (setuptools package) — one shared model + command grammar + dispatcher
-  with three thin front-ends over it:
+  with four thin front-ends over it:
   - `hanoi` / `hanoigame` — ncurses TUI (`make tui`)
   - `hanoi-cli` — plain stdin/stdout, readline completion (`make cli`)
   - `hanoi-gui` — wxPython, organized in the learning-flow tiers (board + status-bar goal line +
@@ -17,6 +17,11 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
     Recipe menu Tier 3 — see
     `../tasks/reference/ui-design-principles.md`). 2D-graphics board also has a drag-and-drop-discs
     spike (+ move buttons); text board under View. (`make wx`)
+  - `hanoi-gl` — OpenGL 3.3 core 3D board (`hanoigl.py`): generated torus discs and cylinder
+    pegs, an orbit camera, and **colour-ID picking** through an offscreen framebuffer; a picked
+    disc slides up its peg, follows the cursor and drops with collision checks. Uses glfw,
+    PyOpenGL and gacalc's matrix stack. Design: `../tasks/reference/opengl-color-id-picking.md`.
+    (`make gl`)
 - `tests/` — pytest suite, run by `make test`; `pytest.ini` also collects the library
   **doctests** (`--doctest-modules --import-mode=importlib`, `testpaths = tests src`). All
   front-ends route through `engine.dispatch` + `commands.parse` + `presenter.render`; keep
@@ -30,14 +35,20 @@ offline-rebuildable). Mounts at `/hanoi-python`.
 
 - `make image` — build; full by default. `MINIMAL_IMAGE=1` drops emacs + X11 for a lean
   export image. `USE_X_WINDOWS` (default 1) installs the GTK/X11/Wayland libs the wxPython
-  GUI needs — no OpenGL/mesa (the board is 2D wx/Cairo). `USE_EMACS` (default 1) installs
-  emacs + the vendored Python dev set.
+  GUI needs (`03-install-xwindows.sh`) and the GL stack for `hanoi-gl` (`05-install-gl.sh`:
+  glfw + Mesa, software llvmpipe when no GPU is passed through). `USE_EMACS` (default 1)
+  installs emacs + the vendored Python dev set. The pip set (`requirements.txt`) includes
+  numpy, sympy, gacalc, glfw and PyOpenGL, installed by uv under `/usr/local`, which ty does
+  not search on its own: `entrypoint/type-check.sh` passes the interpreter's site-packages.
 - `make shell` / `make shell-exec SCRIPT=… | CMD='…'` — dev shell (share one invocation).
-- `make cli` / `make tui` / `make wx` — run a front-end (X11 + Wayland passthrough).
+- `make cli` / `make tui` / `make wx` / `make gl` — run a front-end (X11 + Wayland
+  passthrough; `gl` also passes `/dev/dri` when present and sets `PYGLFW_LIBRARY`).
 - `make format` (ruff) / `make type-check` (ty over src + tests) / `make test` (pytest,
   collecting the library doctests via `--doctest-modules`) — the gates.
 - `tools/gui_smoke.py` — a manual headless smoke of the wxPython GUI wiring (menus, panels,
-  drag-drop, win-unlock) run under Xvfb; **not a gate** (needs a display). Run recipe in its header.
+  drag-drop, win-unlock, rebinding view, history review) run under Xvfb; **not a gate** (needs a
+  display). Run recipe in its header. `tools/gl_smoke.py` — the same for `hanoi-gl` (picking,
+  a legal and an illegal drag, both draw paths) under Xvfb + Mesa.
 - `make image-export` / `make image-import FILE=…` — OCI tar save/load.
 - `make update-emacs-packages` — refresh the vendored `entrypoint/dotfiles/.emacs.d/elpa`
   (needs network).

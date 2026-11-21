@@ -132,6 +132,16 @@ wx: image ## Run the wxPython GUI front-end (hanoi-gui)
 	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(CONTAINER_NAME) \
 		-c '$(PYTHON_SETUP) && exec hanoi-gui'
 
+.PHONY: gl
+# PYGLFW_LIBRARY points the glfw package at Fedora's libglfw (one build for X11 and
+# Wayland; GLFW picks at run time), as github.com/billsix/geometricalgebra does. The
+# /dev/dri device, when the host has one, gives hardware GL; without it Mesa renders in
+# software (llvmpipe).
+gl: image ## Run the OpenGL 3.3 3D front-end (hanoi-gl): torus discs, orbit camera, colour-ID picking
+	$(CONTAINER_CMD) run $(PODMAN_RUN_FLAGS) -it --rm $(PLAY_FLAGS) $(DRI_DEVICE) \
+		-e PYGLFW_LIBRARY=/usr/lib64/libglfw.so.3 $(CONTAINER_NAME) \
+		-c '$(PYTHON_SETUP) && exec hanoi-gl'
+
 .PHONY: image-export
 image-export: ## export the OCI image to a timestamped tar in this dir
 	$(CONTAINER_CMD) save $(CONTAINER_NAME) -o $(CONTAINER_NAME)-$(shell date +%m-%d-%Y_%H-%M-%S).tar
