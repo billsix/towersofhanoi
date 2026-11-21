@@ -1,6 +1,6 @@
 # Lean the C++ wasm build for production deployment
 
-**Status:** proposed — needs go-ahead.
+**Status:** in progress (decisions recorded 2026-11-21).
 **Priority:** 7 **Difficulty:** 2
 **Created:** 2026-11-02 (William Emerison Six <billsix@gmail.com>). Spun off a deploy Q&A:
 the C++ Dear ImGui wasm app runs fine on any static host as-is (single-threaded → no
@@ -51,15 +51,10 @@ new target — plus a short deployment note (serve over http(s), optional host g
    commands-forward.
 5. Update `tasks/reference/imgui-cpp-native-and-wasm.md` for the now-conditional ASSERTIONS flag.
 
-## Open questions
+## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "use your recommendations")
 
-1. **Gate on build type, or flip unconditionally?** Recommend **gate on build type** (Release →
-   `ASSERTIONS=0`), so the deploy artifact is lean while a debug wasm build keeps the checks — no
-   new target, and `make webassembly` is already Release. Flipping to a flat `=0` is simpler but
-   loses the dev-time safety net. Your call.
-2. **Also add `-sENVIRONMENT=web`** (drop Node/shell glue) while here, or keep scope to the
-   assertion flag only? Recommend doing it in the same small change (it's web-only and the app is
-   only ever served to a browser), but it's a separable trim. Your call.
+1. **Gate on build type:** `-sASSERTIONS=0` for Release, `1` otherwise.
+2. **Add `-sENVIRONMENT=web`** in the same change.
 
 ## Related
 
