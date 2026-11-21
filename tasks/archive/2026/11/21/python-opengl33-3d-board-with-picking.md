@@ -49,7 +49,8 @@ The feature spec's compliance section records this.
   disc 1 dragged to peg 3 lands and the engine records `(1, 3)`; disc 2 dropped on disc 1 slides home
   with "larger on smaller"; both draw paths run without a GL error. `tools/gui_smoke.py` still passes.
 - The lit frame and the ID buffer were read back with `glReadPixels` and checked by eye (a one-shot
-  script, `tasks/adhoc/python-opengl33-3d-board-with-picking/frame_png.py`, removed at archive): the
+  script, `frame_png.py`, committed under `tasks/adhoc/python-opengl33-3d-board-with-picking/` with the
+  work and removed at archive; `git show faee845 -- tasks/adhoc` recovers it): the
   discs, pegs and base render lit, and in the ID buffer the pegs hide the discs behind them.
 - Not checked: the feel on a real display (camera, drag speed, hardware GL). That is the maintainer's
   `make gl` check.
