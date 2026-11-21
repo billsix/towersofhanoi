@@ -1476,7 +1476,7 @@ class HanoiGL:
 
     def _panel(self) -> None:
         """The right-hand Game panel: goal line, status, valid moves, move
-        buttons, the move history with review, and the rebinding view."""
+        hint, the move history with review, and the rebinding view."""
         io: imgui.IO = imgui.get_io()
         top: float = imgui.get_frame_height()
         imgui.set_next_window_pos(

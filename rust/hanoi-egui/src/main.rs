@@ -115,7 +115,7 @@ struct HanoiApp {
     /// and the board after them, or None for the live game.
     review: Option<(usize, HanoiGame)>,
     /// A move or apply made while reviewing, waiting on the "continue from
-    /// here?" window; the board and move buttons are off until it is answered.
+    /// here?" window; dragging and the keyboard move are off until it is answered.
     pending_continue: Option<PendingAction>,
     /// The keyboard move's typed from-peg label, waiting for the to-peg.
     pending_from: Option<u32>,

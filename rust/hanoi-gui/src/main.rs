@@ -11,7 +11,7 @@
 //! out of the workspace. A first-run "How to Play" panel teaches the one rule
 //! and the method (solve small, relabel, replay), reopenable from Help.
 //!
-//! Port notes: the board panel + move buttons are loaded from the **shared
+//! Port notes: the board panel + move hint are loaded from the **shared
 //! `ui/hanoi.xrc`** (the one UI definition the Python and C++ wx front-ends also
 //! use) via wxDragon's `XmlResource`; the XRC stays shared and structural, so
 //! each front-end carries the tier wiring in its own code (the oracle does the
@@ -41,7 +41,7 @@ use hanoigame::recipe::{rebinding, rebound_moves, replay_default_moves, RecipeRe
 /// The shared wx UI definition (repo-root `ui/hanoi.xrc`, reached via the
 /// git-tracked `hanoi.xrc` symlink in this crate). `include_str!` bakes the
 /// bytes into the binary at compile time, so no XRC file is needed at run time.
-/// Only the board panel + move buttons are taken from it; the menu bar is built
+/// Only the board panel + move hint are taken from it; the menu bar is built
 /// in code (see the module docs).
 const XRC_DATA: &str = include_str!("../hanoi.xrc");
 
@@ -1265,7 +1265,7 @@ fn show_howto_dialog(state: &Rc<RefCell<GuiState>>) {
 
 fn main() {
     let _ = wxdragon::main(|_| {
-        // Load the shared UI definition (the board panel + move buttons) from the
+        // Load the shared UI definition (the board panel + move hint) from the
         // baked XRC. The menu bar is built in code below (see the module docs).
         let res: XmlResource = XmlResource::get();
         res.init_all_handlers();
@@ -1395,7 +1395,7 @@ fn main() {
         // Field 0 = goal line; field 1 = action feedback; field 2 = moves counter.
         status_bar.set_status_widths(&[-1, -2, 140]);
 
-        // --- Board panel + move buttons from the shared XRC ---
+        // --- Board panel + move hint from the shared XRC ---
         let panel: Panel = res
             .load_panel(Some(&frame), "HanoiPanel")
             .expect("HanoiPanel in hanoi.xrc");
@@ -1578,7 +1578,7 @@ fn main() {
         // motion moves it, release drops on the nearest peg and dispatches through
         // the engine (on_move, which validates + reports an illegal drop). No
         // mouse capture -- wxDragon exposes no capture-lost handler, and the board
-        // panel fills the drag area. The move buttons stay as the accessible path.
+        // panel fills the drag area. The keyboard move is the mouse-free path.
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
             board_graphics.on_mouse_left_down(move |ev: WindowEventData| {
