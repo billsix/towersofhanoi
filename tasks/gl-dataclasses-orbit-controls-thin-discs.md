@@ -1,6 +1,6 @@
 # hanoi-gl: dataclasses, right/middle-button orbit that feels natural, thin washer discs
 
-**Status:** proposed — needs go-ahead (one open question: the disc shape)
+**Status:** in progress (go-ahead 2026-11-21)
 **Priority:** 3 **Difficulty:** 3
 **Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>)
 
@@ -118,12 +118,12 @@ Update the prompts to "Drag with the right or middle button to turn the camera; 
 - Update every remaining "torus" mention: the module docstring, the root `CLAUDE.md` ("torus discs"),
   `python/CLAUDE.md`, the `gl` help text in `python/Makefile`, and `tasks/reference/opengl-color-id-picking.md`.
 
-## Open questions
+## Decisions
 
-1. Should the thin disc keep a hole for the peg (a flat washer, like a real Hanoi disc), rather than being
-   a solid disc? I recommend the washer: the disc then visibly sits around its peg, and the "must clear
-   the peg top before moving sideways" collision rule still makes sense. A solid disc would need the peg
-   to stop at the bottom disc, or to pass through it.
+- **Disc shape: a flat washer with a hole for the peg** (William Emerison Six <billsix@gmail.com>,
+  2026-11-21). The disc sits visibly around its peg, and the rule that a disc must clear the peg top
+  before moving sideways still holds.
+- **HanoiGL becomes a dataclass too**, as recommended in section 1.
 
 ## Verification
 
