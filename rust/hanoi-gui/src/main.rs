@@ -11,7 +11,7 @@
 //! out of the workspace. A first-run "How to Play" panel teaches the one rule
 //! and the method (solve small, relabel, replay), reopenable from Help.
 //!
-//! Port notes: the board panel + move buttons are loaded from the **shared
+//! Port notes: the board panel + move hint are loaded from the **shared
 //! `ui/hanoi.xrc`** (the one UI definition the Python and C++ wx front-ends also
 //! use) via wxDragon's `XmlResource`; the XRC stays shared and structural, so
 //! each front-end carries the tier wiring in its own code (the oracle does the
@@ -41,16 +41,12 @@ use hanoigame::recipe::{rebinding, rebound_moves, replay_default_moves, RecipeRe
 /// The shared wx UI definition (repo-root `ui/hanoi.xrc`, reached via the
 /// git-tracked `hanoi.xrc` symlink in this crate). `include_str!` bakes the
 /// bytes into the binary at compile time, so no XRC file is needed at run time.
-/// Only the board panel + move buttons are taken from it; the menu bar is built
+/// Only the board panel + move hint are taken from it; the menu bar is built
 /// in code (see the module docs).
 const XRC_DATA: &str = include_str!("../hanoi.xrc");
 
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
-
-/// The six (from_label, to_label) move-button pairs, in display order; each maps
-/// to the XRC button named `move_<from>_<to>`.
-const MOVE_PAIRS: [(u32, u32); 6] = [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)];
 
 /// The six peg-label permutations; each is a Relabel-menu item.
 const RELABEL_PERMS: [[u32; 3]; 6] = [
@@ -382,7 +378,9 @@ struct GuiState {
     frame: Frame,
     board_text: TextCtrl,
     board_graphics: Panel,
-    move_buttons: Vec<Button>,
+    move_hint: StaticText,
+    /// The keyboard move's typed from-peg label, waiting for the to-peg.
+    pending_from: Option<u32>,
     // Menu handles `refresh` touches (the menu is built in code, not from XRC).
     relabel_items: Vec<MenuItem>,
     recipe_menu: Menu,
@@ -498,25 +496,6 @@ impl GuiState {
             self.board_graphics.refresh(true, None);
         }
 
-        // The move buttons follow the board shown (a reviewed state can have
-        // legal moves even when the live game is won).
-        let board_won: bool = self.board().check_win_condition();
-        let legal: Vec<(u32, u32)> = self
-            .board()
-            .move_options()
-            .iter()
-            .map(|mv| {
-                (
-                    (change_labels_on_pegs(self.labelling, mv.from_peg) + 1) as u32,
-                    (change_labels_on_pegs(self.labelling, mv.to_peg) + 1) as u32,
-                )
-            })
-            .collect();
-        for (btn, &(f, t)) in self.move_buttons.iter().zip(MOVE_PAIRS.iter()) {
-            btn.set_label(&format!("{f} \u{2192} {t}"));
-            btn.enable(!board_won && legal.contains(&(f, t)));
-        }
-
         // Relabel-menu bullets (active permutation marked; display-only). The
         // items are NORMAL (not radio) — a radio's checked state is unreliable on
         // wxGTK — so the active one is marked by rewriting its label. Tier-2
@@ -566,6 +545,19 @@ impl GuiState {
             "{count} {noun}  optimal {} (default 1-2-3 labels)",
             self.min_moves()
         ));
+    }
+
+    /// The how-to-move line under the board, or the pending from-peg.
+    fn show_move_hint(&self) {
+        let text: String = match self.pending_from {
+            None => {
+                "Drag a top disc onto another peg, or type the from-peg number, then the to-peg \
+                     number (Esc cancels)."
+                    .to_string()
+            }
+            Some(label) => format!("From peg {label}: type the to-peg number (Esc cancels)."),
+        };
+        self.move_hint.set_label(&text);
     }
 
     /// The persistent goal line in the status bar (field 0) for the current disc
@@ -769,6 +761,48 @@ fn confirm_leave_review(state: &Rc<RefCell<GuiState>>) -> bool {
         st.won_via_apply = false;
     }
     true
+}
+
+/// The keyboard move: a peg number picks the from-peg, the next one moves there
+/// (through `on_move`, like a drop); Esc cancels. Other keys go on.
+fn on_key(state: &Rc<RefCell<GuiState>>, ev: &WindowEventData) {
+    let WindowEventData::Keyboard(key_event) = ev else {
+        ev.skip(true);
+        return;
+    };
+    let key: i32 = key_event.get_key_code().unwrap_or(0);
+    let move_to: Option<(u32, u32)> = {
+        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+        let label: Option<u32> = match key {
+            k if (i32::from(b'1')..=i32::from(b'3')).contains(&k) => {
+                Some((k - i32::from(b'0')) as u32)
+            }
+            WXK_ESCAPE => {
+                st.pending_from = None;
+                None
+            }
+            _ => {
+                ev.skip(true);
+                return;
+            }
+        };
+        let pending: Option<u32> = st.pending_from.take();
+        let move_to: Option<(u32, u32)> = match (pending, label) {
+            (None, Some(label)) => {
+                st.pending_from = Some(label);
+                None
+            }
+            (Some(from_label), Some(to_label)) if from_label != to_label => {
+                Some((from_label, to_label))
+            }
+            _ => None,
+        };
+        st.show_move_hint();
+        move_to
+    };
+    if let Some((from_label, to_label)) = move_to {
+        on_move(state, from_label, to_label);
+    }
 }
 
 fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
@@ -1231,7 +1265,7 @@ fn show_howto_dialog(state: &Rc<RefCell<GuiState>>) {
 
 fn main() {
     let _ = wxdragon::main(|_| {
-        // Load the shared UI definition (the board panel + move buttons) from the
+        // Load the shared UI definition (the board panel + move hint) from the
         // baked XRC. The menu bar is built in code below (see the module docs).
         let res: XmlResource = XmlResource::get();
         res.init_all_handlers();
@@ -1361,7 +1395,7 @@ fn main() {
         // Field 0 = goal line; field 1 = action feedback; field 2 = moves counter.
         status_bar.set_status_widths(&[-1, -2, 140]);
 
-        // --- Board panel + move buttons from the shared XRC ---
+        // --- Board panel + move hint from the shared XRC ---
         let panel: Panel = res
             .load_panel(Some(&frame), "HanoiPanel")
             .expect("HanoiPanel in hanoi.xrc");
@@ -1387,14 +1421,9 @@ fn main() {
         slot_sizer.add(&board_text, 1, SizerFlag::Expand, 0);
         board_slot.set_sizer(slot_sizer, true);
 
-        let move_buttons: Vec<Button> = MOVE_PAIRS
-            .iter()
-            .map(|(f, t)| {
-                panel
-                    .find_child_by_xrc_name(&format!("move_{f}_{t}"))
-                    .unwrap_or_else(|| panic!("move_{f}_{t} in hanoi.xrc"))
-            })
-            .collect();
+        let move_hint: StaticText = panel
+            .find_child_by_xrc_name("move_hint")
+            .expect("move_hint in hanoi.xrc");
 
         // Tier 3: HIDE the XRC recipe sidebar (list + Save/Apply/Show + its static
         // box) -- recipes move to the Recipe menu. wxDragon has no sizer
@@ -1495,7 +1524,8 @@ fn main() {
             frame: frame.clone(),
             board_text: board_text.clone(),
             board_graphics: board_graphics.clone(),
-            move_buttons: move_buttons.clone(),
+            move_hint: move_hint.clone(),
+            pending_from: None,
             relabel_items: relabel_items.clone(),
             recipe_menu,
             recipe_save_item,
@@ -1548,7 +1578,7 @@ fn main() {
         // motion moves it, release drops on the nearest peg and dispatches through
         // the engine (on_move, which validates + reports an illegal drop). No
         // mouse capture -- wxDragon exposes no capture-lost handler, and the board
-        // panel fills the drag area. The move buttons stay as the accessible path.
+        // panel fills the drag area. The keyboard move is the mouse-free path.
         {
             let st: Rc<RefCell<GuiState>> = state.clone();
             board_graphics.on_mouse_left_down(move |ev: WindowEventData| {
@@ -1612,11 +1642,12 @@ fn main() {
             });
         }
 
-        // Move buttons.
-        for (btn, (f, t)) in move_buttons.iter().zip(MOVE_PAIRS.iter()) {
+        // The keyboard move (ui-design-principles ruling 7): type the from-peg
+        // number, then the to-peg number; Esc cancels. The frame's char hook
+        // sees the keys before any child control; other keys go on.
+        {
             let st: Rc<RefCell<GuiState>> = state.clone();
-            let (f, t): (u32, u32) = (*f, *t);
-            btn.on_click(move |_| on_move(&st, f, t));
+            frame.on_char_hook(move |ev: WindowEventData| on_key(&st, &ev));
         }
 
         // Menu dispatch: ONE handler on the frame catches every menu command by

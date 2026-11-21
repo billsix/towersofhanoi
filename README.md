@@ -31,8 +31,9 @@ Four front-ends share the same game model and commands:
 - `hanoi-cli` — plain stdin/stdout (good for pipes and screen readers); at a terminal,
   Tab completes commands and saved-recipe names
 - `hanoi-gui` — wxPython window with a text or 2D-graphics board (needs a display)
-- `hanoi-gl` — a 3D OpenGL board: drag the discs, orbit the camera; it shows how a program
-  works out which object you clicked (colour-ID picking)
+- `hanoi-gl` — the full game on a 3D OpenGL board with a Dear ImGui interface: drag the
+  discs, orbit the camera; it also shows how a program works out which object you clicked
+  (colour-ID picking)
 
 ```sh
 cd python

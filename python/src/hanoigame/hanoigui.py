@@ -20,11 +20,12 @@
 Organized around the learner's journey (feature-spec.md §3.5, Apple-HIG
 progressive disclosure), in three tiers:
 
-- **Tier 1 — always visible:** the board (text or 2D-graphics), the six move
-  buttons (auto-enabled from `game.move_options()`), an always-present goal
-  line in the status bar, a dismissible "How to Play" panel (shown on first
-  run, reopenable from the Help menu), and an always-visible move-history
-  panel (every move this game in the default 1-2-3 physical labels).
+- **Tier 1 — always visible:** the board (text or 2D-graphics; moves by
+  dragging a disc, or by typing the from- and to-peg numbers), an
+  always-present goal line in the status bar, a dismissible "How to Play"
+  panel (shown on first run, reopenable from the Help menu), and an
+  always-visible move-history panel (every move this game in the default
+  1-2-3 physical labels).
 - **Tier 2 — unlocked at the first win (for the session):** the Relabel pegs
   menu and saving a recipe. Gated before then by disabling the menus ("dim,
   don't remove").
@@ -56,8 +57,9 @@ from .board_renderers import (
 )
 from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
 from .engine import DispatchResult, GameSession
-from .hanoimodel import HanoiGame, ValidMove
+from .hanoimodel import HanoiGame
 from .presenter import (
+    HOWTO_TEXT,
     Labelling,
     change_labels_on_pegs,
     default_recipe_name,
@@ -68,26 +70,6 @@ from .recipe import Recipe, RecipeRegistry, rebinding, rebound_moves
 
 MAX_DISKS: int = 10
 DEFAULT_DISKS: int = 3
-
-HOWTO_TEXT: str = (
-    "Move the whole stack of discs from peg 1 to peg 3.\n"
-    "• Move one disc at a time — always the top disc of a peg.\n"
-    "• Never place a larger disc on a smaller one.\n"
-    "\n"
-    "The method this teaches: solve a SMALL stack, then RELABEL the pegs to\n"
-    'reuse that solution for a bigger stack — "solve small, relabel,'
-    ' replay."\n'
-    "Relabelling and saved recipes unlock after your first win."
-)
-
-ALL_LABEL_PAIRS: tuple[tuple[int, int], ...] = (
-    (1, 2),
-    (1, 3),
-    (2, 1),
-    (2, 3),
-    (3, 1),
-    (3, 2),
-)
 
 ALL_RELABEL_PERMUTATIONS: tuple[tuple[int, int, int], ...] = (
     (1, 2, 3),
@@ -187,7 +169,9 @@ class HanoiFrame(wx.Frame):
         # attribute is declared non-Optional.
         self.session: GameSession
         self.disc_count_value = DEFAULT_DISKS
-        self.move_buttons: dict[tuple[int, int], wx.Window] = {}
+        # The keyboard move (ui-design-principles ruling 7): the from-peg
+        # label typed first, waiting for the to-peg label; None when idle.
+        self._pending_from: int | None = None
         # Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the
         # first win and stay unlocked for the rest of the session.
         self._won_once: bool = False
@@ -203,8 +187,8 @@ class HanoiFrame(wx.Frame):
         self._history_header: wx.StaticText | None = None
         self._history_back: wx.Button | None = None
         # History review (clicking a history row): how many moves the board is
-        # showing, or None for the live game. While set, the board, the move
-        # buttons and dragging show the state after that many moves, and a
+        # showing, or None for the live game. While set, the board and dragging
+        # show the state after that many moves, and a
         # move first asks to delete the later moves (`_confirm_leave_review`).
         self._review_count: int | None = None
         # Tier-1 onboarding: the goal line lives in the status bar (set by
@@ -361,12 +345,10 @@ class HanoiFrame(wx.Frame):
 
         # Named controls from the XRC panel.
         self.board_slot = wx.xrc.XRCCTRL(self, "board_slot")
-        from_label: int
-        to_label: int
-        for from_label, to_label in ALL_LABEL_PAIRS:
-            self.move_buttons[(from_label, to_label)] = wx.xrc.XRCCTRL(
-                self, f"move_{from_label}_{to_label}"
-            )
+        self.move_hint: wx.StaticText = wx.xrc.XRCCTRL(self, "move_hint")
+        # Type the from-peg number, then the to-peg number, to move without
+        # the mouse (the frame sees the keys before any child control).
+        self.Bind(wx.EVT_CHAR_HOOK, self._on_key)
 
         # Tier 3: hide the in-panel recipe sidebar — recipes move to the Recipe
         # menu (feature-spec §3.5). The shared XRC still defines these controls
@@ -385,14 +367,6 @@ class HanoiFrame(wx.Frame):
         )
         self.style_graphics_item.Check(True)
         self._wire_board_interaction()
-
-        # Move button bindings — lambda captures the from/to pair.
-        for from_label, to_label in ALL_LABEL_PAIRS:
-            self.Bind(
-                wx.EVT_BUTTON,
-                lambda _evt, f=from_label, t=to_label: self._on_move(f, t),
-                id=wx.xrc.XRCID(f"move_{from_label}_{to_label}"),
-            )
 
         # Frame layout: [board panel | history panel]. (How-to-Play is a
         # centered modal dialog now, shown on first run from __init__ and
@@ -646,8 +620,8 @@ class HanoiFrame(wx.Frame):
 
     def _wire_board_interaction(self) -> None:
         """If the active board renderer supports disc dragging, point its drop
-        callback at `_on_board_drop` (the move buttons stay as a parallel,
-        keyboard/screen-reader-accessible path — kept for the spike)."""
+        callback at `_on_board_drop` (the keyboard move, `_on_key`, is the
+        mouse-free path)."""
         set_cb: Callable[[Callable[[int, int], None]], None] | None = getattr(
             self.board_renderer, "set_move_callback", None
         )
@@ -656,7 +630,8 @@ class HanoiFrame(wx.Frame):
 
     def _on_board_drop(self, from_peg: int, to_peg: int) -> None:
         """Drop handler: physical pegs -> current labels -> the same dispatch
-        path as a move button (illegal-move popup, rebinding dialog, win)."""
+        path as the keyboard move (illegal-move popup, rebinding dialog,
+        win)."""
         from_label: int = (
             change_labels_on_pegs(self.session.labelling, from_peg) + 1
         )
@@ -665,9 +640,45 @@ class HanoiFrame(wx.Frame):
         )
         self._on_move(from_label, to_label)
 
+    def _on_key(self, evt: wx.KeyEvent) -> None:
+        """The keyboard move: a peg number picks the from-peg, the next one
+        moves to that peg (through `_on_move`, like a drop); Esc cancels.
+        Every other key goes on to the focused control."""
+        key: int = evt.GetKeyCode()
+        match key:
+            case wx.WXK_ESCAPE if self._pending_from is not None:
+                self._pending_from = None
+                self._show_move_hint()
+            case _ if ord("1") <= key <= ord("3") or (
+                wx.WXK_NUMPAD1 <= key <= wx.WXK_NUMPAD3
+            ):
+                label: int = (
+                    key - ord("0") if key <= ord("9") else key - wx.WXK_NUMPAD0
+                )
+                pending: int | None = self._pending_from
+                self._pending_from = None
+                if pending is None:
+                    self._pending_from = label
+                elif pending != label:
+                    self._on_move(pending, label)
+                self._show_move_hint()
+            case _:
+                evt.Skip()
+
+    def _show_move_hint(self) -> None:
+        """The how-to-move line under the board, or the pending from-peg."""
+        self.move_hint.SetLabel(
+            "Drag a top disc onto another peg, or type the from-peg number,"
+            " then the to-peg number (Esc cancels)."
+            if self._pending_from is None
+            else f"From peg {self._pending_from}: type the to-peg number"
+            " (Esc cancels)."
+        )
+
     def _on_move(self, from_label: int, to_label: int) -> None:
-        """Dispatch a move button; on success under a relabelling, show the
-        single-move rebinding dialog, then refresh and check for a win."""
+        """Dispatch a move (a drop or the keyboard); on success under a
+        relabelling, show the single-move rebinding dialog, then refresh and
+        check for a win."""
         if not self._confirm_leave_review():
             self._refresh()  # snap a dragged disc back onto the reviewed board
             return
@@ -1053,7 +1064,7 @@ class HanoiFrame(wx.Frame):
         offered later, at the new-game boundary
         (`_maybe_offer_save_before_discard`); the rationale is in the UX doc
         `win-celebration-and-recipe-discovery-ux.md`. `_refresh` sets the
-        button/menu state (move buttons off, Tier-2 on)."""
+        drag and menu state (dragging off, Tier-2 on)."""
         first_win: bool = not self._won_once
         self._won_once = True
         self._refresh()  # unlock the Tier-2 menus
@@ -1167,33 +1178,15 @@ class HanoiFrame(wx.Frame):
     def _refresh(self) -> None:
         """Redraw the board and re-sync all control state to the session.
 
-        Updates the renderer, the move-button enable state, the moves counter,
-        the active relabel-menu bullet, and the recipe list — after any command.
+        Updates the renderer, the drag state, the moves counter, the active
+        relabel-menu bullet, and the recipe list — after any command.
         """
         shown: HanoiGame = self._shown_game()
         self.board_renderer.update(shown, self.session.labelling)
         won: bool = shown.check_win_condition()
         self.SetStatusText(f"Moves: {shown.current_moves}", 2)
 
-        valid: set[tuple[int, int]] = set()
-        vm: ValidMove
-        for vm in shown.move_options():
-            f: int = (
-                change_labels_on_pegs(self.session.labelling, vm.move.from_peg)
-                + 1
-            )
-            t: int = (
-                change_labels_on_pegs(self.session.labelling, vm.move.to_peg)
-                + 1
-            )
-            valid.add((f, t))
-        pair: tuple[int, int]
-        btn: wx.Window
-        for pair, btn in self.move_buttons.items():
-            btn.Enable(not won and pair in valid)
-
-        # Disc dragging (spike) is off once the game is won, matching the
-        # move buttons.
+        # Disc dragging is off once the board shown is solved.
         set_inter: Callable[[bool], None] | None = getattr(
             self.board_renderer, "set_interactive", None
         )

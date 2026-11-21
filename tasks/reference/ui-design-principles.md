@@ -53,8 +53,7 @@ of Your Audience.
   `2^N−1`** are the primary feedback artifacts and must be first-class, not buried.
 - **Perceived stability.** A stable visual framework that does not rearrange under the user. The
   textbook rule is **dim, don't remove**: an unavailable action is disabled/greyed, never deleted, so
-  the layout stays put. (hanoi already does this — the GUI shows all move buttons and disables the
-  illegal ones; keep it. A Tier-2 feature revealed after a win should *enable*, not pop into
+  the layout stays put. (A Tier-2 feature revealed after a win should *enable*, not pop into
   existence in a way that shifts the board.)
 - **Forgiveness.** Moves are cheap and the puzzle is restartable, so the UI should *encourage
   exploration* — the learner discovers the legal-move rule by trying moves and reading clear rejection
@@ -119,15 +118,19 @@ conformant hanoi UI organizes its features into three tiers:
    menu-insert on an XRC-loaded `MenuBar`, and *hides* rather than destroys the sidebar, since it has
    no sizer detach). *(Decided William Emerison Six <billsix@gmail.com>, delegated 2026-11-01;
    confirmed by the oracle, which already works this way on the unchanged XRC.)*
-7. **Direct manipulation: drag a disc, and keep the buttons.** Every graphical front-end lets the
-   player drag a peg's top disc onto another peg — **nearest-peg targeting** (forgiving), an illegal
-   drop **snaps back** with the usual rejection reason, dragging is **off once solved** — *and* keeps
-   the move buttons as the keyboard/accessible path (two affordances for one action, not a choice).
-   The drop resolves to a `<from>→<to>` move dispatched through the **same shared core** as a button
-   (one dispatch path), so the rule lives in the core, not the gesture. Per-toolkit mechanics differ
+7. **Direct manipulation: drag a disc, and the keyboard move; no move buttons.** Every graphical
+   front-end lets the player drag a peg's top disc onto another peg — **nearest-peg targeting**
+   (forgiving), an illegal drop **snaps back** with the usual rejection reason, dragging is **off once
+   solved**. The keyboard/accessible path is the **keyboard move**: type the from-peg number, then the
+   to-peg number, Esc cancels, with a hint line under the board that shows a pending from-peg. The
+   six move buttons were removed (William Emerison Six <billsix@gmail.com>, 2026-11-21): the keyboard
+   move keeps the accessibility reason they existed for. A drop and a keyboard move resolve to a
+   `<from>→<to>` move dispatched through the **same shared core** (one dispatch path), so the rule
+   lives in the core, not the gesture. Per-toolkit mechanics differ
    (immediate-mode frameworks track the drag across frames; retained-mode wx captures the mouse; the
    Tauri webview uses canvas pointer events) but the behaviour is identical. *(Approved as a wxPython
-   spike, then fanned out to all five graphical UIs, 2026-11-01.)*
+   spike, then fanned out to all five graphical UIs, 2026-11-01; buttons replaced by the keyboard move
+   in all seven graphical UIs, 2026-11-21.)*
 
 ## Relationship to the feature spec
 

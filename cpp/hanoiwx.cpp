@@ -148,11 +148,6 @@ void draw_badge(wxGraphicsContext &gc, double cx, double cy, int num,
   gc.DrawText(t, cx - tw / 2, cy - th / 2);
 }
 
-// (from_label, to_label) label pairs, matching hanoigui.py ALL_LABEL_PAIRS and
-// the XRC move_<f>_<t> buttons.
-constexpr std::array<std::array<int, 2>, 6> kLabelPairs{
-    {{1, 2}, {1, 3}, {2, 1}, {2, 3}, {3, 1}, {3, 2}}};
-
 int optimal_moves(int n) { return (1 << n) - 1; }
 
 // Candidate paths for the shared XRC: the /ui mount (the Makefile mounts the
@@ -615,8 +610,8 @@ private:
 
     // Disc drag-drop (spike): forward the board panel's mouse events to the
     // BoardView, and point its drop callback at on_board_drop (physical pegs ->
-    // current labels -> the shared on_move). The move buttons stay as the
-    // keyboard/accessible path. Mirrors the wxPython oracle.
+    // current labels -> the shared on_move). The keyboard move (on_key) is the
+    // mouse-free path. Mirrors the wxPython oracle.
     board_slot_->Bind(wxEVT_LEFT_DOWN,
                       [this](wxMouseEvent &e) { board_.on_left_down(e); });
     board_slot_->Bind(wxEVT_MOTION,
@@ -629,19 +624,11 @@ private:
     board_.set_move_callback(
         [this](int from_peg, int to_peg) { on_board_drop(from_peg, to_peg); });
 
-    for (const std::array<int, 2> &p : kLabelPairs) {
-      // Dynamic XRC id -> use GetXRCID + FindWindow (XRCCTRL/XRCID wrap their
-      // argument in wxT(), so they only take string literals, not variables).
-      const int xid =
-          wxXmlResource::GetXRCID(wxString::Format("move_%d_%d", p[0], p[1]));
-      move_buttons_[static_cast<std::size_t>(label_pair_index(p[0], p[1]))] =
-          wxDynamicCast(FindWindow(xid), wxButton);
-      const int fl = p[0];
-      const int tl = p[1];
-      Bind(
-          wxEVT_BUTTON, [this, fl, tl](wxCommandEvent &) { on_move(fl, tl); },
-          xid);
-    }
+    // The keyboard move (ui-design-principles ruling 7): type the from-peg
+    // number, then the to-peg number; Esc cancels. The frame sees the keys
+    // before any child control.
+    move_hint_ = XRCCTRL(*this, "move_hint", wxStaticText);
+    Bind(wxEVT_CHAR_HOOK, &HanoiFrame::on_key, this);
 
     // Frame layout: [board panel | always-visible history panel]. (How-to-Play
     // is a centered modal dialog now, shown on first run from the constructor
@@ -840,13 +827,50 @@ private:
 
   // --- Engine helpers --------------------------------------------------
 
-  static int label_pair_index(int fl, int tl) {
-    for (std::size_t i = 0; i < kLabelPairs.size(); ++i) {
-      if (kLabelPairs[i][0] == fl && kLabelPairs[i][1] == tl) {
-        return static_cast<int>(i);
+  // A peg number picks the from-peg, the next one moves there (through the
+  // same checked path as a drop); Esc cancels. Other keys go on.
+  void on_key(wxKeyEvent &evt) {
+    const int key = evt.GetKeyCode();
+    int label = 0;
+    if (key >= '1' && key <= '3') {
+      label = key - '0';
+    } else if (key >= WXK_NUMPAD1 && key <= WXK_NUMPAD3) {
+      label = key - WXK_NUMPAD0;
+    } else if (key == WXK_ESCAPE && pending_from_ != 0) {
+      pending_from_ = 0;
+      show_move_hint();
+      return;
+    } else {
+      evt.Skip();
+      return;
+    }
+    const int pending = pending_from_;
+    pending_from_ = 0;
+    if (pending == 0) {
+      pending_from_ = label;
+    } else if (pending != label) {
+      const std::optional<std::array<int, 2>> physical =
+          hanoi::labels_to_towers(labelling_, pending, label);
+      if (physical) {
+        on_board_drop((*physical)[0], (*physical)[1]);
       }
     }
-    return 0;
+    show_move_hint();
+  }
+
+  // The how-to-move line under the board, or the pending from-peg.
+  void show_move_hint() {
+    if (move_hint_ == nullptr) {
+      return;
+    }
+    move_hint_->SetLabel(
+        pending_from_ == 0
+            ? wxString("Drag a top disc onto another peg, or type the "
+                       "from-peg number, then the to-peg number (Esc "
+                       "cancels).")
+            : wxString::Format(
+                  "From peg %d: type the to-peg number (Esc cancels).",
+                  pending_from_));
   }
 
   void new_game(int n) {
@@ -912,12 +936,11 @@ private:
                  "About Towers of Hanoi", wxOK | wxICON_INFORMATION, this);
   }
 
-  // A disc drop resolves to physical pegs. Unlike a move button (enabled only
-  // when legal), a drop can be illegal, so validate against the engine's move
-  // options; legal -> the shared on_move (in current labels); illegal -> the
-  // rejection reason in the status bar + a popup, then snap back (the board
-  // already redrew the true state). Mirrors the wxPython
-  // _on_board_drop/_on_move.
+  // A disc drop (or a keyboard move) resolves to physical pegs. It can be
+  // illegal, so validate against the engine's move options; legal -> the shared
+  // on_move (in current labels); illegal -> the rejection reason in the status
+  // bar + a popup, then snap back (the board already redrew the true state).
+  // Mirrors the wxPython _on_board_drop/_on_move.
   void on_board_drop(int from_peg, int to_peg) {
     if (!confirm_leave_review()) {
       return;
@@ -965,7 +988,7 @@ private:
     if (!physical) {
       return;
     }
-    // Buttons are enabled only when legal, so this move is legal.
+    // Callers (on_board_drop) checked the move is legal.
     do_move((*physical)[0], (*physical)[1]);
     set_status(wxString::Format("Moved %d -> %d.", from_label, to_label));
     if (relabelled) {
@@ -1299,25 +1322,13 @@ private:
   }
 
   void refresh() {
-    // The board, dragging and the move buttons follow the board shown (a
-    // reviewed state can have legal moves even when the live game is won).
+    // The board and dragging follow the board shown (a reviewed state can
+    // have legal moves even when the live game is won).
     const hanoi::Game &shown = shown_game();
     board_.set_state(&shown, labelling_);
     const bool w = shown.check_win_condition();
     board_.set_interactive(!w); // disc dragging off once solved
     SetStatusText(wxString::Format("Moves: %d", shown.current_moves()), 2);
-
-    std::array<bool, 6> legal{};
-    for (const hanoi::Move &m : shown.move_options()) {
-      const int fl = hanoi::change_labels_on_pegs(labelling_, m.from_peg) + 1;
-      const int tl = hanoi::change_labels_on_pegs(labelling_, m.to_peg) + 1;
-      legal[static_cast<std::size_t>(label_pair_index(fl, tl))] = true;
-    }
-    for (std::size_t i = 0; i < move_buttons_.size(); ++i) {
-      if (move_buttons_[i] != nullptr) {
-        move_buttons_[i]->Enable(!w && legal[i]);
-      }
-    }
 
     const std::array<int, 3> cur{
         hanoi::change_labels_on_pegs(labelling_, 0) + 1,
@@ -1427,7 +1438,8 @@ private:
   wxPanel *panel_ = nullptr; // the shared XRC panel
   wxPanel *board_slot_ = nullptr;
   wxListBox *recipe_list_ = nullptr; // sidebar list, hidden (kept for the XRC)
-  std::array<wxButton *, 6> move_buttons_{};
+  wxStaticText *move_hint_ = nullptr;
+  int pending_from_ = 0; // the typed from-peg label, 0 when none
   std::vector<RelabelItem> relabel_items_;
   wxDialog *rebinding_dlg_ = nullptr;
 

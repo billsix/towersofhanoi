@@ -25,9 +25,6 @@ use hanoigame::recipe::{rebinding, rebound_moves, replay_default_moves, RecipeRe
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
 
-/// The six (from_label, to_label) move pairs, in display order.
-const MOVE_PAIRS: [(u32, u32); 6] = [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)];
-
 /// The six peg-label permutations, in menu order.
 const RELABEL_PERMS: [[u32; 3]; 6] = [
     [1, 2, 3],
@@ -118,8 +115,10 @@ struct HanoiApp {
     /// and the board after them, or None for the live game.
     review: Option<(usize, HanoiGame)>,
     /// A move or apply made while reviewing, waiting on the "continue from
-    /// here?" window; the board and move buttons are off until it is answered.
+    /// here?" window; dragging and the keyboard move are off until it is answered.
     pending_continue: Option<PendingAction>,
+    /// The keyboard move's typed from-peg label, waiting for the to-peg.
+    pending_from: Option<u32>,
     /// Disc drag-drop (spike, mirrored across the GUIs): the physical peg (0,1,2)
     /// whose top disc is being dragged, its size, and the pointer position.
     drag_src: Option<usize>,
@@ -165,6 +164,7 @@ impl HanoiApp {
             rebind: None,
             review: None,
             pending_continue: None,
+            pending_from: None,
             drag_src: None,
             drag_size: 0,
             drag_pos: egui::Pos2::ZERO,
@@ -270,20 +270,6 @@ impl HanoiApp {
             self.saved_current = false;
             self.won_via_apply = false;
         }
-    }
-
-    /// The legal (from_label, to_label) moves in the current labelling.
-    fn legal_moves(&self) -> Vec<(u32, u32)> {
-        self.board()
-            .move_options()
-            .iter()
-            .map(|mv| {
-                (
-                    (change_labels_on_pegs(self.labelling, mv.from_peg) + 1) as u32,
-                    (change_labels_on_pegs(self.labelling, mv.to_peg) + 1) as u32,
-                )
-            })
-            .collect()
     }
 
     fn do_move(&mut self, from_label: u32, to_label: u32) {
@@ -663,11 +649,33 @@ impl eframe::App for HanoiApp {
             self.open_help = true;
             self.help_shown = true;
         }
-        let legal: Vec<(u32, u32)> = self.legal_moves();
-        // The move buttons follow the board shown (a reviewed state can have
-        // legal moves even when the live game is won).
+        // The keyboard move (ui-design-principles ruling 7): type the from-peg
+        // number, then the to-peg number; Esc cancels. It follows the board shown
+        // (off once it is solved, and while "Continue from here?" is open).
         let board_won: bool = self.board().check_win_condition();
         let waiting: bool = self.pending_continue.is_some();
+        if !ctx.wants_keyboard_input() && !waiting && !board_won {
+            let pressed: Option<u32> = ctx.input(|input| {
+                [
+                    (egui::Key::Num1, 1),
+                    (egui::Key::Num2, 2),
+                    (egui::Key::Num3, 3),
+                ]
+                .iter()
+                .find(|(key, _)| input.key_pressed(*key))
+                .map(|(_, label)| *label)
+            });
+            if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+                self.pending_from = None;
+            }
+            if let Some(label) = pressed {
+                match self.pending_from.take() {
+                    None => self.pending_from = Some(label),
+                    Some(from_label) if from_label != label => self.do_move(from_label, label),
+                    Some(_) => {} // the same peg twice cancels
+                }
+            }
+        }
         let current: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
         let n: u32 = self.game.num_disks;
@@ -843,22 +851,16 @@ impl eframe::App for HanoiApp {
 
             ui.separator();
 
-            // Move buttons (3 from-peg columns).
-            ui.horizontal(|ui| {
-                for from in 1..=3u32 {
-                    ui.vertical(|ui| {
-                        for &(f, t) in MOVE_PAIRS.iter().filter(|(f, _)| *f == from) {
-                            let enabled: bool = !board_won && !waiting && legal.contains(&(f, t));
-                            if ui
-                                .add_enabled(enabled, egui::Button::new(format!("{f} -> {t}")))
-                                .clicked()
-                            {
-                                self.do_move(f, t);
-                            }
-                        }
-                    });
-                }
-            });
+            // How to move: drag a disc, or the keyboard move (no move buttons).
+            match self.pending_from {
+                None => ui.label(
+                    "Drag a top disc onto another peg, or type the from-peg number, then the \
+                     to-peg number (Esc cancels).",
+                ),
+                Some(label) => ui.label(format!(
+                    "From peg {label}: type the to-peg number (Esc cancels)."
+                )),
+            };
         });
 
         // Tier-1: the dismissible How-to-Play window (first-run + Help).

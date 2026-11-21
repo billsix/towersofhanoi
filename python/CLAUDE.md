@@ -15,13 +15,16 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
     always-visible move history + a dismissible first-run How-to-Play panel reopenable from Help
     Tier 1; relabel/recipes gated until the first win Tier 2; recipes as View/Apply submenus in a
     Recipe menu Tier 3 — see
-    `../tasks/reference/ui-design-principles.md`). 2D-graphics board also has a drag-and-drop-discs
-    spike (+ move buttons); text board under View. (`make wx`)
-  - `hanoi-gl` — OpenGL 3.3 core 3D board (`hanoigl.py`): generated torus discs and cylinder
-    pegs, an orbit camera, and **colour-ID picking** through an offscreen framebuffer; a picked
-    disc slides up its peg, follows the cursor and drops with collision checks. Uses glfw,
-    PyOpenGL and gacalc's matrix stack. Design: `../tasks/reference/opengl-color-id-picking.md`.
-    (`make gl`)
+    `../tasks/reference/ui-design-principles.md`). Moves: drag a disc on the 2D-graphics board,
+    and the keyboard move (type the from- and to-peg numbers); text board under View. (`make wx`)
+  - `hanoi-gl` — OpenGL 3.3 core 3D board (`hanoigl.py`) with a **Dear ImGui** interface
+    (imgui-bundle, as modelviewprojection uses it) at full feature parity: menu bar with the
+    learning-flow tiers, a Game panel (goal, valid moves, the keyboard-move hint, history with review,
+    the three-panel rebinding view), and the dialogs. The board: generated torus discs and
+    cylinder pegs, an orbit camera, and **colour-ID picking** through an offscreen framebuffer;
+    a picked disc slides up its peg, follows the cursor and drops with collision checks. Uses
+    glfw, PyOpenGL, imgui-bundle and gacalc's matrix stack. Design:
+    `../tasks/reference/opengl-color-id-picking.md`. (`make gl`)
 - `tests/` — pytest suite, run by `make test`; `pytest.ini` also collects the library
   **doctests** (`--doctest-modules --import-mode=importlib`, `testpaths = tests src`). All
   front-ends route through `engine.dispatch` + `commands.parse` + `presenter.render`; keep
@@ -38,7 +41,7 @@ offline-rebuildable). Mounts at `/hanoi-python`.
   GUI needs (`03-install-xwindows.sh`) and the GL stack for `hanoi-gl` (`05-install-gl.sh`:
   glfw + Mesa, software llvmpipe when no GPU is passed through). `USE_EMACS` (default 1)
   installs emacs + the vendored Python dev set. The pip set (`requirements.txt`) includes
-  numpy, sympy, gacalc, glfw and PyOpenGL, installed by uv under `/usr/local`, which ty does
+  numpy, sympy, gacalc, glfw, PyOpenGL and imgui-bundle, installed by uv under `/usr/local`, which ty does
   not search on its own: `entrypoint/type-check.sh` passes the interpreter's site-packages.
 - `make shell` / `make shell-exec SCRIPT=… | CMD='…'` — dev shell (share one invocation).
 - `make cli` / `make tui` / `make wx` / `make gl` — run a front-end (X11 + Wayland
@@ -47,8 +50,9 @@ offline-rebuildable). Mounts at `/hanoi-python`.
   collecting the library doctests via `--doctest-modules`) — the gates.
 - `tools/gui_smoke.py` — a manual headless smoke of the wxPython GUI wiring (menus, panels,
   drag-drop, win-unlock, rebinding view, history review) run under Xvfb; **not a gate** (needs a
-  display). Run recipe in its header. `tools/gl_smoke.py` — the same for `hanoi-gl` (picking,
-  a legal and an illegal drag, both draw paths) under Xvfb + Mesa.
+  display). Run recipe in its header. `tools/gl_smoke.py` — the same for `hanoi-gl` (imgui frames,
+  picking, a legal and an illegal drag, history review, a recipe save + relabelled apply) under
+  Xvfb + Mesa; with a file argument it writes the last frame as a PPM.
 - `make image-export` / `make image-import FILE=…` — OCI tar save/load.
 - `make update-emacs-packages` — refresh the vendored `entrypoint/dotfiles/.emacs.d/elpa`
   (needs network).

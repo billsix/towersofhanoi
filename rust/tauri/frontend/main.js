@@ -65,8 +65,6 @@
 /** @type {(cmd: string, args?: Record<string, unknown>) => Promise<unknown>} */
 const invoke = /** @type {any} */ (globalThis).__TAURI__.core.invoke;
 
-/** @type {[number, number][]} */
-const MOVE_PAIRS = [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]];
 /** @type {[number, number, number][]} */
 const RELABEL_PERMS = [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [
   3,
@@ -88,6 +86,20 @@ let savedCurrent = false;
 // The latest snapshot, so menu actions (Save) can read e.g. the disc count.
 /** @type {Snapshot|null} */
 let latest = null;
+
+/** The keyboard move's typed from-peg label, or null. @type {number|null} */
+let pendingFrom = null;
+
+/**
+ * The how-to-move line under the board, or the pending from-peg.
+ * @returns {void}
+ */
+function showMoveHint() {
+  el("move-hint").textContent = pendingFrom === null
+    ? "Drag a top disc onto another peg, or type the from-peg number, then " +
+      "the to-peg number (Esc cancels)."
+    : `From peg ${pendingFrom}: type the to-peg number (Esc cancels).`;
+}
 
 // Disc drag-drop (spike, mirrored across the GUIs): the physical peg (0,1,2)
 // whose top disc is being dragged (null = none), its size, and the pointer
@@ -442,7 +454,7 @@ function renderRecipeMenu(s) {
 
 /**
  * Paint the whole UI from a snapshot: board, goal line, message, history, the
- * move buttons' enabled state, the Tier-2 menu gating, the menus, and the apply view.
+ * Tier-2 menu gating, the menus, and the apply view.
  * @param {Snapshot} s
  * @returns {void}
  */
@@ -494,13 +506,6 @@ function render(s) {
     ).join("");
   /** @type {HTMLButtonElement} */ (el("history-back")).hidden =
     s.review === null;
-
-  /** @type {Set<string>} */
-  const legal = new Set(s.legal.map(([f, t]) => `${f}-${t}`));
-  for (const [f, t] of MOVE_PAIRS) {
-    /** @type {HTMLButtonElement} */ (el(`move-${f}-${t}`)).disabled =
-      s.board_won || !legal.has(`${f}-${t}`);
-  }
 
   // Tier-2 gating: the Relabel and Recipe menus unlock at the first win.
   /** @type {HTMLButtonElement} */ (el("relabel-btn")).disabled = !wonOnce;
@@ -618,7 +623,7 @@ function initMenuBar() {
  * press picks up the top disc of the nearest peg, pointer moves it, release
  * drops on the nearest peg and dispatches `do_move` (which validates + reports
  * an illegal drop). Pointer capture keeps the drag alive outside the canvas;
- * dragging is off once won. The move buttons stay as the accessible path.
+ * dragging is off once won. The keyboard move is the mouse-free path.
  * @returns {void}
  */
 function initBoardDrag() {
@@ -754,11 +759,28 @@ async function init() {
     },
   );
 
-  for (const [f, t] of MOVE_PAIRS) {
-    el(`move-${f}-${t}`).addEventListener("click", async () => {
-      await moveFromHere(f, t);
-    });
-  }
+  // The keyboard move (ui-design-principles ruling 7): type the from-peg
+  // number, then the to-peg number; Esc cancels. Keys typed into a field or
+  // while a dialog is open are left alone.
+  document.addEventListener("keydown", async (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    if (target.closest("input, textarea, dialog") || !latest) return;
+    if (e.key === "Escape") {
+      pendingFrom = null;
+      showMoveHint();
+      return;
+    }
+    if (!["1", "2", "3"].includes(e.key) || latest.board_won) return;
+    const label = Number(e.key);
+    const from = pendingFrom;
+    pendingFrom = null;
+    if (from === null) {
+      pendingFrom = label;
+    } else if (from !== label) {
+      await moveFromHere(from, label);
+    }
+    showMoveHint();
+  });
 
   // History review: clicking a move shows the board as it was after it.
   el("history").addEventListener("click", async (e) => {

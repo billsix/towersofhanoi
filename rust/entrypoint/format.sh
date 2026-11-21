@@ -9,6 +9,8 @@ status=0
 cargo fmt --all || status=1
 # The Tauri crate is not a workspace member, so format it separately.
 ( cd tauri/src-tauri && cargo fmt ) || status=1
+# hanoi-egui is its own workspace too, so `cargo fmt --all` does not reach it.
+( cd hanoi-egui && cargo fmt ) || status=1
 # The Tauri frontend's vanilla web files (index.html/main.js/style.css) -- deno fmt, one
 # binary, no Node (scope from tauri/frontend/deno.json's fmt.include). deno absent on a
 # bare host, so guard it; the container's type-check gate runs `deno fmt --check`.

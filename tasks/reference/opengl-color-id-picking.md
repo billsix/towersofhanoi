@@ -1,7 +1,7 @@
 # Colour-ID picking in `hanoi-gl` — how selection works, and how to port it
 
-**Reference document.** States how the Python 3D front-end (`python/src/hanoigame/hanoigl.py`, `make gl`)
-selects a disc under the mouse, how a picked disc moves, and what to carry over when the picking lesson
+**Reference document.** States how the Python 3D front-end (`python/src/hanoigame/hanoigl.py`, `make gl`;
+a Dear ImGui interface over the 3D board, at full feature parity) selects a disc under the mouse, how a picked disc moves, and what to carry over when the picking lesson
 moves into github.com/billsix/modelviewprojection. Written 2026-11-21 (William Emerison Six
 <billsix@gmail.com>) from `tasks/archive/2026/11/21/python-opengl33-3d-board-with-picking.md`.
 
@@ -18,7 +18,7 @@ moves into github.com/billsix/modelviewprojection. Written 2026-11-21 (William E
    `rgb_bytes_to_id` decodes it. 0 means background: the press orbits the camera instead.
 3. **Draw the real frame.** The window's framebuffer was never touched; the next `draw` is the lit scene.
 
-`P` draws the pick pass to the window instead (IDs multiplied by a `brightness` uniform, since 1/255 is
+View → Show pick buffer (or `P`) draws the pick pass to the board instead (IDs multiplied by a `brightness` uniform, since 1/255 is
 black to the eye); the real pick always uses brightness 1, so the colours stay exact.
 
 ## Moving a disc (`MovingDisc.advance`)
@@ -31,6 +31,23 @@ every peg. On release the target is the nearest peg; an illegal target (larger o
 source, with the reason in the title. The disc lowers along the target peg until it rests on the top
 disc (`rest_y` of the stack height). Only on landing is the move dispatched through
 `engine.GameSession.dispatch`, so the engine stays the single place the rules live.
+
+## The imgui layer (`HanoiGL.frame`)
+
+- Set up as modelviewprojection's demos do: `import glfw` before `imgui_bundle`, `imgui.create_context()`,
+  `GlfwRenderer(window)`; each frame `process_inputs()`, `imgui.new_frame()`, the UI, the 3D board,
+  `imgui.render()`, `renderer.render(imgui.get_draw_data())`.
+- `GlfwRenderer` takes over glfw's input callbacks, so the board reads the mouse from `imgui.get_io()`
+  each frame and ignores it while `io.want_capture_mouse` is set (a menu, the panel or a dialog is
+  under it).
+- The board fills the window under the menu bar, left of the fixed Game panel; the GL viewport, the
+  pick framebuffer, the cursor ray and the label projection all use that rectangle
+  (`HanoiGL._board_rect`), in framebuffer pixels.
+- Peg labels are text on imgui's background draw list, placed by projecting each peg's base: drawn
+  after the scene and under the imgui windows.
+- ImGui's built-in font is ASCII-only, so shared text goes through `ascii_text` (an arrow or a dash
+  would show as "?") and the rebinding key marks with `>`.
+- imgui leaves scissoring on and blending set, so `draw_board` resets the state it needs each frame.
 
 ## Porting to modelviewprojection
 

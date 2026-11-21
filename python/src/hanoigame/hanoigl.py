@@ -1,8 +1,15 @@
-"""hanoi-gl: a 3D Towers of Hanoi in OpenGL 3.3 core, with colour-ID picking.
+"""hanoi-gl: the 3D Towers of Hanoi in OpenGL 3.3 core, with a Dear ImGui UI.
 
-The discs are tori and the pegs cylinders, generated in code; an orbit camera
-turns around the board (drag the background, or with the right button; the
-wheel zooms). It teaches **selection by colour ID**:
+Every feature the other GUIs have (feature-spec §7): relabelling, recipes
+with the three-panel rebinding view, the always-visible move history with
+review, the keyboard move, the valid moves, the learning-flow tiers, How to
+Play and the win celebration. The interface is Dear ImGui through
+imgui-bundle, the way github.com/billsix/modelviewprojection's demos use it;
+the board is drawn in 3D underneath. Discs are tori and pegs cylinders,
+generated in code, and an orbit camera turns around the board (drag the
+background, or with the right button; the wheel zooms).
+
+The board teaches **selection by colour ID**:
 
 1. On mouse-down, the scene is drawn once more into an offscreen framebuffer
    object (FBO) that is never shown. Every pickable object (each disc) is drawn
@@ -12,24 +19,20 @@ wheel zooms). It teaches **selection by colour ID**:
    decodes the colour back into the ID: the disc that was clicked.
 3. The normal, lit frame is then drawn to the window as usual.
 
-Press ``P`` to show the ID buffer on screen instead of the lit scene.
+View -> Show pick buffer (or ``P``) shows the ID buffer instead.
 
 A picked top disc slides **up its peg until its hole clears the peg top**,
 follows the cursor above the pegs, and on release slides down onto the nearest
 peg. Collision detection keeps it physical: a disc moves sideways only where it
 would not intersect a peg (`collides_with_peg`), so it must clear the peg top
 first, and it comes down until it rests on that peg's top disc (`rest_y`). An
-illegal drop (larger on smaller) slides back down its own peg, with the
-reason in the window title. Moves go through the shared engine
+illegal drop (larger on smaller) slides back down its own peg. A drop and a
+keyboard move take the same path (`HanoiGL.make_move`) through the shared engine
 (`engine.GameSession.dispatch`), like every other front-end.
 
-Keys: ``1``-``8`` start a new game with that many discs, ``R`` resets the
-camera, ``P`` toggles the ID-buffer view, ``Esc`` quits.
-
 The transforms use the matrix stack of gacalc
-(github.com/billsix/geometricalgebra), the same one
-github.com/billsix/modelviewprojection's demos use, so the picking code can be
-lifted into that book.
+(github.com/billsix/geometricalgebra), the same one modelviewprojection's demos
+use, so the picking code can be lifted into that book.
 """
 
 import ctypes
@@ -41,15 +44,29 @@ import typing
 from collections.abc import Sequence
 
 import gacalc.gl.matrix_stack as ms
+
+# Import glfw before imgui_bundle, so the standard glfw is the one loaded (as
+# github.com/billsix/modelviewprojection's demos do).
 import glfw
 import numpy as np
 import OpenGL.GL as GL
 import OpenGL.GL.shaders as shaders
+from imgui_bundle import imgui
+from imgui_bundle.python_backends.glfw_backend import GlfwRenderer
 from numpy.typing import NDArray
 
-from .commands import MoveCmd
+from .commands import ApplyCmd, MoveCmd, RelabelCmd
 from .engine import DispatchResult, GameSession
-from .recipe import RecipeRegistry
+from .hanoimodel import HanoiGame
+from .presenter import (
+    HOWTO_TEXT,
+    Labelling,
+    change_labels_on_pegs,
+    default_recipe_name,
+    format_move_tally,
+    format_win_celebration,
+)
+from .recipe import Recipe, RecipeRegistry, rebinding, rebound_moves
 
 if typing.TYPE_CHECKING:
     # glfw types window handles as `_GLFWwindowPointerT`: private, and absent
@@ -65,7 +82,7 @@ PEG_RADIUS: float = 0.12
 TUBE_RADIUS: float = 0.18  # a disc's thickness is twice this
 BASE_TOP: float = 0.0
 BASE_HEIGHT: float = 0.3
-MAX_DISKS: int = 8
+MAX_DISKS: int = 8  # the disc colours run out after 8
 DEFAULT_DISKS: int = 3
 SLIDE_SPEED: float = 6.0  # world units per second for every disc motion
 
@@ -553,7 +570,6 @@ class Mesh:
         GL.glVertexAttribPointer(
             1, 3, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(12)
         )
-        GL.glBindVertexArray(0)
 
     def draw(self) -> None:
         """Draw the triangles (a program must be in use)."""
@@ -635,24 +651,91 @@ class OrbitCamera:
 
 # --- The application -------------------------------------------------------
 
+# Peg colours by LABEL (0-indexed), so a colour follows a label across
+# relabels (feature-spec §4.3): blue, gold, red, as in the other GUIs.
+LABEL_COLOURS: list[tuple[float, float, float]] = [
+    (0.29, 0.47, 0.84),
+    (0.86, 0.72, 0.24),
+    (0.84, 0.33, 0.33),
+]
+PANEL_WIDTH: float = 380.0  # the right-hand Game panel, in imgui units
+RELABEL_PERMUTATIONS: tuple[tuple[int, int, int], ...] = (
+    (1, 2, 3),
+    (1, 3, 2),
+    (2, 1, 3),
+    (2, 3, 1),
+    (3, 1, 2),
+    (3, 2, 1),
+)
+
+
+def ascii_text(text: str) -> str:
+    """The text with the few non-ASCII marks the shared lines use replaced.
+
+    ImGui's built-in font covers ASCII only; a dash or an arrow would show
+    as "?".
+
+    Examples:
+        >>> ascii_text("1 → 3 — done • ok")
+        '1 -> 3 -- done - ok'
+    """
+    return (
+        text.replace("→", "->")
+        .replace("—", "--")
+        .replace("•", "-")
+        .replace("‘", "'")
+        .replace("’", "'")
+    )
+
+
+@dataclasses.dataclass
+class RebindingView:
+    """The three-panel rebinding view (feature-spec §4.8), or a recipe list.
+
+    Attributes:
+        title: The heading over the view.
+        left_header: The left column's header (whose labels the moves use).
+        moves: The moves in their own labels.
+        labelling: The labelling active when the view was opened.
+        selected: The selected move's row, or None.
+    """
+
+    title: str
+    left_header: str
+    moves: list[tuple[int, int]]
+    labelling: Labelling
+    selected: int | None = None
+
+
+@dataclasses.dataclass
+class PendingAction:
+    """A move (by labels) or a recipe apply, asked for while reviewing the
+    history and held until the student answers "Continue from here?"."""
+
+    move: tuple[int, int] | None = None
+    apply_name: str | None = None
+
 
 class HanoiGL:
-    """The 3D board in a GLFW window: drawing, picking and moving discs.
+    """The 3D board with a Dear ImGui interface: every feature of the other
+    GUIs (feature-spec §7), with the board drawn in 3D and picked by colour.
 
-    The event handlers (`press`, `cursor`, `release`) take window coordinates,
-    so a test can drive the app without real mouse events.
+    `frame` draws one frame (UI, input, the 3D scene). The game actions
+    (`make_move`, `relabel`, `apply_recipe`, ...) are plain methods, so a
+    test can drive them without the mouse.
     """
 
     def __init__(
         self, window: "GLFWWindow", num_disks: int = DEFAULT_DISKS
     ) -> None:
-        """Build the GL resources for `window` (its context must be current).
+        """Build the GL resources for `window` (its context must be current,
+        and an imgui context must exist).
 
         Args:
             window: The GLFW window.
             num_disks: Discs in the first game.
         """
-        self.window: "GLFWWindow" = window
+        self.window: GLFWWindow = window
         self.registry: RecipeRegistry = RecipeRegistry()
         self.session: GameSession = GameSession(num_disks, self.registry)
         self.camera: OrbitCamera = OrbitCamera()
@@ -661,7 +744,29 @@ class HanoiGL:
         self.last_cursor: tuple[float, float] = (0.0, 0.0)
         self.cursor_x: float = 0.0
         self.show_pick_buffer: bool = False
-        self.message: str = "Drag a top disc to another peg."
+        self.want_quit: bool = False
+        self.status: str = ""
+        # Tier-2 gating (feature-spec §3.5): relabel + recipes unlock at the
+        # first win and stay unlocked for the session.
+        self.won_once: bool = False
+        # Win celebration and save-before-discard (§4.9): the shared lines,
+        # whether the win came from replaying a recipe or was already saved,
+        # and a New Game held behind the save question.
+        self.win_lines: list[str] = []
+        self.won_via_apply: bool = False
+        self.saved_current: bool = False
+        self.pending_new_game: int | None = None
+        self.view: RebindingView | None = None
+        # History review (§4.11): how many moves the board shows (None = the
+        # live game), and a move or apply waiting on "Continue from here?".
+        self.review_count: int | None = None
+        self.pending: PendingAction | None = None
+        self.illegal_message: str = ""
+        self.recipe_name: str = ""
+        # The keyboard move's typed from-peg label, waiting for the to-peg.
+        self.pending_from: int | None = None
+        # Popups to open on the next frame (imgui opens them by name).
+        self.popups_to_open: list[str] = ["How to Play"]
         self.lit: int = shaders.compileProgram(
             shaders.compileShader(LIT_VERTEX_SHADER, GL.GL_VERTEX_SHADER),
             shaders.compileShader(LIT_FRAGMENT_SHADER, GL.GL_FRAGMENT_SHADER),
@@ -672,10 +777,7 @@ class HanoiGL:
             shaders.compileShader(PICK_FRAGMENT_SHADER, GL.GL_FRAGMENT_SHADER),
             validate=False,
         )
-        width: int
-        height: int
-        width, height = glfw.get_framebuffer_size(window)
-        self.pick_buffer: PickBuffer = PickBuffer(width, height)
+        self.pick_buffer: PickBuffer = PickBuffer(1, 1)
         self.disc_meshes: dict[int, Mesh] = {}
         self.peg_mesh: Mesh
         self.base_mesh: Mesh
@@ -683,11 +785,40 @@ class HanoiGL:
 
     # --- Game state ------------------------------------------------------
 
+    def shown_game(self) -> HanoiGame:
+        """The game the board shows: the reviewed state, or the live game."""
+        if self.review_count is None:
+            return self.session.game
+        return self.session.state_after(self.review_count)
+
+    def _label(self, peg: int) -> int:
+        """The 1-indexed label physical peg `peg` wears now."""
+        return change_labels_on_pegs(self.session.labelling, peg) + 1
+
+    def request_new_game(self, num_disks: int) -> None:
+        """New Game: if a hand-won solution was not saved, ask first."""
+        if (
+            self.session.is_won()
+            and not self.won_via_apply
+            and not self.saved_current
+        ):
+            self.pending_new_game = num_disks
+            self.popups_to_open.append("Save solution?")
+        else:
+            self.new_game(num_disks)
+
     def new_game(self, num_disks: int) -> None:
         """Start a fresh game with `num_disks` discs; rebuild the meshes."""
         self.session = GameSession(num_disks, self.registry)
         self.moving = None
-        self.message = "Drag a top disc to another peg."
+        self.status = ""
+        self.view = None
+        self.win_lines = []
+        self.won_via_apply = False
+        self.saved_current = False
+        self.pending_new_game = None
+        self.review_count = None
+        self.pending = None
         self._build_meshes()
 
     def _build_meshes(self) -> None:
@@ -702,25 +833,163 @@ class HanoiGL:
             *box_mesh(3.0 * PEG_SPACING, BASE_HEIGHT, PEG_SPACING)
         )
 
-    def _title(self) -> str:
-        """The window title: the move count and the last message."""
-        moves: int = self.session.current_moves
-        optimal: int = self.session.min_moves()
-        solved: str = " Solved!" if self.session.is_won() else ""
-        return (
-            f"Towers of Hanoi 3D: {moves} moves (optimal {optimal}).{solved}"
-            f" {self.message}"
+    def make_move(self, from_label: int, to_label: int) -> None:
+        """Make a move in the current labels: the one path for the keyboard
+        move and a dropped disc (feature-spec §4.2, ruling 7)."""
+        if self.review_count is not None:
+            self.pending = PendingAction(move=(from_label, to_label))
+            self.popups_to_open.append("Continue from here?")
+            return
+        relabelled: bool = self.session.labelling != Labelling.ONE_TWO_THREE
+        result: DispatchResult = self.session.dispatch(
+            MoveCmd(from_label, to_label)
+        )
+        if result.lines:
+            self.illegal_message = result.lines[0]
+            self.status = result.lines[0]
+            self.popups_to_open.append("Illegal move")
+            return
+        self.status = f"Moved {from_label} -> {to_label}."
+        if relabelled:
+            self.view = RebindingView(
+                title="Rebinding for your move",
+                left_header="Your move",
+                moves=[(from_label, to_label)],
+                labelling=self.session.labelling,
+            )
+        self._check_win()
+
+    def relabel(self, labels: tuple[int, int, int]) -> None:
+        """Relabel the pegs so physical pegs 1, 2, 3 show `labels`."""
+        result: DispatchResult = self.session.dispatch(RelabelCmd(labels))
+        self.status = result.lines[0] if result.lines else ""
+
+    def save_recipe(self, name: str) -> None:
+        """Save the won game's moves as recipe `name` (overwrite reported)."""
+        self.status = self.session.save_recipe(name)
+        self.saved_current = True
+
+    def view_recipe(self, name: str) -> None:
+        """Recipe menu -> View: the recipe's moves, and under a relabelling
+        the three-panel rebinding view."""
+        recipe: Recipe | None = self.registry.get(name)
+        if recipe is None:
+            return
+        self.view = RebindingView(
+            title=f"Recipe '{name}'",
+            left_header="Recipe moves",
+            moves=list(recipe.default_moves),
+            labelling=self.session.labelling,
         )
 
-    # --- Matrices --------------------------------------------------------
+    def apply_recipe(self, name: str) -> None:
+        """Recipe menu -> Apply: replay the recipe through the current
+        labelling; under a relabelling, show the rebinding view (§4.8)."""
+        if self.review_count is not None:
+            self.pending = PendingAction(apply_name=name)
+            self.popups_to_open.append("Continue from here?")
+            return
+        recipe: Recipe | None = self.registry.get(name)
+        if recipe is None:
+            return
+        relabelled: bool = self.session.labelling != Labelling.ONE_TWO_THREE
+        result: DispatchResult = self.session.dispatch(ApplyCmd(name))
+        stopped: list[str] = [
+            line for line in result.lines if "stopped" in line.lower()
+        ]
+        self.status = (
+            ascii_text(stopped[0])
+            if stopped
+            else f"Applied '{name}' -- {len(recipe.default_moves)} moves."
+        )
+        if relabelled:
+            self.view = RebindingView(
+                title=f"Rebinding for '{name}'",
+                left_header="Recipe moves",
+                moves=list(recipe.default_moves),
+                labelling=self.session.labelling,
+            )
+        if self.session.is_won():
+            self.won_via_apply = True
+        self._check_win()
 
-    def _set_view_projection(self) -> None:
-        """Load the projection and the orbit camera's view matrix."""
+    def _check_win(self) -> None:
+        """On a win: unlock Tier 2, put the result in the status line, and
+        on the first win of the session show the recipe teaching (§4.9)."""
+        if not self.session.is_won():
+            return
+        first_win: bool = not self.won_once
+        self.won_once = True
+        self.win_lines = [
+            ascii_text(line)
+            for line in format_win_celebration(
+                self.session.num_disks,
+                self.session.current_moves,
+                self.session.min_moves(),
+                first_win=first_win,
+            )
+        ]
+        if self.win_lines:
+            self.status = self.win_lines[0]
+        if first_win:
+            self.popups_to_open.append("You solved it!")
+
+    def review_move(self, count: int) -> None:
+        """Show the board after the first `count` moves; the last move is
+        the live game, so it leaves review."""
+        total: int = len(self.session.recorder.default_moves)
+        self.review_count = count if count < total else None
+        self.status = (
+            f"Reviewing move {count} of {total}. Make a move to continue from"
+            " here, or Back to current."
+            if self.review_count is not None
+            else ""
+        )
+
+    def continue_from_review(self) -> None:
+        """Continue from the reviewed move: delete every later move, then
+        make the held move or apply."""
+        pending: PendingAction | None = self.pending
+        self.pending = None
+        if self.review_count is None:
+            return
+        self.session.truncate_to(self.review_count)
+        self.review_count = None
+        # The game changed, so a saved or replayed win no longer describes it.
+        self.saved_current = False
+        self.won_via_apply = False
+        if pending is None:
+            return
+        if pending.move is not None:
+            self.make_move(*pending.move)
+        elif pending.apply_name is not None:
+            self.apply_recipe(pending.apply_name)
+        else:
+            pass  # nothing was held
+
+    # --- The board's rectangle and matrices ------------------------------
+
+    def _board_rect(self) -> tuple[int, int, float, float]:
+        """The board's size in framebuffer pixels, the imgui-to-pixel scale,
+        and the menu bar's height in imgui units (the board starts there)."""
         width: int
         height: int
         width, height = glfw.get_framebuffer_size(self.window)
+        io: imgui.IO = imgui.get_io()
+        scale: float = width / max(io.display_size.x, 1.0)
+        top: float = imgui.get_frame_height()
+        board_width: int = max(int(width - PANEL_WIDTH * scale), 1)
+        board_height: int = max(int(height - top * scale), 1)
+        return board_width, board_height, scale, top
+
+    def _set_view_projection(self) -> None:
+        """Load the projection (for the board's aspect) and the orbit
+        camera's view matrix."""
+        board_width: int
+        board_height: int
+        board_width, board_height, _scale, _top = self._board_rect()
         ms.set_to_identity_matrix(ms.MatrixStack.projection)
-        ms.perspective(45.0, max(width, 1) / max(height, 1), 0.1, 100.0)
+        ms.perspective(45.0, board_width / board_height, 0.1, 100.0)
         ms.set_to_identity_matrix(ms.MatrixStack.view)
         # Read bottom-up: centre the board, turn it, tilt it, back away.
         ms.translate(ms.MatrixStack.view, 0.0, 0.0, -self.camera.distance)
@@ -729,21 +998,63 @@ class HanoiGL:
         ms.translate(ms.MatrixStack.view, 0.0, -1.2, 0.0)
         ms.set_to_identity_matrix(ms.MatrixStack.model)
 
-    def _scene(self) -> list[tuple[Mesh, tuple[float, float, float], int, int]]:
-        """Everything to draw: (mesh, position, colour index or -1, pick ID).
+    def _board_pixel(self, x: float, y: float) -> tuple[float, float]:
+        """Window (imgui) point -> pixel in the board, counted from its
+        top-left corner."""
+        scale: float
+        top: float
+        _w, _h, scale, top = self._board_rect()
+        return x * scale, (y - top) * scale
 
-        Discs on the pegs come from the engine's game state (the moving disc
-        is drawn where it is now, not on its peg); pegs and the base get pick
-        ID 0, so they hide what is behind them but can't be picked.
+    def screen_point(self, x: float, y: float, z: float) -> tuple[float, float]:
+        """Project world point (x, y, z) to window (imgui) coordinates."""
+        board_width: int
+        board_height: int
+        scale: float
+        top: float
+        board_width, board_height, scale, top = self._board_rect()
+        self._set_view_projection()
+        clip: NDArray[np.float32] = ms.get_current_matrix(
+            ms.MatrixStack.modelviewprojection
+        ) @ np.array([x, y, z, 1.0])
+        ndc_x: float = float(clip[0] / clip[3])
+        ndc_y: float = float(clip[1] / clip[3])
+        return (
+            (ndc_x + 1.0) / 2.0 * board_width / scale,
+            top + (1.0 - ndc_y) / 2.0 * board_height / scale,
+        )
+
+    def _scene(
+        self,
+    ) -> list[
+        tuple[Mesh, tuple[float, float, float], tuple[float, float, float], int]
+    ]:
+        """Everything to draw: (mesh, position, colour, pick ID).
+
+        Discs come from the board shown (the live game, or the reviewed
+        state); the moving disc is drawn where it is now. Pegs and the base
+        get pick ID 0, so they hide what is behind them but can't be picked.
         """
-        items: list[tuple[Mesh, tuple[float, float, float], int, int]] = [
-            (self.base_mesh, (0.0, BASE_TOP - BASE_HEIGHT, 0.0), -1, 0)
-        ]
+        items: list[
+            tuple[
+                Mesh,
+                tuple[float, float, float],
+                tuple[float, float, float],
+                int,
+            ]
+        ] = [(self.base_mesh, (0.0, BASE_TOP - BASE_HEIGHT, 0.0), WOOD, 0)]
         peg: int
         for peg in range(3):
-            items.append((self.peg_mesh, (peg_x(peg), BASE_TOP, 0.0), -1, 0))
+            items.append(
+                (
+                    self.peg_mesh,
+                    (peg_x(peg), BASE_TOP, 0.0),
+                    LABEL_COLOURS[self._label(peg) - 1],
+                    0,
+                )
+            )
         stack: list[int]
-        for peg, stack in enumerate(self.session.game.towers):
+        for peg, stack in enumerate(self.shown_game().towers):
             visible: list[int] = stack
             if self.moving is not None and self.moving.source == peg:
                 visible = stack[:-1]
@@ -754,7 +1065,7 @@ class HanoiGL:
                     (
                         self.disc_meshes[size],
                         (peg_x(peg), rest_y(index), 0.0),
-                        size - 1,
+                        DISC_COLOURS[size - 1],
                         size,
                     )
                 )
@@ -763,46 +1074,43 @@ class HanoiGL:
                 (
                     self.disc_meshes[self.moving.size],
                     (self.moving.x, self.moving.y, 0.0),
-                    self.moving.size - 1,
+                    DISC_COLOURS[self.moving.size - 1],
                     self.moving.size,
                 )
             )
         return items
 
-    # --- Drawing ---------------------------------------------------------
+    # --- Drawing the 3D board --------------------------------------------
 
-    def draw(self) -> None:
-        """Draw one frame to the window: the lit scene, or the ID buffer."""
-        width: int
-        height: int
-        width, height = glfw.get_framebuffer_size(self.window)
-        GL.glViewport(0, 0, width, height)
+    def draw_board(self) -> None:
+        """Draw the board into its rectangle: the lit scene, or the IDs."""
+        board_width: int
+        board_height: int
+        board_width, board_height, _scale, _top = self._board_rect()
+        GL.glViewport(0, 0, board_width, board_height)
+        GL.glDisable(GL.GL_SCISSOR_TEST)  # imgui leaves it on
+        GL.glClearColor(0.12, 0.14, 0.20, 1.0)
+        # PyOpenGL's constants define no `|` for a type checker; at run time
+        # they are ints.
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # ty: ignore[unsupported-operator]
         if self.show_pick_buffer:
             # IDs 1, 2, 3 are nearly black (1/255, 2/255, ...), so brighten
             # them for the eye; the real pick pass always uses brightness 1.
             self._draw_pick_pass(brightness=40.0)
             return
-        GL.glClearColor(0.12, 0.14, 0.20, 1.0)
-        # PyOpenGL's constants define no `|` for a type checker; at run time
-        # they are ints.
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # ty: ignore[unsupported-operator]
+        GL.glDisable(GL.GL_BLEND)
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glUseProgram(self.lit)
         self._set_view_projection()
         mesh: Mesh
         position: tuple[float, float, float]
-        colour_index: int
-        for mesh, position, colour_index, _object_id in self._scene():
+        colour: tuple[float, float, float]
+        for mesh, position, colour, _object_id in self._scene():
             with ms.push_matrix(ms.MatrixStack.model):
                 ms.translate(ms.MatrixStack.model, *position)
                 self._load_matrices(self.lit)
                 GL.glUniform3f(
-                    GL.glGetUniformLocation(self.lit, "color"),
-                    *(
-                        DISC_COLOURS[colour_index]
-                        if colour_index >= 0
-                        else WOOD
-                    ),
+                    GL.glGetUniformLocation(self.lit, "color"), *colour
                 )
                 mesh.draw()
 
@@ -814,9 +1122,8 @@ class HanoiGL:
                 larger only to make the IDs visible on screen.
         """
         GL.glDisable(GL.GL_BLEND)
+        GL.glDisable(GL.GL_SCISSOR_TEST)
         GL.glClearColor(0.0, 0.0, 0.0, 1.0)
-        # PyOpenGL's constants define no `|` for a type checker; at run time
-        # they are ints.
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)  # ty: ignore[unsupported-operator]
         GL.glEnable(GL.GL_DEPTH_TEST)
         GL.glUseProgram(self.pick)
@@ -827,7 +1134,7 @@ class HanoiGL:
         mesh: Mesh
         position: tuple[float, float, float]
         object_id: int
-        for mesh, position, _colour_index, object_id in self._scene():
+        for mesh, position, _colour, object_id in self._scene():
             with ms.push_matrix(ms.MatrixStack.model):
                 ms.translate(ms.MatrixStack.model, *position)
                 self._load_matrices(self.pick)
@@ -867,34 +1174,69 @@ class HanoiGL:
             normal_matrix,
         )
 
-    # --- Picking ---------------------------------------------------------
+    def _draw_peg_labels(self) -> None:
+        """Each peg's label under it (and, when relabelled, the physical
+        "peg n" reference), drawn over the scene with imgui (§4.3)."""
+        draw_list: imgui.ImDrawList = imgui.get_background_draw_list()
+        relabelled: bool = self.session.labelling != Labelling.ONE_TWO_THREE
+        peg: int
+        for peg in range(3):
+            x: float
+            y: float
+            x, y = self.screen_point(
+                peg_x(peg), BASE_TOP - BASE_HEIGHT, PEG_SPACING / 2.0
+            )
+            red: float
+            green: float
+            blue: float
+            red, green, blue = LABEL_COLOURS[self._label(peg) - 1]
+            draw_list.add_text(
+                imgui.ImVec2(x - 4.0, y + 4.0),
+                imgui.get_color_u32(imgui.ImVec4(red, green, blue, 1.0)),
+                str(self._label(peg)),
+            )
+            if relabelled:
+                draw_list.add_text(
+                    imgui.ImVec2(x - 22.0, y + 20.0),
+                    imgui.get_color_u32(imgui.ImVec4(0.7, 0.7, 0.7, 1.0)),
+                    f"(peg {peg + 1})",
+                )
+
+    # --- Picking and dragging --------------------------------------------
 
     def pick_at(self, x: float, y: float) -> int:
         """The ID of the object under window point (x, y), 0 for none.
 
         Renders the pick pass into the offscreen framebuffer, reads back the
         one pixel under the cursor, and decodes its colour. The window is not
-        touched: the next `draw` shows the normal scene.
+        touched: the frame drawn next shows the normal scene.
         """
-        width: int
-        height: int
-        width, height = glfw.get_framebuffer_size(self.window)
-        if (width, height) != (self.pick_buffer.width, self.pick_buffer.height):
-            self.pick_buffer.resize(width, height)
-        window_width: int
-        window_height: int
-        window_width, window_height = glfw.get_window_size(self.window)
-        # Window coordinates -> framebuffer pixels (they differ on HiDPI), and
-        # flip y: GL's pixel rows count up from the bottom.
-        pixel_x: int = int(x * width / max(window_width, 1))
-        pixel_y: int = height - 1 - int(y * height / max(window_height, 1))
+        board_width: int
+        board_height: int
+        board_width, board_height, _scale, _top = self._board_rect()
+        if (board_width, board_height) != (
+            self.pick_buffer.width,
+            self.pick_buffer.height,
+        ):
+            self.pick_buffer.resize(board_width, board_height)
+        pixel_x: float
+        pixel_y: float
+        pixel_x, pixel_y = self._board_pixel(x, y)
+        if not (0 <= pixel_x < board_width and 0 <= pixel_y < board_height):
+            return 0
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.pick_buffer.fbo)
-        GL.glViewport(0, 0, width, height)
+        GL.glViewport(0, 0, board_width, board_height)
         self._draw_pick_pass()
         GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
+        # GL's pixel rows count up from the bottom, so flip y.
         pixel: bytes = bytes(
             GL.glReadPixels(
-                pixel_x, pixel_y, 1, 1, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE
+                int(pixel_x),
+                board_height - 1 - int(pixel_y),
+                1,
+                1,
+                GL.GL_RGBA,
+                GL.GL_UNSIGNED_BYTE,
             )
         )
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
@@ -904,11 +1246,14 @@ class HanoiGL:
         """Where window point (x, y) falls on the z = 0 plane the pegs stand
         in, as a world x: the cursor ray through the inverse view-projection,
         intersected with that plane."""
-        window_width: int
-        window_height: int
-        window_width, window_height = glfw.get_window_size(self.window)
-        ndc_x: float = 2.0 * x / max(window_width, 1) - 1.0
-        ndc_y: float = 1.0 - 2.0 * y / max(window_height, 1)
+        board_width: int
+        board_height: int
+        board_width, board_height, _scale, _top = self._board_rect()
+        pixel_x: float
+        pixel_y: float
+        pixel_x, pixel_y = self._board_pixel(x, y)
+        ndc_x: float = 2.0 * pixel_x / board_width - 1.0
+        ndc_y: float = 1.0 - 2.0 * pixel_y / board_height
         self._set_view_projection()
         inverse: NDArray[np.float32] = np.linalg.inv(
             ms.get_current_matrix(ms.MatrixStack.modelviewprojection)
@@ -925,34 +1270,32 @@ class HanoiGL:
         along: float = float(-near_point[2] / direction[2])
         return float(near_point[0] + along * direction[0])
 
-    # --- Mouse handling --------------------------------------------------
-
     def press(self, x: float, y: float) -> None:
-        """Mouse-down at (x, y): pick up a top disc, or start orbiting."""
+        """Mouse-down on the board at (x, y): pick up a top disc of the board
+        shown, or start orbiting."""
         self.last_cursor = (x, y)
         if self.moving is not None:
             return
         picked: int = self.pick_at(x, y)
-        towers: list[list[int]] = self.session.game.towers
+        board: HanoiGame = self.shown_game()
         tops: dict[int, int] = {
-            stack[-1]: peg for peg, stack in enumerate(towers) if stack
+            stack[-1]: peg for peg, stack in enumerate(board.towers) if stack
         }
         if picked == 0:
             self.orbiting = True
-        elif self.session.is_won():
-            self.message = "Solved! Press a number key for a new game."
+        elif board.check_win_condition():
+            self.status = "Solved! Start a new game from the Game menu."
         elif picked not in tops:
-            self.message = f"Disc {picked} is not on top of its peg."
+            self.status = f"Disc {picked} is not on top of its peg."
         else:
             source: int = tops[picked]
             self.moving = MovingDisc(
                 size=picked,
                 source=source,
                 x=peg_x(source),
-                y=rest_y(len(towers[source]) - 1),
+                y=rest_y(len(board.towers[source]) - 1),
             )
             self.cursor_x = self.moving.x
-            self.message = f"Lifting disc {picked}."
 
     def cursor(self, x: float, y: float) -> None:
         """Mouse moved to (x, y): orbit the camera, or steer a carried disc."""
@@ -964,22 +1307,25 @@ class HanoiGL:
 
     def release(self) -> None:
         """Mouse-up: stop orbiting, or drop the carried disc on the nearest
-        peg, if that move is legal; an illegal one slides back home."""
+        peg if that move is legal; an illegal one slides back home and the
+        reason pops up."""
         self.orbiting = False
         if self.moving is None or self.moving.released:
             return
         moving: MovingDisc = self.moving
         target: int = nearest_peg(moving.x)
-        towers: list[list[int]] = self.session.game.towers
+        towers: list[list[int]] = self.shown_game().towers
         if (
             target != moving.source
             and towers[target]
             and (towers[target][-1] < moving.size)
         ):
-            self.message = (
+            self.illegal_message = (
                 f"Can't put disc {moving.size} on disc {towers[target][-1]}"
-                " — larger on smaller."
+                " -- larger on smaller."
             )
+            self.status = self.illegal_message
+            self.popups_to_open.append("Illegal move")
             target = moving.source
         moving.released = True
         moving.target = target
@@ -988,23 +1334,400 @@ class HanoiGL:
 
     def update(self, dt: float) -> None:
         """Advance the moving disc; when it lands on another peg, make the
-        move through the engine."""
+        move through the same path as the keyboard move."""
         if self.moving is None:
             return
         moving: MovingDisc = self.moving
         if not moving.advance(dt, self.cursor_x, self.session.num_disks):
             return
         self.moving = None
-        if moving.target == moving.source:
+        if moving.target != moving.source:
+            self.make_move(
+                self._label(moving.source), self._label(moving.target)
+            )
+
+    def _board_input(self) -> None:
+        """Mouse and keys on the board, unless imgui is using them (a menu,
+        a window or a dialog is under the mouse or has the keyboard)."""
+        io: imgui.IO = imgui.get_io()
+        x: float = io.mouse_pos.x
+        y: float = io.mouse_pos.y
+        if not io.want_capture_mouse:
+            if imgui.is_mouse_clicked(imgui.MouseButton_.left):
+                self.press(x, y)
+            if imgui.is_mouse_clicked(imgui.MouseButton_.right):
+                self.orbiting = True
+                self.last_cursor = (x, y)
+            if io.mouse_wheel:
+                self.camera.zoom(io.mouse_wheel)
+        if (x, y) != self.last_cursor:
+            self.cursor(x, y)
+        if imgui.is_mouse_released(
+            imgui.MouseButton_.left
+        ) or imgui.is_mouse_released(imgui.MouseButton_.right):
+            self.release()
+        if not io.want_capture_keyboard and not imgui.is_popup_open(
+            "", imgui.PopupFlags_.any_popup_id
+        ):
+            self._keyboard_move()
+            if imgui.is_key_pressed(imgui.Key.p):
+                self.show_pick_buffer = not self.show_pick_buffer
+            if imgui.is_key_pressed(imgui.Key.r):
+                self.camera = OrbitCamera()
+
+    def _keyboard_move(self) -> None:
+        """The keyboard move: a peg number picks the from-peg, the next one
+        moves there (through `make_move`, like a drop); Esc cancels."""
+        if imgui.is_key_pressed(imgui.Key.escape):
+            self.pending_from = None
+        if self.shown_game().check_win_condition():
             return
-        result: DispatchResult = self.session.dispatch(
-            MoveCmd(moving.source + 1, moving.target + 1)
+        label: int
+        key: imgui.Key
+        keypad_key: imgui.Key
+        for label, key, keypad_key in (
+            (1, imgui.Key._1, imgui.Key.keypad1),
+            (2, imgui.Key._2, imgui.Key.keypad2),
+            (3, imgui.Key._3, imgui.Key.keypad3),
+        ):
+            if not (
+                imgui.is_key_pressed(key) or imgui.is_key_pressed(keypad_key)
+            ):
+                continue
+            pending: int | None = self.pending_from
+            self.pending_from = None
+            if pending is None:
+                self.pending_from = label
+            elif pending != label:
+                self.make_move(pending, label)
+
+    # --- The imgui interface ---------------------------------------------
+
+    def _menu_bar(self) -> None:
+        """Game / Relabel / Recipe / View / Help (feature-spec §3.5, §6.2):
+        Relabel and Recipe are dimmed until the first win."""
+        if not imgui.begin_main_menu_bar():
+            return
+        if imgui.begin_menu("Game"):
+            if imgui.begin_menu("New Game"):
+                n: int
+                for n in range(1, MAX_DISKS + 1):
+                    if imgui.menu_item_simple(
+                        f"{n} discs", selected=self.session.num_disks == n
+                    ):
+                        self.request_new_game(n)
+                imgui.end_menu()
+            if imgui.menu_item_simple("New Game (Same Size)"):
+                self.request_new_game(self.session.num_disks)
+            imgui.separator()
+            if imgui.menu_item_simple("Quit"):
+                self.want_quit = True
+            imgui.end_menu()
+        imgui.begin_disabled(not self.won_once)
+        if imgui.begin_menu("Relabel"):
+            current: tuple[int, ...] = tuple(self._label(p) for p in range(3))
+            labels: tuple[int, int, int]
+            for labels in RELABEL_PERMUTATIONS:
+                if imgui.menu_item_simple(
+                    "%d %d %d" % labels, selected=labels == current
+                ):
+                    self.relabel(labels)
+            imgui.end_menu()
+        if imgui.begin_menu("Recipe"):
+            if imgui.menu_item_simple(
+                "Save current solution", enabled=self.session.is_won()
+            ):
+                self.recipe_name = default_recipe_name(self.session.num_disks)
+                self.popups_to_open.append("Save recipe")
+            imgui.separator()
+            names: list[str] = self.registry.names()
+            if not names:
+                imgui.menu_item_simple("(no saved recipes yet)", enabled=False)
+            name: str
+            for name in names:
+                recipe: Recipe | None = self.registry.get(name)
+                assert recipe is not None  # listed by the registry itself
+                if imgui.begin_menu(
+                    f"{name}  ({recipe.disk_count} discs,"
+                    f" {len(recipe.default_moves)} moves)"
+                ):
+                    if imgui.menu_item_simple("View"):
+                        self.view_recipe(name)
+                    if imgui.menu_item_simple(
+                        "Apply", enabled=not self.session.is_won()
+                    ):
+                        self.apply_recipe(name)
+                    imgui.end_menu()
+            imgui.end_menu()
+        imgui.end_disabled()
+        if imgui.begin_menu("View"):
+            if imgui.menu_item_simple(
+                "Show pick buffer", "P", selected=self.show_pick_buffer
+            ):
+                self.show_pick_buffer = not self.show_pick_buffer
+            if imgui.menu_item_simple("Reset camera", "R"):
+                self.camera = OrbitCamera()
+            imgui.end_menu()
+        if imgui.begin_menu("Help"):
+            if imgui.menu_item_simple("How to Play"):
+                self.popups_to_open.append("How to Play")
+            imgui.end_menu()
+        imgui.end_main_menu_bar()
+
+    def _panel(self) -> None:
+        """The right-hand Game panel: goal line, status, valid moves, move
+        hint, the move history with review, and the rebinding view."""
+        io: imgui.IO = imgui.get_io()
+        top: float = imgui.get_frame_height()
+        imgui.set_next_window_pos(
+            imgui.ImVec2(io.display_size.x - PANEL_WIDTH, top)
         )
-        self.message = (
-            result.lines[0]
-            if result.lines
-            else f"Moved {moving.source + 1} → {moving.target + 1}."
+        imgui.set_next_window_size(
+            imgui.ImVec2(PANEL_WIDTH, io.display_size.y - top)
         )
+        imgui.begin(
+            "Game",
+            flags=imgui.WindowFlags_.no_move
+            | imgui.WindowFlags_.no_resize
+            | imgui.WindowFlags_.no_collapse,
+        )
+        board: HanoiGame = self.shown_game()
+        imgui.text_wrapped(
+            f"Goal: move all {self.session.num_disks} discs to peg 3"
+        )
+        imgui.text(
+            f"Moves: {board.current_moves} / optimal {self.session.min_moves()}"
+        )
+        if board.check_win_condition():
+            imgui.same_line()
+            imgui.text_colored(imgui.ImVec4(0.3, 0.9, 0.3, 1.0), "-- solved!")
+        if self.session.labelling != Labelling.ONE_TWO_THREE:
+            imgui.text(
+                "Labels on physical pegs 1 2 3: %d %d %d"
+                % tuple(self._label(p) for p in range(3))
+            )
+        if self.review_count is None:
+            imgui.text_wrapped(ascii_text(self.session.valid_moves_str()))
+        if self.status:
+            imgui.text_wrapped(ascii_text(self.status))
+
+        imgui.separator()
+        # How to move: drag a disc, or the keyboard move (`_board_input`);
+        # there are no move buttons (ui-design-principles ruling 7).
+        imgui.text_wrapped(
+            "Drag a top disc onto another peg, or type the from-peg number,"
+            " then the to-peg number (Esc cancels)."
+            if self.pending_from is None
+            else f"From peg {self.pending_from}: type the to-peg number"
+            " (Esc cancels)."
+        )
+
+        imgui.separator()
+        moves: list[tuple[int, int]] = list(self.session.recorder.default_moves)
+        imgui.text(
+            f"History: {len(moves)} moves (optimal {self.session.min_moves()},"
+            " default 1-2-3 labels)"
+        )
+        imgui.begin_child(
+            "history", imgui.ImVec2(0, 150), imgui.ChildFlags_.borders
+        )
+        if not moves:
+            imgui.text_disabled("(no moves yet)")
+        line: str
+        for index, line in enumerate(format_move_tally(moves)):
+            clicked: bool
+            clicked, _selected = imgui.selectable(
+                f"{line}##history{index}", self.review_count == index + 1
+            )
+            if clicked:
+                self.review_move(index + 1)
+        imgui.end_child()
+        if self.review_count is not None and imgui.button("Back to current"):
+            self.review_count = None
+            self.pending = None
+            self.status = ""
+        if self.view is not None:
+            imgui.separator()
+            self._rebinding_view(self.view)
+        imgui.end()
+
+    def _rebinding_view(self, view: RebindingView) -> None:
+        """The three-panel view as one table (so the columns scroll
+        together): click a move to select its row, and the key marks the two
+        bindings it uses; under the default labelling, just the moves."""
+        imgui.text(view.title)
+        if view.labelling == Labelling.ONE_TWO_THREE:
+            imgui.text_disabled("(default labelling: no rebinding)")
+            line: str
+            for line in format_move_tally(view.moves):
+                imgui.text(line)
+        elif imgui.begin_table(
+            "rebinding",
+            3,
+            imgui.TableFlags_.borders
+            | imgui.TableFlags_.sizing_stretch_prop
+            | imgui.TableFlags_.scroll_y,
+            imgui.ImVec2(0, 200),
+        ):
+            imgui.table_setup_column(view.left_header)
+            imgui.table_setup_column("Rebinding")
+            imgui.table_setup_column("Rebound (pegs)")
+            imgui.table_headers_row()
+            key: tuple[tuple[int, int], ...] = rebinding(view.labelling)
+            rebound: tuple[tuple[int, int], ...] = rebound_moves(
+                view.moves, view.labelling
+            )
+            used: tuple[int, ...] = (
+                view.moves[view.selected] if view.selected is not None else ()
+            )
+            row: int
+            for row in range(max(len(view.moves), len(key))):
+                imgui.table_next_row()
+                imgui.table_set_column_index(0)
+                if row < len(view.moves):
+                    clicked: bool
+                    clicked, _selected = imgui.selectable(
+                        f"{row + 1}: {view.moves[row][0]} -> "
+                        f"{view.moves[row][1]}##rebind{row}",
+                        view.selected == row,
+                        imgui.SelectableFlags_.span_all_columns,
+                    )
+                    if clicked:
+                        view.selected = row
+                imgui.table_set_column_index(1)
+                if row < len(key):
+                    # ">" marks the two bindings the selected move uses (the
+                    # built-in font has no arrowhead glyph).
+                    marker: str = ">" if key[row][0] in used else " "
+                    imgui.text(
+                        f"{marker} label {key[row][0]} -> peg {key[row][1]}"
+                    )
+                imgui.table_set_column_index(2)
+                if row < len(rebound):
+                    imgui.text(
+                        f"{row + 1}: {rebound[row][0]} -> {rebound[row][1]}"
+                    )
+            imgui.end_table()
+        if imgui.button("Dismiss"):
+            self.view = None
+
+    def _popups(self) -> None:
+        """Open the popups requested since the last frame, then draw each
+        modal: illegal move, save recipe, first win, save before discard,
+        How to Play, and continue-from-here."""
+        name: str
+        for name in self.popups_to_open:
+            imgui.open_popup(name)
+        self.popups_to_open = []
+        centre: imgui.ImVec2 = imgui.get_main_viewport().get_center()
+        flags: int = imgui.WindowFlags_.always_auto_resize
+
+        imgui.set_next_window_pos(
+            centre, imgui.Cond_.appearing, imgui.ImVec2(0.5, 0.5)
+        )
+        if imgui.begin_popup_modal("Illegal move", None, flags)[0]:
+            imgui.text(ascii_text(self.illegal_message))
+            if imgui.button("OK"):
+                imgui.close_current_popup()
+            imgui.end_popup()
+
+        imgui.set_next_window_pos(
+            centre, imgui.Cond_.appearing, imgui.ImVec2(0.5, 0.5)
+        )
+        if imgui.begin_popup_modal("Save recipe", None, flags)[0]:
+            imgui.text("Name this recipe:")
+            _changed: bool
+            _changed, self.recipe_name = imgui.input_text(
+                "##name", self.recipe_name
+            )
+            if imgui.button("Save") and self.recipe_name.strip():
+                self.save_recipe(self.recipe_name.strip())
+                imgui.close_current_popup()
+            imgui.same_line()
+            if imgui.button("Cancel"):
+                imgui.close_current_popup()
+            imgui.end_popup()
+
+        imgui.set_next_window_pos(
+            centre, imgui.Cond_.appearing, imgui.ImVec2(0.5, 0.5)
+        )
+        if imgui.begin_popup_modal("You solved it!", None, flags)[0]:
+            line: str
+            for line in self.win_lines:
+                imgui.text(line)
+            imgui.separator()
+            if imgui.button("Got it"):
+                imgui.close_current_popup()
+            imgui.end_popup()
+
+        imgui.set_next_window_pos(
+            centre, imgui.Cond_.appearing, imgui.ImVec2(0.5, 0.5)
+        )
+        if imgui.begin_popup_modal("Save solution?", None, flags)[0]:
+            imgui.text("Save your solution as a recipe before starting over?")
+            save: bool = imgui.button("Save")
+            imgui.same_line()
+            discard: bool = imgui.button("Don't save")
+            if save:
+                self.save_recipe(default_recipe_name(self.session.num_disks))
+            if (save or discard) and self.pending_new_game is not None:
+                self.new_game(self.pending_new_game)
+            if save or discard:
+                imgui.close_current_popup()
+            imgui.end_popup()
+
+        imgui.set_next_window_pos(
+            centre, imgui.Cond_.appearing, imgui.ImVec2(0.5, 0.5)
+        )
+        if imgui.begin_popup_modal("How to Play", None, flags)[0]:
+            imgui.text(ascii_text(HOWTO_TEXT))
+            imgui.separator()
+            imgui.text(
+                "Drag a top disc to another peg, or type its peg number, then"
+                " the target peg's number."
+            )
+            imgui.text(
+                "Drag the background (or the right button) to turn the"
+                " camera; the wheel zooms."
+            )
+            if imgui.button("Got it"):
+                imgui.close_current_popup()
+            imgui.end_popup()
+
+        imgui.set_next_window_pos(
+            centre, imgui.Cond_.appearing, imgui.ImVec2(0.5, 0.5)
+        )
+        if imgui.begin_popup_modal("Continue from here?", None, flags)[0]:
+            count: int = self.review_count or 0
+            total: int = len(self.session.recorder.default_moves)
+            later: str = (
+                f"move {total}"
+                if count + 1 == total
+                else f"moves {count + 1}-{total}"
+            )
+            imgui.text(f"Continue from move {count}? This deletes {later}.")
+            if imgui.button("Yes"):
+                self.continue_from_review()
+                imgui.close_current_popup()
+            imgui.same_line()
+            if imgui.button("No"):
+                self.pending = None
+                imgui.close_current_popup()
+            imgui.end_popup()
+
+    def frame(self, dt: float) -> None:
+        """One frame: the imgui interface, board input, the moving disc, the
+        3D board, then imgui on top (the caller swaps buffers)."""
+        imgui.new_frame()
+        self._menu_bar()
+        self._panel()
+        self._popups()
+        self._board_input()
+        self.update(dt)
+        self.draw_board()
+        if not self.show_pick_buffer:
+            self._draw_peg_labels()
+        imgui.render()
 
 
 def main(argv: Sequence[str] = ()) -> None:
@@ -1016,64 +1739,28 @@ def main(argv: Sequence[str] = ()) -> None:
     glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
     glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # macOS needs it
     window: "GLFWWindow" = glfw.create_window(
-        1000, 700, "Towers of Hanoi 3D", None, None
+        1280, 800, "Towers of Hanoi 3D", None, None
     )
     if not window:
         glfw.terminate()
         sys.exit("hanoi-gl: could not open an OpenGL 3.3 core window")
     glfw.make_context_current(window)
     glfw.swap_interval(1)
+    # macOS core profiles reject drawing with VAO 0 bound; keep a default one.
+    GL.glBindVertexArray(GL.glGenVertexArrays(1))
+    imgui.create_context()
+    renderer: GlfwRenderer = GlfwRenderer(window)
     app: HanoiGL = HanoiGL(window)
-
-    def on_mouse_button(
-        _window: "GLFWWindow", button: int, action: int, _mods: int
-    ) -> None:
-        """Left button picks or orbits; the right button always orbits."""
-        x: float
-        y: float
-        x, y = glfw.get_cursor_pos(window)
-        match (button, action):
-            case (glfw.MOUSE_BUTTON_LEFT, glfw.PRESS):
-                app.press(x, y)
-            case (glfw.MOUSE_BUTTON_RIGHT, glfw.PRESS):
-                app.orbiting = True
-                app.last_cursor = (x, y)
-            case (_, glfw.RELEASE):
-                app.release()
-            case _:
-                pass  # other buttons do nothing
-
-    def on_key(
-        _window: "GLFWWindow", key: int, _scancode: int, action: int, _mods: int
-    ) -> None:
-        """Digits start a new game; R resets the camera; P shows picking."""
-        if action != glfw.PRESS:
-            return
-        if glfw.KEY_1 <= key <= glfw.KEY_0 + MAX_DISKS:
-            app.new_game(key - glfw.KEY_0)
-        elif key == glfw.KEY_R:
-            app.camera = OrbitCamera()
-        elif key == glfw.KEY_P:
-            app.show_pick_buffer = not app.show_pick_buffer
-        elif key == glfw.KEY_ESCAPE:
-            glfw.set_window_should_close(window, True)
-        else:
-            pass  # other keys do nothing
-
-    glfw.set_mouse_button_callback(window, on_mouse_button)
-    glfw.set_cursor_pos_callback(window, lambda _w, x, y: app.cursor(x, y))
-    glfw.set_scroll_callback(window, lambda _w, _dx, dy: app.camera.zoom(dy))
-    glfw.set_key_callback(window, on_key)
-
     previous: float = glfw.get_time()
-    while not glfw.window_should_close(window):
+    while not glfw.window_should_close(window) and not app.want_quit:
         glfw.poll_events()
+        renderer.process_inputs()
         now: float = glfw.get_time()
-        app.update(now - previous)
+        app.frame(now - previous)
         previous = now
-        app.draw()
-        glfw.set_window_title(window, app._title())
+        renderer.render(imgui.get_draw_data())
         glfw.swap_buffers(window)
+    renderer.shutdown()
     glfw.terminate()
 
 

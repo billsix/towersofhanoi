@@ -185,9 +185,9 @@ class GraphicsBoardRenderer(BoardRenderer):
         self._panel.Bind(wx.EVT_SIZE, self._on_size)
         self._game: HanoiGame | None = None
         self._labelling: Labelling | None = None
-        # Drag-and-drop (spike): pick up a peg's top disc and drop it on another
-        # peg. The move still dispatches through the shared engine via
-        # `_move_callback`; the move buttons stay as a parallel/accessible path.
+        # Drag-and-drop: pick up a peg's top disc and drop it on another peg.
+        # The move dispatches through the shared engine via `_move_callback`;
+        # the frame's keyboard move is the mouse-free path.
         self._move_callback: Callable[[int, int], None] | None = None
         self._interactive: bool = True
         self._drag_src: int | None = None

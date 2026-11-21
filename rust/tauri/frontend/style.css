@@ -170,13 +170,6 @@ legend {
   font-size: 0.85rem;
 }
 
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-}
-
 button {
   background: var(--control-bg);
   color: var(--fg);
