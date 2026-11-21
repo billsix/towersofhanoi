@@ -17,3 +17,5 @@ entrypoint/dotfiles/.emacs.d/elpa/**/*.eln
 *~
 \#*\#
 .\#*
+# Dear ImGui window layout, written to the working directory by `make gl`
+imgui.ini
