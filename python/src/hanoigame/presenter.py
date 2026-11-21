@@ -455,6 +455,22 @@ def format_move_tally(moves: Sequence[tuple[int, int]]) -> list[str]:
     ]
 
 
+# --- How to Play ------------------------------------------------------------
+
+# The onboarding text every GUI shows in its How-to-Play dialog (feature-spec
+# §3.5): the goal, the two rules, and the method.
+HOWTO_TEXT: str = (
+    "Move the whole stack of discs from peg 1 to peg 3.\n"
+    "• Move one disc at a time — always the top disc of a peg.\n"
+    "• Never place a larger disc on a smaller one.\n"
+    "\n"
+    "The method this teaches: solve a SMALL stack, then RELABEL the pegs to\n"
+    'reuse that solution for a bigger stack — "solve small, relabel,'
+    ' replay."\n'
+    "Relabelling and saved recipes unlock after your first win."
+)
+
+
 # --- Win celebration / recipe discovery ------------------------------------
 
 

@@ -347,11 +347,11 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
   `make wx`** front-end was added over the shared `ui/hanoi.xrc`. Verified headless (native ImGui, wasm,
   wx); the maintainer's on-display run is the last check.
   → `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`.
-- **Python `hanoi-gl`** (added 2026-11-21) — a 3D OpenGL teaching piece for colour-ID picking, not a
-  full-feature UI: it implements rows 1–4 by direct manipulation (the drag-drop ruling; a drag can only
-  be refused as larger-on-smaller), with the move count vs optimal in the window title, through the
-  shared engine; it skips labellings, recipes, the rebinding view, the move history and the
-  learning-flow tiers (rows 5–22) by design. Design: `tasks/reference/opengl-color-id-picking.md`.
+- **Python `hanoi-gl`** (added 2026-11-21; full parity the same day) — the 3D OpenGL board with a Dear
+  ImGui interface (imgui-bundle, as github.com/billsix/modelviewprojection uses it). Every row of §7
+  holds; the board's labels are drawn under the pegs, colour follows the label, and the move buttons
+  and a dropped disc share one dispatch path. Its How-to-Play shows on every start (no stored "don't
+  show again"), like the C++ ImGui app. Design: `tasks/reference/opengl-color-id-picking.md`.
 - **bash** — a by-design non-interactive demo of the relabelling method (solve scripts composed through
   six `tr` relabel filters); embodies §3/§4.3 relabelling cleanly but is not a game UI, so most
   interactive rows are n/a. Not a parity target.

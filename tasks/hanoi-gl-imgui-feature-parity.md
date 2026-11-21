@@ -1,66 +1,48 @@
-# hanoi-gl: full feature parity, with a Dear ImGui interface like modelviewprojection's
+# hanoi-gl: full feature parity, with a Dear ImGui interface (done 2026-11-21)
 
-**Status:** in progress
-**Priority:** 3
-**Difficulty:** 6
-**Created:** 2026-11-21 (William Emerison Six <billsix@gmail.com>): "for the opengl one, I like it, but
-i want it to have feature parity, and I want to use imgui in python like modelviewprojection does."
+**Priority:** 3 **Difficulty:** 6
+**Created / done:** 2026-11-21 (William Emerison Six <billsix@gmail.com>): "for the opengl one, I like
+it, but i want it to have feature parity, and I want to use imgui in python like modelviewprojection
+does." Branch `hanoi-gl-imgui-parity`.
 
-## BLUF
+## What was done
 
-The Python 3D front-end `hanoi-gl` (`python/src/hanoigame/hanoigl.py`) plays the game but skips most of
-the feature spec. Give it everything the other GUIs have (relabelling, recipes with the three-panel
-rebinding view, the always-visible move history with review, move buttons, valid moves, the learning-flow
-tiers, How to Play, win celebration, save-before-discard), drawn with **Dear ImGui through imgui-bundle**
-over the 3D board, the way github.com/billsix/modelviewprojection's demos do. Done = every row of the
-feature spec's compliance checklist (`tasks/reference/feature-spec.md` §7) holds for `hanoi-gl`, the
-compliance note in that spec says so, and the Python gates plus a headless smoke pass.
+`hanoi-gl` (`python/src/hanoigame/hanoigl.py`) now has every feature of the other GUIs, drawn with
+Dear ImGui (imgui-bundle 1.93.0, modelviewprojection's pin) over the 3D board. The geometry, colour-ID
+picking and disc-motion code stayed as it was; the application layer was rewritten, porting the C++
+Dear ImGui app (`cpp/main.cpp`), which was already at parity:
 
-## Context
+- **Menu bar:** Game (New Game → 1–8 discs, New Game (Same Size), Quit), Relabel and Recipe dimmed until
+  the first win (Recipe: Save current solution, then each recipe → View / Apply), View (Show pick buffer,
+  Reset camera), Help (How to Play).
+- **Game panel** (right): goal line, move count vs optimal, labels on the physical pegs when relabelled,
+  valid moves, status, the six move buttons (illegal ones disabled), the move history with click-to-review
+  and "Back to current", and the three-panel rebinding view as one table with selectable rows and the key
+  marker.
+- **Dialogs:** illegal move, save recipe (prefilled `solve-N`, overwrite reported), first-win teaching,
+  save-before-discard at New Game, How to Play (every start), Continue from here?
+- **Board:** pegs coloured by label with the label (and, when relabelled, the physical "peg n") drawn
+  under each peg; drag and the move buttons share `HanoiGL.make_move`; review mode shows and picks from
+  the reviewed board.
+- `HOWTO_TEXT` moved from `hanoigui.py` to `presenter.py`, shared by both GUIs.
+- `requirements.txt`: `imgui-bundle==1.93.0` (it has no other runtime dependency beyond glfw and
+  PyOpenGL, already pinned; a cp315 wheel exists).
+- The feature spec's compliance note, both `CLAUDE.md`s, the README and
+  `tasks/reference/opengl-color-id-picking.md` (a new "imgui layer" section) describe it.
 
-- Read first: `tasks/reference/feature-spec.md` (§4 features, §6.2 GUI advice, §7 checklist, and the
-  "Python `hanoi-gl`" compliance note this task replaces), `tasks/reference/ui-design-principles.md`,
-  `tasks/reference/opengl-color-id-picking.md` (the picking and disc-motion design, kept as it is).
-- **The template is the C++ Dear ImGui app** (`cpp/main.cpp`), already at full parity: its menu bar
-  (Game / Relabel / Recipe / Help, Tier-2 gating with `BeginDisabled`), modals (save recipe, first-win,
-  save-before-discard, How to Play, illegal move, continue-from-here), the three-panel table with linked
-  rows, move buttons, and history with review are ported to Python imgui-bundle calls.
-- **How modelviewprojection uses imgui** (read 2026-11-21 in its `src/modelviewprojection/demos/demo21/
-  demo21.py` and `requirements.txt`): `imgui-bundle[glfw]==1.93.0`; `import glfw` **before**
-  `imgui_bundle` (so the standard glfw is the one loaded); `imgui.create_context()`, then
-  `GlfwRenderer(window)` from `imgui_bundle.python_backends.glfw_backend`; each frame
-  `impl.process_inputs()`, `imgui.new_frame()`, the UI, the GL scene, `imgui.render()`,
-  `impl.render(imgui.get_draw_data())`. In the container the Makefile sets
-  `PYGLFW_LIBRARY=/usr/lib64/libglfw.so.3` (geometricalgebra's `tasks/reference/gl-toolkit.md` explains
-  why imgui_bundle needs the dual X11/Wayland build); `make gl` already does.
-- Engine API it uses: `GameSession.dispatch` (Move, Relabel, Apply, Show), `save_recipe`,
-  `valid_moves_str`, `state_after` / `truncate_to` (history review), `RecipeRegistry`,
-  `presenter.format_win_celebration`, `default_recipe_name`, `format_move_tally`, `recipe.rebinding` /
-  `rebound_moves`.
+Decisions taken under the go-ahead (William Emerison Six <billsix@gmail.com>, 2026-11-21): mouse input
+read from `imgui.get_io()` (GlfwRenderer owns glfw's callbacks), ignored while imgui wants the mouse; a
+fixed right-hand panel with the board in the rest of the window; labels via imgui's background draw list;
+the pick-buffer view moved to the View menu; How to Play not persisted, like the C++ ImGui app.
 
-## Decisions (made under the go-ahead, William Emerison Six <billsix@gmail.com>, 2026-11-21: "implement it")
+## Verification
 
-1. **Mouse input comes from imgui's IO, not extra glfw callbacks.** `GlfwRenderer` installs its own
-   callbacks; the board reads `imgui.get_io()` each frame (`is_mouse_clicked`, `mouse_pos`, wheel) and
-   ignores the mouse whenever `io.want_capture_mouse` (a window or menu is under it).
-2. **Layout:** the 3D board fills the window under the menu bar, left of a fixed right-hand "Game" panel
-   (goal line, status, valid moves, the six move buttons, the move history with "Back to current", and
-   the rebinding view). The GL viewport, picking and the cursor ray use the board's rectangle only.
-3. **Labels in 3D:** pegs are coloured by label (blue, gold, red, as the other GUIs), and each peg's
-   label number is drawn under it with the imgui background draw list (projected from the peg's base),
-   plus the physical "peg n" reference row when relabelled (feature-spec §4.3).
-4. **Shared text moves to the core:** `HOWTO_TEXT` moves from `hanoigui.py` to `presenter.py` so both GUIs
-   use one copy without `hanoi-gl` importing wx.
-5. **"Show pick buffer"** moves from the `P` key to a View menu item (the key stays).
-6. The How to Play "don't show again" preference is not persisted (no config store here); it shows on
-   first frame of each run, as the C++ ImGui app does.
-
-## Plan
-
-1. `requirements.txt`: `imgui-bundle==1.93.0` plus its resolved dependencies, pinned.
-2. Move `HOWTO_TEXT` to `presenter.py`.
-3. Rewrite the `hanoigl.py` application layer on imgui (keep the geometry, picking and motion code).
-4. `tools/gl_smoke.py`: also drive relabel, a recipe save + apply, history review, and one imgui frame.
-5. Feature spec compliance note, `python/CLAUDE.md`, root `CLAUDE.md`, README, the picking reference doc.
-6. Gates: `make image` (new pins), `format`, `type-check`, `test`; the smokes under Xvfb; a rendered frame
-   checked by eye.
+- `make image` (nested, with the new pin); `format`, `type-check`, `test` (153 passed, 2 skipped).
+- `python/tools/gl_smoke.py` under Xvfb + Mesa (GL 4.6 core): imgui frames with the menus, panel and
+  dialogs; picking and a legal and an illegal drag; a move button; history review declining then
+  accepting "Continue from here?"; a 1-disc win, saving its recipe, relabelling and applying it with the
+  rebinding view; the pick-buffer view; no GL error. It wrote the last frame, checked by eye: panel,
+  peg labels with the physical reference row, the rebinding table with the selected row and markers.
+- `python/tools/gui_smoke.py` (the wx GUI, after the `HOWTO_TEXT` move): `SMOKE OK 2`.
+- Not checked: a real display (hardware GL, HiDPI scaling, the feel of the drag). That is the
+  maintainer's `make gl` check.

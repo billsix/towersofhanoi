@@ -58,6 +58,7 @@ from .commands import ApplyCmd, MoveCmd, RelabelCmd, ShowCmd
 from .engine import DispatchResult, GameSession
 from .hanoimodel import HanoiGame, ValidMove
 from .presenter import (
+    HOWTO_TEXT,
     Labelling,
     change_labels_on_pegs,
     default_recipe_name,
@@ -68,17 +69,6 @@ from .recipe import Recipe, RecipeRegistry, rebinding, rebound_moves
 
 MAX_DISKS: int = 10
 DEFAULT_DISKS: int = 3
-
-HOWTO_TEXT: str = (
-    "Move the whole stack of discs from peg 1 to peg 3.\n"
-    "• Move one disc at a time — always the top disc of a peg.\n"
-    "• Never place a larger disc on a smaller one.\n"
-    "\n"
-    "The method this teaches: solve a SMALL stack, then RELABEL the pegs to\n"
-    'reuse that solution for a bigger stack — "solve small, relabel,'
-    ' replay."\n'
-    "Relabelling and saved recipes unlock after your first win."
-)
 
 ALL_LABEL_PAIRS: tuple[tuple[int, int], ...] = (
     (1, 2),

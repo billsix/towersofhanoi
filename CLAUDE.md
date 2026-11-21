@@ -43,8 +43,8 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 - **Python** (`python/`, setuptools package `src/hanoigame/`) — one shared model + command
   grammar + dispatcher with four thin front-ends: `hanoi`/`hanoigame` (ncurses TUI),
   `hanoi-cli` (plain stdin/stdout + readline completion), `hanoi-gui` (wxPython; XRC UI;
-  text or 2D-graphics board), and `hanoi-gl` (OpenGL 3.3 core 3D board: torus discs, orbit
-  camera, colour-ID picking; a teaching piece for picking, not a full-feature UI —
+  text or 2D-graphics board), and `hanoi-gl` (OpenGL 3.3 core 3D board with a Dear ImGui interface,
+  full feature parity: torus discs, orbit camera, colour-ID picking —
   `tasks/reference/opengl-color-id-picking.md`). pytest suite (the by-hand drift guard runs here when the
   full tree is present — it needs the root's `tools/` + `docs/`, so it is skipped in the
   isolated Python image).
