@@ -38,10 +38,19 @@ if(EMSCRIPTEN)
   target_compile_options(hanoi-cpp PRIVATE
     -sUSE_SDL=2 -sDISABLE_EXCEPTION_CATCHING=1 -DIMGUI_DISABLE_FILE_FUNCTIONS
     -DIMGUI_IMPL_OPENGL_ES3 -Os)
+  # Emscripten's runtime assertions are a debugging aid (extra checks, more code):
+  # on for a debug build, off for the Release build `make webassembly` deploys.
+  if(CMAKE_BUILD_TYPE MATCHES "^(Release|MinSizeRel)$")
+    set(HANOI_WASM_ASSERTIONS 0)
+  else()
+    set(HANOI_WASM_ASSERTIONS 1)
+  endif()
   # -sMIN/MAX_WEBGL_VERSION=2: ES3 == WebGL 2.0, so force a WebGL2 context.
+  # -sENVIRONMENT=web: the app only ever runs in a browser, so leave out the
+  # Node.js / shell / worker start-up code.
   target_link_options(hanoi-cpp PRIVATE
     -sUSE_SDL=2 -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sNO_EXIT_RUNTIME=0
-    -sNO_FILESYSTEM=1 -sASSERTIONS=1
+    -sNO_FILESYSTEM=1 -sASSERTIONS=${HANOI_WASM_ASSERTIONS} -sENVIRONMENT=web
     -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2
     --shell-file ${CMAKE_SOURCE_DIR}/shell.html)
 else()

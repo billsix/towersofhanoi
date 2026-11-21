@@ -81,7 +81,11 @@ webassembly`. The old `trzeci/emscripten` image is deprecated.)
 
 Compile+link both: `-sUSE_SDL=2` (bundled SDL2 port), `-sDISABLE_EXCEPTION_CATCHING=1`. Link only:
 `-sWASM=1`, `-sALLOW_MEMORY_GROWTH=1`, `-sNO_EXIT_RUNTIME=0`, `-sASSERTIONS=1` (drop to 0 for a size
-release), `--shell-file <shell.html>`. Filesystem off (default): `-sNO_FILESYSTEM=1` (link) **and**
+release), `--shell-file <shell.html>`. **This repo** (`cpp/CMakeLists.txt`) ties assertions to the build
+type, `-sASSERTIONS=0` for Release/MinSizeRel (what `make webassembly` builds) and `1` otherwise, and adds
+`-sENVIRONMENT=web` (no Node.js/shell start-up code; the app only runs in a browser). Measured
+2026-11-21 against the previous flags: `index.js` 187,486 → 152,712 bytes, `index.wasm` 753,999 →
+742,879 bytes (gzipped, the wasm went 265,931 → 271,769 and the js 41,546 → 32,952). Filesystem off (default): `-sNO_FILESYSTEM=1` (link) **and**
 `-DIMGUI_DISABLE_FILE_FUNCTIONS` (compile) + `io.IniFilename=nullptr` (runtime) — no imgui.ini on web.
 Compile with `-Os` for size. The example does NOT set `MIN/MAX_WEBGL_VERSION`, `FULL_ES3`, or `GL_*` —
 it relies on emcc defaulting the desktop OpenGL3 backend onto WebGL (see Gotchas for when to override).
@@ -99,6 +103,19 @@ it relies on emcc defaulting the desktop OpenGL3 backend onto WebGL (see Gotchas
 - **Serve:** `python3 -m http.server -d web` (then http://localhost:8000) or `emrun web/index.html`.
   **Must be served over http** — browsers refuse to instantiate `.wasm` over `file://` (the #1 "blank
   page" cause).
+
+## Deploying the web build
+
+1. `make webassembly` (a Release build: no runtime assertions).
+2. Upload `web/index.html`, `web/index.js` and `web/index.wasm` to any static host, and open it over
+   http(s). It is single-threaded, so it needs no COOP/COEP headers, and it fetches nothing at run time
+   (`make check-no-network` checks the source).
+3. Optional: have the host serve `.wasm` as `application/wasm` (otherwise Emscripten falls back to a
+   slower load path with a console warning, and still runs) and compress with gzip or brotli.
+
+Checked 2026-11-21 by loading the Release build from `python3 -m http.server -d web` in headless
+Chromium (`--use-angle=swiftshader --enable-unsafe-swiftshader --screenshot`): the board, menus and the
+first-run How-to-Play rendered.
 
 ## Gotchas
 

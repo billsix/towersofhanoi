@@ -31,6 +31,10 @@ make shell         # a dev shell in the image
 make format        # clang-format (never touches the vendored imgui/)
 ```
 
+> To put the browser app online, upload the three files in `web/` to any static web host (served
+> over http(s), no special headers needed). Details: `tasks/reference/imgui-cpp-native-and-wasm.md`
+> ("Deploying the web build").
+
 `make image MINIMAL_IMAGE=1` builds a lean, native-only image (drops the Emscripten SDK and emacs).
 
 ## Layout

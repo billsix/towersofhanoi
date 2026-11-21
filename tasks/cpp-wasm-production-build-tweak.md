@@ -1,64 +1,35 @@
-# Lean the C++ wasm build for production deployment
+# Lean the C++ wasm build for production deployment (done 2026-11-21)
 
-**Status:** in progress (decisions recorded 2026-11-21).
 **Priority:** 7 **Difficulty:** 2
-**Created:** 2026-11-02 (William Emerison Six <billsix@gmail.com>). Spun off a deploy Q&A:
-the C++ Dear ImGui wasm app runs fine on any static host as-is (single-threaded → no
-SharedArrayBuffer → no COOP/COEP headers needed); this is the optional polish for a *deployed*
-build.
+**Created:** 2026-11-02; **done:** 2026-11-21 (William Emerison Six <billsix@gmail.com>); branch
+`gui-batch-2026-11-21`.
 
-## BLUF
+## What was done
 
-The wasm build (`cpp/`, `make webassembly` → `cpp/web/index.{html,js,wasm}`) hard-codes
-`-sASSERTIONS=1` (`cpp/CMakeLists.txt:44`) in every configuration. Assertions are a dev aid
-(extra runtime checks + code size); a deployed build doesn't want them. "Done" = assertions are
-**on for a debug wasm build and off for the Release build** (`make webassembly` already configures
-`-DCMAKE_BUILD_TYPE=Release`, `cpp/Makefile:130`), so the standard deploy artifact is lean with no
-new target — plus a short deployment note (serve over http(s), optional host gzip/brotli, the
-`application/wasm` MIME fallback). No behaviour change, no new dependency.
+- `cpp/CMakeLists.txt`: the WebAssembly link flags set `-sASSERTIONS=0` for a Release or MinSizeRel
+  build (what `make webassembly` builds) and `1` otherwise, instead of a constant `1`, and add
+  `-sENVIRONMENT=web`, which leaves out the Node.js/shell start-up code since the app only runs in a
+  browser. Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21, "use your
+  recommendations"): gate on build type rather than flip unconditionally; take the `ENVIRONMENT` trim
+  in the same change.
+- Deployment note, commands-forward: `tasks/reference/imgui-cpp-native-and-wasm.md` ("Deploying the
+  web build", plus the flag paragraph), with a one-line pointer in `cpp/README.md`.
 
-## Context (read first)
+## Measured (Release build, before → after)
 
-- **The flags today** (`cpp/CMakeLists.txt:29-46`, inside `if(EMSCRIPTEN)`): `-Os`,
-  `-sALLOW_MEMORY_GROWTH=1`, `-sNO_FILESYSTEM=1`, `-sASSERTIONS=1`, WebGL2 forced
-  (`-sMIN/MAX_WEBGL_VERSION=2`), SDL2 + GLES3, `--shell-file shell.html`. Already size-conscious
-  (`-Os`); the one dev-only leftover in the deploy path is `-sASSERTIONS=1`.
-- **The build type is already Release** for the deploy artifact: `make webassembly` runs `emcmake
-  cmake ... -DCMAKE_BUILD_TYPE=Release` (`cpp/Makefile:130`). So a build-type gate needs no new
-  target — the existing `make webassembly` picks up the lean setting automatically, and any future
-  debug wasm invocation keeps assertions.
-- **Flag rationale lives in** `tasks/reference/imgui-cpp-native-and-wasm.md` (the dual native/wasm
-  build + why each `-s…` flag is set). Update it there when the ASSERTIONS flag becomes conditional.
-- **Why only polish:** the app already deploys and runs on plain static hosting (verified by the
-  flag audit 2026-11-02; no threads, no network at runtime — the latter enforced by
-  `cpp/tools/check-no-network.sh`). This task buys a smaller `.wasm` and no production assertion
-  overhead, nothing more.
+| file | bytes | gzipped |
+|---|---|---|
+| `index.js` | 187,486 → 152,712 | 41,546 → 32,952 |
+| `index.wasm` | 753,999 → 742,879 | 265,931 → 271,769 |
 
-## Plan
+The wasm's gzipped size went up slightly although its raw size went down; the javascript, which no
+longer carries the Node.js paths, accounts for most of the saving.
 
-1. In `cpp/CMakeLists.txt` (the `if(EMSCRIPTEN)` block), make the assertion level follow the build
-   type instead of a constant: `-sASSERTIONS=0` for a Release/MinSizeRel build, `-sASSERTIONS=1`
-   otherwise (e.g. a CMake generator expression `-sASSERTIONS=$<IF:$<CONFIG:Release>,0,1>`, or an
-   `if(CMAKE_BUILD_TYPE STREQUAL "Release")` branch — whichever reads cleaner for a newcomer).
-2. (Optional, decide in Q2) consider `-sENVIRONMENT=web` to drop the unused Node/shell runtime glue
-   from `index.js` — a further small trim, web-only. Confirm it doesn't break `make serve`.
-3. Rebuild (`make webassembly`), confirm `cpp/web/` still loads and runs (`make serve`, open with
-   the network cut — the no-network guarantee), and note the before/after `.wasm` size in this doc.
-4. Add a brief **deployment** note where it belongs (README or `imgui-cpp-native-and-wasm.md`):
-   upload `cpp/web/*` to any static host, serve over http(s) (not `file://`), no COOP/COEP needed;
-   the host ideally serves `.wasm` as `application/wasm` (else Emscripten falls back with a console
-   warning and still runs); enabling gzip/brotli on the host shrinks the transfer. Keep it
-   commands-forward.
-5. Update `tasks/reference/imgui-cpp-native-and-wasm.md` for the now-conditional ASSERTIONS flag.
+## Verification
 
-## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-21: "use your recommendations")
-
-1. **Gate on build type:** `-sASSERTIONS=0` for Release, `1` otherwise.
-2. **Add `-sENVIRONMENT=web`** in the same change.
-
-## Related
-
-- `tasks/reference/imgui-cpp-native-and-wasm.md` — the wasm build + flag rationale (the doc to update).
-- `cpp/CLAUDE.md` — the `make webassembly` / `serve` targets and the `check-no-network` gate.
-- `tasks/archive/2026/11/02/cpp-wasm-no-network-static-gate.md` — the sibling guarantee (no remote
-  resources at runtime) that makes the deployed build safe to host anywhere.
+- The link line shows `-sASSERTIONS=0 -sENVIRONMENT=web` for the Release build; the native build (both
+  GUIs) and the doctest suite were unchanged by the `EMSCRIPTEN`-only edit (built earlier in this batch).
+- The Release build, served by `python3 -m http.server -d web`, loads and renders in headless Chromium
+  with software WebGL (board, menus, first-run How-to-Play). Chromium was installed in the sandbox for
+  this check (`dnf install chromium`).
+- `cpp/tools/check-no-network.sh`: OK.
