@@ -20,7 +20,7 @@ use hanoigame::presenter::{
     change_labels_on_pegs, default_recipe_name, format_move_tally, format_win_celebration,
     Labelling,
 };
-use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
+use hanoigame::recipe::{rebinding, rebound_moves, RecipeRegistry, Recorder};
 
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
@@ -111,6 +111,9 @@ struct HanoiApp {
     /// Scrollable detail (a recipe's moves, or a rebinding table), shown on demand.
     detail_title: String,
     detail: Vec<String>,
+    /// The three-panel rebinding view (feature-spec §4.8), shown in the detail
+    /// area instead of `detail` while set.
+    rebind: Option<RebindView>,
     /// Disc drag-drop (spike, mirrored across the GUIs): the physical peg (0,1,2)
     /// whose top disc is being dragged, its size, and the pointer position.
     drag_src: Option<usize>,
@@ -153,6 +156,7 @@ impl HanoiApp {
             help_shown: false,
             detail_title: String::new(),
             detail: Vec::new(),
+            rebind: None,
             drag_src: None,
             drag_size: 0,
             drag_pos: egui::Pos2::ZERO,
@@ -197,6 +201,7 @@ impl HanoiApp {
         self.recorder = Recorder::new();
         self.status.clear();
         self.detail.clear();
+        self.rebind = None;
         self.win_dialog = None;
         self.won_via_apply = false;
         self.saved_current = false;
@@ -300,16 +305,20 @@ impl HanoiApp {
         let lines: Vec<String> = self.dispatch(&Command::Show(name.to_string())).lines;
         self.detail_title = format!("Recipe '{name}'");
         self.detail = lines;
+        self.rebind = None;
     }
 
     fn show_rebinding(&mut self, title: &str, moves: &[(u32, u32)]) {
-        let table: Vec<String> =
-            format_rebinding_table(moves, self.labelling, "Your move / recipe");
-        if table.is_empty() {
+        if self.labelling == Labelling::OneTwoThree {
             return;
         }
         self.detail_title = title.to_string();
-        self.detail = table;
+        self.detail.clear();
+        self.rebind = Some(RebindView {
+            moves: moves.to_vec(),
+            labelling: self.labelling,
+            selected: None,
+        });
     }
 
     fn check_win(&mut self) {
@@ -521,6 +530,69 @@ impl HanoiApp {
     }
 }
 
+/// The three-panel rebinding view (feature-spec §4.8) as one grid: your move /
+/// recipe | the label→peg key | the moves rebound onto physical pegs. One grid
+/// in one scroll area, so the columns scroll together; clicking a move selects
+/// its whole row and marks (▶) the two key bindings that move uses.
+struct RebindView {
+    moves: Vec<(u32, u32)>,
+    labelling: Labelling,
+    selected: Option<usize>,
+}
+
+impl RebindView {
+    fn show(&mut self, ui: &mut egui::Ui) {
+        let key: [(u32, u32); 3] = rebinding(self.labelling);
+        let rebound: Vec<(u32, u32)> = rebound_moves(&self.moves, self.labelling);
+        let used: Option<(u32, u32)> = self.selected.map(|i| self.moves[i]);
+        let rows: usize = self.moves.len().max(key.len());
+        egui::Grid::new("rebinding").striped(true).show(ui, |ui| {
+            ui.strong("Your move / recipe");
+            ui.strong("Rebinding (label → peg)");
+            ui.strong("Rebound (physical pegs)");
+            ui.end_row();
+            for i in 0..rows {
+                if let Some(&(from_label, to_label)) = self.moves.get(i) {
+                    let text: String = format!("{}: {from_label} → {to_label}", i + 1);
+                    let is_selected: bool = self.selected == Some(i);
+                    if ui
+                        .selectable_label(is_selected, egui::RichText::new(text).monospace())
+                        .clicked()
+                    {
+                        self.selected = Some(i);
+                    }
+                } else {
+                    ui.label("");
+                }
+                if let Some(&(label, peg)) = key.get(i) {
+                    let marked: bool = used.is_some_and(|(from_label, to_label)| {
+                        label == from_label || label == to_label
+                    });
+                    let marker: &str = if marked { "▶" } else { " " };
+                    ui.monospace(format!("{marker} label {label} → peg {peg}"));
+                } else {
+                    ui.label("");
+                }
+                if let Some(&(from_peg, to_peg)) = rebound.get(i) {
+                    let text: String = format!("{}: {from_peg} → {to_peg}", i + 1);
+                    if ui
+                        .selectable_label(
+                            self.selected == Some(i),
+                            egui::RichText::new(text).monospace(),
+                        )
+                        .clicked()
+                    {
+                        self.selected = Some(i);
+                    }
+                } else {
+                    ui.label("");
+                }
+                ui.end_row();
+            }
+        });
+    }
+}
+
 impl eframe::App for HanoiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let won: bool = self.is_won();
@@ -646,7 +718,17 @@ impl eframe::App for HanoiApp {
                     }
                 }
             });
-            if !self.detail.is_empty() {
+            if let Some(view) = self.rebind.as_mut() {
+                ui.separator();
+                ui.label(&self.detail_title);
+                egui::ScrollArea::vertical()
+                    .id_salt("detail")
+                    .max_height(200.0)
+                    .show(ui, |ui| view.show(ui));
+                if ui.button("Clear").clicked() {
+                    self.rebind = None;
+                }
+            } else if !self.detail.is_empty() {
                 ui.separator();
                 ui.label(&self.detail_title);
                 egui::ScrollArea::vertical()

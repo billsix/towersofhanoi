@@ -21,6 +21,7 @@
 #include <wx/graphics.h>
 #include <wx/numdlg.h>
 #include <wx/textdlg.h>
+#include <wx/timer.h>
 #include <wx/wx.h>
 #include <wx/xrc/xmlres.h>
 
@@ -1053,17 +1054,28 @@ private:
     XRCCTRL(*dlg, "rebind_intro", wxStaticText)->SetLabel(intro);
     XRCCTRL(*dlg, "rebind_left_header", wxStaticText)->SetLabel(left_header);
 
+    // The label->peg key; `selected` (a row index, or -1 for none) marks the
+    // two bindings that move uses with an arrowhead.
     const std::array<std::array<int, 2>, 3> key = hanoi::rebinding(labelling_);
-    wxString key_text;
-    for (std::size_t i = 0; i < key.size(); ++i) {
-      key_text += wxString::Format("label %d -> peg %d", key[i][0], key[i][1]);
-      if (i + 1 < key.size()) {
-        key_text += "\n";
-      }
-    }
     wxStaticText *key_ctrl = XRCCTRL(*dlg, "rebind_key", wxStaticText);
-    key_ctrl->SetLabel(key_text);
     key_ctrl->SetFont(mono);
+    auto set_key = [key, moves, key_ctrl](int selected) {
+      wxString key_text;
+      for (std::size_t i = 0; i < key.size(); ++i) {
+        const bool used =
+            selected >= 0 &&
+            (moves[static_cast<std::size_t>(selected)][0] == key[i][0] ||
+             moves[static_cast<std::size_t>(selected)][1] == key[i][0]);
+        key_text += wxString::FromUTF8(used ? "\u25b6" : " ");
+        key_text +=
+            wxString::Format(" label %d -> peg %d", key[i][0], key[i][1]);
+        if (i + 1 < key.size()) {
+          key_text += "\n";
+        }
+      }
+      key_ctrl->SetLabel(key_text);
+    };
+    set_key(-1);
 
     const std::vector<std::array<int, 2>> rebound =
         hanoi::rebound_moves(moves, labelling_);
@@ -1077,6 +1089,50 @@ private:
       right->Append(wxString::Format("%zu: %d -> %d", i + 1, rebound[i][0],
                                      rebound[i][1]));
     }
+
+    // Selecting a move selects the same row on the other side and marks the
+    // key. Both lists have one row per move, so the same index is the same
+    // move. (A programmatic SetSelection fires no event, so no feedback loop.)
+    auto mirror = [set_key](wxListBox *src, wxListBox *dst) {
+      return [set_key, src, dst](wxCommandEvent &) {
+        const int i = src->GetSelection();
+        if (i == wxNOT_FOUND) {
+          return;
+        }
+        dst->SetSelection(i);
+        dst->SetFirstItem(src->GetTopItem());
+        set_key(i);
+      };
+    };
+    left->Bind(wxEVT_LISTBOX, mirror(left, right));
+    right->Bind(wxEVT_LISTBOX, mirror(right, left));
+
+    // Scrolling one list scrolls the other to the same top row. A native list
+    // box doesn't report every scroll as a wx event, so poll the top rows:
+    // whichever moved since the last tick leads.
+    auto *timer = new wxTimer(dlg);
+    auto tops = std::make_shared<std::array<int, 2>>(
+        std::array<int, 2>{left->GetTopItem(), right->GetTopItem()});
+    dlg->Bind(wxEVT_TIMER, [left, right, tops](wxTimerEvent &) {
+      const std::array<int, 2> now{left->GetTopItem(), right->GetTopItem()};
+      if (now[0] != (*tops)[0]) {
+        right->SetFirstItem(now[0]);
+      } else if (now[1] != (*tops)[1]) {
+        left->SetFirstItem(now[1]);
+      } else {
+        // Neither list scrolled since the last tick.
+      }
+      *tops = {left->GetTopItem(), right->GetTopItem()};
+    });
+    timer->Start(100);
+    // Stop polling before the dialog goes, however it is destroyed.
+    dlg->Bind(wxEVT_DESTROY, [dlg, timer](wxWindowDestroyEvent &evt) {
+      if (evt.GetEventObject() == dlg) {
+        timer->Stop();
+        delete timer;
+      }
+      evt.Skip();
+    });
 
     dlg->Bind(
         wxEVT_BUTTON,

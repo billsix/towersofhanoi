@@ -36,7 +36,7 @@ use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
 use hanoigame::presenter::{self, change_labels_on_pegs, format_move_tally, Labelling};
-use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
+use hanoigame::recipe::{rebinding, rebound_moves, RecipeRegistry, Recorder};
 
 /// The shared wx UI definition (repo-root `ui/hanoi.xrc`, reached via the
 /// git-tracked `hanoi.xrc` symlink in this crate). `include_str!` bakes the
@@ -744,12 +744,100 @@ fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
     dlg.show_modal();
 }
 
+/// The rows of the three-panel rebinding view as aligned monospace text: the
+/// move in the recipe's labels | the label->peg key | the rebound move. A key
+/// cell is marked `>` when it is one of the two bindings that move `selected`
+/// (a row index) uses. Row 0 is the header.
+fn rebinding_rows(
+    moves: &[(u32, u32)],
+    labelling: Labelling,
+    selected: Option<usize>,
+) -> Vec<String> {
+    let key: [(u32, u32); 3] = rebinding(labelling);
+    let rebound: Vec<(u32, u32)> = rebound_moves(moves, labelling);
+    let used: Option<(u32, u32)> = selected.map(|i| moves[i]);
+    let rows: usize = moves.len().max(key.len());
+    let mut lines: Vec<String> = vec![format!(
+        "{:<20}| {:<20}| {}",
+        "Recipe (its labels)", "Rebinding", "Rebound (pegs)"
+    )];
+    for i in 0..rows {
+        let left: String = moves
+            .get(i)
+            .map(|&(from_label, to_label)| format!("{}: {from_label} -> {to_label}", i + 1))
+            .unwrap_or_default();
+        let mid: String = key
+            .get(i)
+            .map(|&(label, peg)| {
+                let marked: bool = used
+                    .is_some_and(|(from_label, to_label)| label == from_label || label == to_label);
+                format!(
+                    "{} label {label} -> peg {peg}",
+                    if marked { ">" } else { " " }
+                )
+            })
+            .unwrap_or_default();
+        let right: String = rebound
+            .get(i)
+            .map(|&(from_peg, to_peg)| format!("{}: {from_peg} -> {to_peg}", i + 1))
+            .unwrap_or_default();
+        lines.push(format!("{left:<20}| {mid:<20}| {right}"));
+    }
+    lines
+}
+
+/// The three-panel rebinding view (feature-spec §4.8) as ONE list box, one
+/// row per move: wxDragon's `ListBox` cannot read or set its scroll position,
+/// so the three columns live in one control, which keeps them scrolling and
+/// selecting together. Selecting a move row marks the two key bindings it uses.
 fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: Labelling) {
-    let table: Vec<String> = format_rebinding_table(moves, labelling, "Recipe (its labels)");
-    if table.is_empty() {
+    if labelling == Labelling::OneTwoThree {
         return;
     }
-    show_monospace_dialog(frame, title, &table);
+    let dlg: Dialog = Dialog::builder(frame, title).with_size(640, 460).build();
+    let mono: Option<Font> = Font::builder()
+        .with_point_size(11)
+        .with_family(FontFamily::Teletype)
+        .build();
+    let rows: Vec<String> = rebinding_rows(moves, labelling, None);
+    let header: StaticText = StaticText::builder(&dlg).with_label(&rows[0]).build();
+    let list: ListBox = ListBox::builder(&dlg).build();
+    if let Some(font) = mono.as_ref() {
+        header.set_font(font);
+        list.set_font(font);
+    }
+    let body: Vec<&str> = rows[1..].iter().map(String::as_str).collect();
+    list.set_items(&body);
+    let moves_owned: Vec<(u32, u32)> = moves.to_vec();
+    let list_for_select: ListBox = list.clone();
+    list.on_selection_changed(move |_| {
+        let Some(row) = list_for_select.get_selection() else {
+            return;
+        };
+        let row: usize = row as usize;
+        if row >= moves_owned.len() {
+            return;
+        }
+        let marked: Vec<String> = rebinding_rows(&moves_owned, labelling, Some(row));
+        for (i, line) in marked[1..].iter().enumerate() {
+            list_for_select.set_string(i as u32, line);
+        }
+        list_for_select.set_selection(row as u32, true);
+    });
+    let close: Button = Button::builder(&dlg).with_label("Close").build();
+    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    sizer.add(
+        &header,
+        0,
+        SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Top,
+        8,
+    );
+    sizer.add(&list, 1, SizerFlag::Expand | SizerFlag::All, 8);
+    sizer.add(&close, 0, SizerFlag::All, 8);
+    dlg.set_sizer(sizer, true);
+    let dlg_for_close: Dialog = dlg.clone();
+    close.on_click(move |_| dlg_for_close.end_modal(ID_OK));
+    dlg.show_modal();
 }
 
 fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {

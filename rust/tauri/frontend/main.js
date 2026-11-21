@@ -517,25 +517,54 @@ function renderApplyView(apply) {
     panel.innerHTML = "";
     return;
   }
-  /** @type {(title: string, rows: string[]) => string} */
-  const col = (title, rows) =>
-    `<div class="apply-col"><h4>${title}</h4>${
-      rows.map((r) => `<div>${r}</div>`).join("")
-    }</div>`;
-  const recipeCol = apply.recipe_moves.map(([a, b], i) =>
-    `${i + 1}: ${a} → ${b}`
-  );
-  const rebindCol = apply.rebinding.map(([l, p]) => `label ${l} → peg ${p}`);
-  const reboundCol = apply.rebound_moves.map(([a, b], i) =>
-    `${i + 1}: ${a} → ${b}`
-  );
+  // One table, so the three columns scroll together. Clicking a move row
+  // selects it across all three columns and marks (▶) the two label→peg
+  // bindings that move uses.
+  const rows = Math.max(apply.recipe_moves.length, apply.rebinding.length);
+  /** @type {(i: number) => string} */
+  const row = (i) => {
+    const m = apply.recipe_moves[i];
+    const k = apply.rebinding[i];
+    const r = apply.rebound_moves[i];
+    const left = m ? `${i + 1}: ${m[0]} → ${m[1]}` : "";
+    const mid = k
+      ? `<span class="key-mark"></span>label ${k[0]} → peg ${k[1]}`
+      : "";
+    const right = r ? `${i + 1}: ${r[0]} → ${r[1]}` : "";
+    const attrs = m ? ` class="move-row" data-row="${i}"` : "";
+    return `<tr${attrs}><td>${left}</td><td data-label="${
+      k ? k[0] : ""
+    }">${mid}</td><td>${right}</td></tr>`;
+  };
   panel.innerHTML =
     `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
-    `<div class="apply-cols">` +
-    col("Recipe (its labels)", recipeCol) +
-    col("Rebinding (label &rarr; peg)", rebindCol) +
-    col("Rebound (physical pegs)", reboundCol) +
-    `</div>`;
+    `<div class="apply-scroll"><table class="apply-table"><thead><tr>` +
+    `<th>Recipe (its labels)</th><th>Rebinding (label &rarr; peg)</th>` +
+    `<th>Rebound (physical pegs)</th></tr></thead><tbody>` +
+    Array.from({ length: rows }, (_, i) => row(i)).join("") +
+    `</tbody></table></div>`;
+  const table = /** @type {HTMLTableElement} */ (
+    panel.querySelector(".apply-table")
+  );
+  table.addEventListener("click", (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    const tr = /** @type {HTMLTableRowElement|null} */ (
+      target.closest("tr.move-row")
+    );
+    if (!tr) return;
+    const move = apply.recipe_moves[Number(tr.dataset.row)];
+    table.querySelectorAll("tr.selected").forEach((t) =>
+      t.classList.remove("selected")
+    );
+    tr.classList.add("selected");
+    table.querySelectorAll("td[data-label]").forEach((td) => {
+      const cell = /** @type {HTMLTableCellElement} */ (td);
+      const mark = cell.querySelector(".key-mark");
+      if (!mark) return;
+      const label = Number(cell.dataset.label);
+      mark.textContent = label === move[0] || label === move[1] ? "▶ " : "";
+    });
+  });
   panel.classList.remove("hidden");
 }
 

@@ -158,6 +158,13 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   table's left and right columns already list every recipe move and its rebound physical move, so a
   per-step log merely repeats the Rebound column (it confused readers). Text UIs (CLI/TUI) follow this;
   GUIs show the three panels as their own view and summarise to a move count. (`engine._handle_apply`.)
+- **Linked rows (GUIs; decided 2026-11-21, William Emerison Six <billsix@gmail.com>):** the recipe and
+  rebound columns line up move for move, so they behave as one: **scrolling** one scrolls the other to
+  the same top row, **selecting** a move selects the same row on the other side, and the key **marks**
+  (▶, or `>` where the font has no ▶) the two label→peg bindings the selected move uses (its from- and
+  to-label). A toolkit with a table draws the view as one table (ImGui, egui, the Tauri DOM, and Rust
+  wxDragon's single list box, since its `ListBox` cannot read or set its scroll position); the Python and
+  C++ wx dialogs keep two list boxes linked by mirroring the selection and polling the top row.
 - **Do:** name a recipe to invoke under the current labelling.
 - **Why:** this is where the relabelling method becomes concrete — the learner *sees* their small solve,
   under the current renaming, become the moves that advance the bigger puzzle. (Rationale:
@@ -277,7 +284,8 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
 11. Show a recipe's moves.
 12. **Apply a recipe under the current labelling** — applies to the board, records, stops-with-reason.
 13. **The three-panel rebinding view on apply** — recipe moves | rebinding (label→peg) | rebound physical
-    moves; rebinding shown only under a non-default labelling.
+    moves; rebinding shown only under a non-default labelling. In a GUI the rows are **linked** (§4.8):
+    scroll and selection follow across columns, and the selected move's two key bindings are marked.
 14. Help/quit/empty-input behavior (interactive UIs).
 15. **Inspectable running move tally** in default-label space (§4.11): an on-demand (or always-visible)
     view listing every move this game, numbered, in default 1-2-3 labels, with a live count, moves-only,

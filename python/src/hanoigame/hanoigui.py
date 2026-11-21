@@ -706,9 +706,17 @@ class HanoiFrame(wx.Frame):
             f"{i}: {fp} → {tp}"
             for i, (fp, tp) in enumerate(rebound_moves(moves, labelling), 1)
         ]
-        key: list[str] = [
-            f"label {label} → peg {peg}" for label, peg in rebinding(labelling)
-        ]
+
+        def key_lines(selected: int | None) -> list[str]:
+            """The label→peg key, marking the two bindings that move
+            `selected` (a row index) uses with ▶; unmarked when None."""
+            used: tuple[int, ...] = (
+                moves[selected] if selected is not None else ()
+            )
+            return [
+                f"{'▶' if label in used else ' '} label {label} → peg {peg}"
+                for label, peg in rebinding(labelling)
+            ]
 
         # Layout (the three panels + Close) is RebindingDialog in hanoi.xrc;
         # here we only fetch the named controls and fill in the dynamic bits:
@@ -728,8 +736,8 @@ class HanoiFrame(wx.Frame):
         xrcctrl(dlg, "rebind_intro").SetLabel(intro)
         xrcctrl(dlg, "rebind_left_header").SetLabel(left_header)
         key_text: wx.StaticText = xrcctrl(dlg, "rebind_key")
-        key_text.SetLabel("\n".join(key))
         key_text.SetFont(mono)
+        key_text.SetLabel("\n".join(key_lines(None)))
 
         left_lb: wx.ListBox = xrcctrl(dlg, "rebind_left")
         right_lb: wx.ListBox = xrcctrl(dlg, "rebind_right")
@@ -741,46 +749,56 @@ class HanoiFrame(wx.Frame):
             row_h: int = max(1, listbox.GetCharHeight())
             listbox.SetMinSize((210, row_h * 10 + 8))
 
-        # Selecting a move selects the matching one on the other side AND
-        # scrolls both so they line up. Both lists have the same number of
-        # rows, so pinning the same first item aligns them. (Programmatic
-        # SetSelection does not fire EVT_LISTBOX, so there's no feedback loop.)
+        # Selecting a move selects the matching row on the other side and marks
+        # the two key bindings it uses. Both lists have the same number of
+        # rows, so the same index is the same move. (Programmatic SetSelection
+        # does not fire EVT_LISTBOX, so there's no feedback loop.)
         def _sync(
             src: wx.ListBox, dst: wx.ListBox
         ) -> Callable[[wx.CommandEvent], None]:
             """Build the selection handler that mirrors `src` onto `dst`."""
 
             def handler(_evt: wx.CommandEvent) -> None:
-                """Select and scroll `dst` to match `src`'s selection."""
+                """Select `dst`'s matching row and mark the key."""
                 i: int = src.GetSelection()
                 if i == wx.NOT_FOUND:
                     return
-                lb: wx.ListBox
-                for lb in (src, dst):
-                    if i >= lb.GetCount():
-                        continue
-                    lb.SetSelection(i)
-                    # Scroll BOTH lists to put row i in the same place, so the
-                    # matched moves line up visually. SetFirstItem pins the top
-                    # row; not every wx port exposes it, so fall back to
-                    # EnsureVisible. getattr avoids crashing if a method is
-                    # absent — verify wx calls, don't assume (sizer lesson).
-                    set_first: Callable[[int], object] | None = getattr(
-                        lb, "SetFirstItem", None
-                    )
-                    if set_first is not None:
-                        set_first(i)
-                    else:
-                        ensure: Callable[[int], object] | None = getattr(
-                            lb, "EnsureVisible", None
-                        )
-                        if ensure is not None:
-                            ensure(i)
+                dst.SetSelection(i)
+                dst.SetFirstItem(src.GetTopItem())
+                key_text.SetLabel("\n".join(key_lines(i)))
 
             return handler
 
         left_lb.Bind(wx.EVT_LISTBOX, _sync(left_lb, right_lb))
         right_lb.Bind(wx.EVT_LISTBOX, _sync(right_lb, left_lb))
+
+        # Scrolling one list (wheel, scrollbar, keyboard) scrolls the other to
+        # the same top row. A native GTK/Cocoa list box doesn't report every
+        # scroll as a wx event, so poll the top row: whichever list's top row
+        # moved since the last tick leads, and the other follows.
+        tops: list[int] = [left_lb.GetTopItem(), right_lb.GetTopItem()]
+        scroll_timer: wx.Timer = wx.Timer(dlg)
+
+        def _follow_scroll(_evt: wx.TimerEvent) -> None:
+            """Copy the scrolled list's top row onto the other list."""
+            now: list[int] = [left_lb.GetTopItem(), right_lb.GetTopItem()]
+            if now[0] != tops[0]:
+                right_lb.SetFirstItem(now[0])
+            elif now[1] != tops[1]:
+                left_lb.SetFirstItem(now[1])
+            tops[:] = [left_lb.GetTopItem(), right_lb.GetTopItem()]
+
+        dlg.Bind(wx.EVT_TIMER, _follow_scroll, scroll_timer)
+        scroll_timer.Start(100)
+
+        def _stop_timer(evt: wx.WindowDestroyEvent) -> None:
+            """Stop polling before the dialog goes, however it is destroyed
+            (Close, or replaced by the next rebinding dialog)."""
+            if evt.GetEventObject() is dlg:
+                scroll_timer.Stop()
+            evt.Skip()
+
+        dlg.Bind(wx.EVT_WINDOW_DESTROY, _stop_timer)
 
         def _close(_evt: wx.Event) -> None:
             """Forget and destroy the reusable rebinding dialog."""

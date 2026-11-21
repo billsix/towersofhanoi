@@ -26,6 +26,8 @@
 #include "presenter.hpp"
 #include "recipe.hpp"
 
+#include <cstdio>
+
 #include <array>
 #include <cfloat>
 #include <cmath>
@@ -59,6 +61,7 @@ struct RecipeView {
   std::string left_header;
   std::vector<std::array<int, 2>> moves;
   hanoi::Labelling labelling = hanoi::Labelling::OneTwoThree;
+  int selected = -1; // the selected move's row, or -1 for none
 };
 
 // The whole app state.
@@ -327,14 +330,32 @@ void draw_recipe_view(App &app) {
     const std::vector<std::array<int, 2>> rebound =
         hanoi::rebound_moves(app.view.moves, app.view.labelling);
     const std::size_t rows = app.view.moves.size();
+    // One table, so the three columns scroll together. Clicking a move row
+    // selects it across all columns, and the key marks (with an arrowhead) the
+    // two label->peg bindings that move uses (">": the default ImGui font has
+    // no arrowhead glyph).
+    auto key_cell = [&app, &key](std::size_t i) {
+      const int sel = app.view.selected;
+      const bool used =
+          sel >= 0 &&
+          (app.view.moves[static_cast<std::size_t>(sel)][0] == key[i][0] ||
+           app.view.moves[static_cast<std::size_t>(sel)][1] == key[i][0]);
+      ImGui::Text("%s label %d -> peg %d", used ? ">" : " ", key[i][0],
+                  key[i][1]);
+    };
     for (std::size_t i = 0; i < rows; ++i) {
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
-      ImGui::Text("%zu: %d -> %d", i + 1, app.view.moves[i][0],
-                  app.view.moves[i][1]);
+      char label[32];
+      std::snprintf(label, sizeof label, "%zu: %d -> %d##move%zu", i + 1,
+                    app.view.moves[i][0], app.view.moves[i][1], i);
+      if (ImGui::Selectable(label, app.view.selected == static_cast<int>(i),
+                            ImGuiSelectableFlags_SpanAllColumns)) {
+        app.view.selected = static_cast<int>(i);
+      }
       ImGui::TableSetColumnIndex(1);
       if (i < key.size()) {
-        ImGui::Text("label %d -> peg %d", key[i][0], key[i][1]);
+        key_cell(i);
       }
       ImGui::TableSetColumnIndex(2);
       ImGui::Text("%zu: %d -> %d", i + 1, rebound[i][0], rebound[i][1]);
@@ -344,7 +365,7 @@ void draw_recipe_view(App &app) {
     for (std::size_t i = rows; i < key.size(); ++i) {
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(1);
-      ImGui::Text("label %d -> peg %d", key[i][0], key[i][1]);
+      key_cell(i);
     }
     ImGui::EndTable();
   }
@@ -362,6 +383,7 @@ void open_view(App &app, const std::string &title,
   app.view.left_header = left_header;
   app.view.moves = moves;
   app.view.labelling = app.labelling;
+  app.view.selected = -1;
 }
 
 // Dispatch a physical from->to move -- shared by the move buttons and a disc
