@@ -232,15 +232,33 @@ select {
   font-size: 0.85rem;
   color: var(--fg-muted);
 }
-.apply-cols {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
+.apply-scroll {
+  max-height: 16rem;
+  overflow-y: auto;
+}
+.apply-table {
+  border-collapse: collapse;
   font-family: var(--font-mono);
   font-size: 0.85rem;
 }
-.apply-col {
-  min-width: 10rem;
+.apply-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-sunken);
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  padding: 0 1.5rem 0.25rem 0;
+}
+.apply-table td {
+  padding: 0.05rem 1.5rem 0.05rem 0;
+  white-space: nowrap;
+}
+.apply-table tr.move-row {
+  cursor: pointer;
+}
+.apply-table tr.selected td {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 /* --- Tier-3 menu bar (Game / Relabel / Recipe / Help). ---------------------- */
@@ -341,6 +359,12 @@ select {
 .history.empty {
   list-style: none;
   padding-left: 0.3rem;
+}
+.history li[data-count] {
+  cursor: pointer;
+}
+.history li.reviewing {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .history .muted {
   color: var(--fg-subtle);

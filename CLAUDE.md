@@ -41,9 +41,11 @@ The split itself: `tasks/archive/2026/10/24/split-into-per-language-containers.m
 ## Status
 
 - **Python** (`python/`, setuptools package `src/hanoigame/`) — one shared model + command
-  grammar + dispatcher with three thin front-ends: `hanoi`/`hanoigame` (ncurses TUI),
+  grammar + dispatcher with four thin front-ends: `hanoi`/`hanoigame` (ncurses TUI),
   `hanoi-cli` (plain stdin/stdout + readline completion), `hanoi-gui` (wxPython; XRC UI;
-  text or 2D-graphics board). pytest suite (the by-hand drift guard runs here when the
+  text or 2D-graphics board), and `hanoi-gl` (OpenGL 3.3 core 3D board: torus discs, orbit
+  camera, colour-ID picking; a teaching piece for picking, not a full-feature UI —
+  `tasks/reference/opengl-color-id-picking.md`). pytest suite (the by-hand drift guard runs here when the
   full tree is present — it needs the root's `tools/` + `docs/`, so it is skipped in the
   isolated Python image).
 - **Rust** (`rust/`, a Cargo workspace) — a parallel reimplementation kept **in sync with
@@ -99,11 +101,11 @@ root builds the book.
 - **Root (book):** `make image` (book image: base + Sphinx/TeX under `BUILD_DOCS=1`, the
   default; `MINIMAL_IMAGE=1` for a lean image). `make docs` builds html/pdf/epub into
   `./output/towersofhanoi/`. `make format` / `make type-check` delegate to `python/`.
-- **`cd python && make`** — `cli` / `tui` / `wx` run the front-ends (X11 + Wayland
-  passthrough for the wx GUI); `format` (ruff) / `type-check` (ty) / `test` (pytest, which
+- **`cd python && make`** — `cli` / `tui` / `wx` / `gl` run the front-ends (X11 + Wayland
+  passthrough for the GUIs); `format` (ruff) / `type-check` (ty) / `test` (pytest, which
   collects the library doctests via `--doctest-modules`) are the gates; `shell`.
-  `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs — no OpenGL/mesa (the board is 2D
-  wx/Cairo). `USE_EMACS` (default 1) installs emacs + the Python dev set.
+  `USE_X_WINDOWS` (default 1) installs the GTK/X11 libs and the GL stack (glfw + Mesa) for
+  `hanoi-gl`. `USE_EMACS` (default 1) installs emacs + the Python dev set.
 - **`cd rust && make`** — `cli` / `tui` / `wx` / `tauri` / `egui` run the front-ends (`egui-web` /
   `egui-serve` for the egui WebAssembly build, behind the `USE_WASM` toolchain); `format`
   (rustfmt + `deno fmt` of the Tauri frontend web files), `check` (`cargo check --workspace

@@ -158,6 +158,13 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   table's left and right columns already list every recipe move and its rebound physical move, so a
   per-step log merely repeats the Rebound column (it confused readers). Text UIs (CLI/TUI) follow this;
   GUIs show the three panels as their own view and summarise to a move count. (`engine._handle_apply`.)
+- **Linked rows (GUIs; decided 2026-11-21, William Emerison Six <billsix@gmail.com>):** the recipe and
+  rebound columns line up move for move, so they behave as one: **scrolling** one scrolls the other to
+  the same top row, **selecting** a move selects the same row on the other side, and the key **marks**
+  (▶, or `>` where the font has no ▶) the two label→peg bindings the selected move uses (its from- and
+  to-label). A toolkit with a table draws the view as one table (ImGui, egui, the Tauri DOM, and Rust
+  wxDragon's single list box, since its `ListBox` cannot read or set its scroll position); the Python and
+  C++ wx dialogs keep two list boxes linked by mirroring the selection and polling the top row.
 - **Do:** name a recipe to invoke under the current labelling.
 - **Why:** this is where the relabelling method becomes concrete — the learner *sees* their small solve,
   under the current renaming, become the moves that advance the bigger puzzle. (Rationale:
@@ -202,8 +209,19 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
   default-space list + live count, moves-only, reset-per-game. **Per the learning flow (§3.5), the
   always-visible panel is the preferred Tier-1 presentation**; an on-demand dialog/menu item may remain
   as an additional way to focus it, but the history should not be hidden by default.
+- **Review a past move (GUIs; decided 2026-11-21, William Emerison Six <billsix@gmail.com>):** clicking
+  (or arrowing to) move *k* in the history shows the board as it was **after move *k*** (the first *k*
+  moves replayed: `recipe.replay_default_moves`, `GameSession.state_after`), under the **current**
+  labelling, with a "Back to current" control; the last move is the live game. While reviewing, the move
+  buttons and dragging follow the reviewed board. A move or recipe apply made while reviewing first asks
+  **"Continue from move *k*? This deletes moves *k+1*…*n*."**: yes truncates the game to *k* moves
+  (`GameSession.truncate_to`), which un-wins a won game and disables Save until the next win, then makes
+  the move; no stays in review. The board takes no other move until the student answers. Text UIs have no
+  review command (a possible follow-up).
 - **Why:** the player and the teacher can audit exactly what was done against the physical pegs — the
   ground truth beneath any relabelling, the same default-label-space invariant recipes already use.
+  Review lets the student study a solve step by step without being able to reach a board that no game
+  produced.
 - **Status:** implemented in the **wxPython GUI** (the oracle) 2026-10-26
   (`tasks/archive/2026/10/26/wxpython-running-move-tally.md`). Fan-out to every other UI was done in
   `tasks/archive/2026/11/01/fan-out-move-tally.md`.
@@ -258,6 +276,10 @@ These are recommendations for *how* a category of UI presents the features above
   treats a non-empty move result as an error — `engine.move_teaching_lines` docstring.)
 - Colour the pegs by **label** (so colour tracks a label across relabels). Offer the save-recipe
   **prompt on winning**. A 2D-graphics board or a text board are both acceptable.
+- **Every text view that shows aligned columns uses a fixed-width font** — the text board, the move
+  history, the recipe view and the rebinding view. The shared lines (`presenter.render`,
+  `recipe.format_rebinding_table`, `presenter.format_move_tally`) are aligned by character count, so a
+  proportional font makes the columns drift (the Rust wx text board did, until 2026-11-21).
 
 ## 7. Compliance checklist (per implementation / UI)
 
@@ -277,7 +299,8 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
 11. Show a recipe's moves.
 12. **Apply a recipe under the current labelling** — applies to the board, records, stops-with-reason.
 13. **The three-panel rebinding view on apply** — recipe moves | rebinding (label→peg) | rebound physical
-    moves; rebinding shown only under a non-default labelling.
+    moves; rebinding shown only under a non-default labelling. In a GUI the rows are **linked** (§4.8):
+    scroll and selection follow across columns, and the selected move's two key bindings are marked.
 14. Help/quit/empty-input behavior (interactive UIs).
 15. **Inspectable running move tally** in default-label space (§4.11): an on-demand (or always-visible)
     view listing every move this game, numbered, in default 1-2-3 labels, with a live count, moves-only,
@@ -295,6 +318,10 @@ Audit any implementation or new UI against these rows. Mark each: **✓** (prese
     save-as-recipe (prefilled `solve-<N>`) — a **text UI** inline at the win, a **GUI** at the new-game /
     discard boundary (so it doesn't compete with the §4.8 rebinding view). Shared wording via a core
     helper. UX rationale: `tasks/reference/win-celebration-and-recipe-discovery-ux.md`.
+21. **History review** (§4.11, GUIs): clicking a history move shows the board after it; a move while
+    reviewing asks to continue from there, deleting the later moves.
+22. **Fixed-width text views** (§6.2, GUIs): the text board, move history, recipe view and rebinding
+    view use a monospace font.
 
 ## Python conformance (the authority) — reconciled 2026-10-25
 
@@ -320,6 +347,11 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
   `make wx`** front-end was added over the shared `ui/hanoi.xrc`. Verified headless (native ImGui, wasm,
   wx); the maintainer's on-display run is the last check.
   → `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`.
+- **Python `hanoi-gl`** (added 2026-11-21) — a 3D OpenGL teaching piece for colour-ID picking, not a
+  full-feature UI: it implements rows 1–4 by direct manipulation (the drag-drop ruling; a drag can only
+  be refused as larger-on-smaller), with the move count vs optimal in the window title, through the
+  shared engine; it skips labellings, recipes, the rebinding view, the move history and the
+  learning-flow tiers (rows 5–22) by design. Design: `tasks/reference/opengl-color-id-picking.md`.
 - **bash** — a by-design non-interactive demo of the relabelling method (solve scripts composed through
   six `tr` relabel filters); embodies §3/§4.3 relabelling cleanly but is not a game UI, so most
   interactive rows are n/a. Not a parity target.

@@ -49,6 +49,8 @@
  * @property {[number, number, number]} labels
  * @property {[number, number][]} legal
  * @property {boolean} won
+ * @property {boolean} board_won
+ * @property {number|null} review
  * @property {[number, number][]} rebinding
  * @property {RecipeInfo[]} recipes
  * @property {[number, number][]} history
@@ -485,13 +487,19 @@ function render(s) {
   hist.classList.toggle("empty", s.history.length === 0);
   hist.innerHTML = s.history.length === 0
     ? `<li class="muted">(no moves yet)</li>`
-    : s.history.map(([a, b]) => `<li>${a} -&gt; ${b}</li>`).join("");
+    : s.history.map(([a, b], i) =>
+      `<li data-count="${i + 1}"${
+        s.review === i + 1 ? ' class="reviewing"' : ""
+      }>${a} -&gt; ${b}</li>`
+    ).join("");
+  /** @type {HTMLButtonElement} */ (el("history-back")).hidden =
+    s.review === null;
 
   /** @type {Set<string>} */
   const legal = new Set(s.legal.map(([f, t]) => `${f}-${t}`));
   for (const [f, t] of MOVE_PAIRS) {
-    /** @type {HTMLButtonElement} */ (el(`move-${f}-${t}`)).disabled = s.won ||
-      !legal.has(`${f}-${t}`);
+    /** @type {HTMLButtonElement} */ (el(`move-${f}-${t}`)).disabled =
+      s.board_won || !legal.has(`${f}-${t}`);
   }
 
   // Tier-2 gating: the Relabel and Recipe menus unlock at the first win.
@@ -517,25 +525,54 @@ function renderApplyView(apply) {
     panel.innerHTML = "";
     return;
   }
-  /** @type {(title: string, rows: string[]) => string} */
-  const col = (title, rows) =>
-    `<div class="apply-col"><h4>${title}</h4>${
-      rows.map((r) => `<div>${r}</div>`).join("")
-    }</div>`;
-  const recipeCol = apply.recipe_moves.map(([a, b], i) =>
-    `${i + 1}: ${a} → ${b}`
-  );
-  const rebindCol = apply.rebinding.map(([l, p]) => `label ${l} → peg ${p}`);
-  const reboundCol = apply.rebound_moves.map(([a, b], i) =>
-    `${i + 1}: ${a} → ${b}`
-  );
+  // One table, so the three columns scroll together. Clicking a move row
+  // selects it across all three columns and marks (▶) the two label→peg
+  // bindings that move uses.
+  const rows = Math.max(apply.recipe_moves.length, apply.rebinding.length);
+  /** @type {(i: number) => string} */
+  const row = (i) => {
+    const m = apply.recipe_moves[i];
+    const k = apply.rebinding[i];
+    const r = apply.rebound_moves[i];
+    const left = m ? `${i + 1}: ${m[0]} → ${m[1]}` : "";
+    const mid = k
+      ? `<span class="key-mark"></span>label ${k[0]} → peg ${k[1]}`
+      : "";
+    const right = r ? `${i + 1}: ${r[0]} → ${r[1]}` : "";
+    const attrs = m ? ` class="move-row" data-row="${i}"` : "";
+    return `<tr${attrs}><td>${left}</td><td data-label="${
+      k ? k[0] : ""
+    }">${mid}</td><td>${right}</td></tr>`;
+  };
   panel.innerHTML =
     `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
-    `<div class="apply-cols">` +
-    col("Recipe (its labels)", recipeCol) +
-    col("Rebinding (label &rarr; peg)", rebindCol) +
-    col("Rebound (physical pegs)", reboundCol) +
-    `</div>`;
+    `<div class="apply-scroll"><table class="apply-table"><thead><tr>` +
+    `<th>Recipe (its labels)</th><th>Rebinding (label &rarr; peg)</th>` +
+    `<th>Rebound (physical pegs)</th></tr></thead><tbody>` +
+    Array.from({ length: rows }, (_, i) => row(i)).join("") +
+    `</tbody></table></div>`;
+  const table = /** @type {HTMLTableElement} */ (
+    panel.querySelector(".apply-table")
+  );
+  table.addEventListener("click", (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    const tr = /** @type {HTMLTableRowElement|null} */ (
+      target.closest("tr.move-row")
+    );
+    if (!tr) return;
+    const move = apply.recipe_moves[Number(tr.dataset.row)];
+    table.querySelectorAll("tr.selected").forEach((t) =>
+      t.classList.remove("selected")
+    );
+    tr.classList.add("selected");
+    table.querySelectorAll("td[data-label]").forEach((td) => {
+      const cell = /** @type {HTMLTableCellElement} */ (td);
+      const mark = cell.querySelector(".key-mark");
+      if (!mark) return;
+      const label = Number(cell.dataset.label);
+      mark.textContent = label === move[0] || label === move[1] ? "▶ " : "";
+    });
+  });
   panel.classList.remove("hidden");
 }
 
@@ -599,7 +636,7 @@ function initBoardDrag() {
     };
   };
   canvas.addEventListener("pointerdown", (e) => {
-    if (!latest || latest.won) return;
+    if (!latest || latest.board_won) return;
     const { x, y } = canvasPos(e);
     const peg = nearestPeg(x, canvas.width);
     const stack = latest.towers[peg];
@@ -632,12 +669,75 @@ function initBoardDrag() {
     // frame up until render() paints the result at the destination.
     const from = latest.labels[src];
     const to = latest.labels[target];
-    render(/** @type {Snapshot} */ (await invoke("do_move", { from, to })));
+    await moveFromHere(from, to);
   });
   canvas.addEventListener("pointercancel", () => {
     dragSrc = null;
     if (latest) drawBoard(latest);
   });
+}
+
+/**
+ * Before a move or an apply while reviewing the history, ask whether to
+ * continue from the reviewed move, deleting every later one. On yes the backend
+ * truncates the game; on no the reviewed board is redrawn (a dragged disc
+ * settles back) and the caller stops.
+ * @returns {Promise<boolean>} whether the caller may go on
+ */
+async function leaveReview() {
+  if (!latest || latest.review === null) return true;
+  const count = latest.review;
+  const total = latest.history.length;
+  const later = count + 1 === total
+    ? `move ${total}`
+    : `moves ${count + 1}–${total}`;
+  const choice = /** @type {string} */ (
+    await new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "howto";
+      const para = document.createElement("p");
+      para.textContent = `Continue from move ${count}? This deletes ${later}.`;
+      dialog.appendChild(para);
+      const form = document.createElement("form");
+      form.method = "dialog";
+      const no = document.createElement("button");
+      no.value = "no";
+      no.textContent = "No";
+      const yes = document.createElement("button");
+      yes.value = "yes";
+      yes.textContent = "Yes";
+      form.appendChild(no);
+      form.appendChild(yes);
+      dialog.appendChild(form);
+      document.body.appendChild(dialog);
+      dialog.addEventListener("close", () => {
+        const value = dialog.returnValue;
+        dialog.remove();
+        resolve(value);
+      });
+      dialog.showModal();
+    })
+  );
+  if (choice !== "yes") {
+    drawBoard(latest);
+    return false;
+  }
+  render(/** @type {Snapshot} */ (await invoke("continue_from_review")));
+  // The game changed, so a saved or replayed win no longer describes it.
+  wonViaApply = false;
+  savedCurrent = false;
+  return true;
+}
+
+/**
+ * Make a move (button or drop), first leaving history review if needed.
+ * @param {number} from
+ * @param {number} to
+ * @returns {Promise<void>}
+ */
+async function moveFromHere(from, to) {
+  if (!(await leaveReview())) return;
+  render(/** @type {Snapshot} */ (await invoke("do_move", { from, to })));
 }
 
 async function init() {
@@ -656,11 +756,25 @@ async function init() {
 
   for (const [f, t] of MOVE_PAIRS) {
     el(`move-${f}-${t}`).addEventListener("click", async () => {
-      render(
-        /** @type {Snapshot} */ (await invoke("do_move", { from: f, to: t })),
-      );
+      await moveFromHere(f, t);
     });
   }
+
+  // History review: clicking a move shows the board as it was after it.
+  el("history").addEventListener("click", async (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    const li =
+      /** @type {HTMLElement|null} */ (target.closest("li[data-count]"));
+    if (!li) return;
+    render(
+      /** @type {Snapshot} */ (await invoke("review_move", {
+        count: Number(li.dataset.count),
+      })),
+    );
+  });
+  el("history-back").addEventListener("click", async () => {
+    render(/** @type {Snapshot} */ (await invoke("review_back")));
+  });
 
   // Relabel menu (delegated: the items are re-rendered each snapshot).
   el("relabel-panel").addEventListener("click", async (e) => {
@@ -694,6 +808,7 @@ async function init() {
       }));
       alert(steps.join("\n"));
     } else if (act === "apply" && name) {
+      if (!(await leaveReview())) return;
       render(/** @type {Snapshot} */ (await invoke("apply_recipe", { name })));
       if (latest && latest.won) wonViaApply = true;
     }

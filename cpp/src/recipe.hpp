@@ -36,6 +36,12 @@ public:
     moves_.push_back({from_default, to_default});
   }
   void reset() { moves_.clear(); }
+  // Keep only the first `count` recorded moves, dropping the rest.
+  void truncate(std::size_t count) {
+    if (count < moves_.size()) {
+      moves_.resize(count);
+    }
+  }
   [[nodiscard]] const std::vector<std::array<int, 2>> &moves() const {
     return moves_;
   }
@@ -65,6 +71,51 @@ TEST_CASE("Recorder logs default-space moves and freezes them into a recipe") {
   CHECK(rec.moves().empty());
   CHECK(recipe.default_moves ==
         std::vector<std::array<int, 2>>{{1, 3}, {1, 2}});
+}
+
+TEST_CASE("Recorder::truncate keeps only the first moves") {
+  Recorder rec;
+  rec.record(1, 3);
+  rec.record(1, 2);
+  rec.record(3, 2);
+  rec.truncate(1);
+  CHECK(rec.moves() == std::vector<std::array<int, 2>>{{1, 3}});
+  rec.truncate(5); // more than recorded: unchanged
+  CHECK(rec.moves().size() == 1);
+}
+
+// Replay recorded moves (default-label space, 1-indexed physical pegs, as a
+// Recorder stores them) on a fresh game: the board after those moves. This is
+// how a front-end shows "the board as it was after move k" when the student
+// reviews the move history. Empty if a move is illegal at its point in the
+// replay.
+inline std::optional<Game>
+replay_default_moves(int num_disks,
+                     const std::vector<std::array<int, 2>> &moves) {
+  Game game{num_disks};
+  for (const std::array<int, 2> &m : moves) {
+    const Move physical{m[0] - 1, m[1] - 1};
+    const std::vector<Move> legal = game.move_options();
+    const bool ok =
+        std::any_of(legal.begin(), legal.end(), [&](const Move &option) {
+          return option.from_peg == physical.from_peg &&
+                 option.to_peg == physical.to_peg;
+        });
+    if (!ok) {
+      return std::nullopt;
+    }
+    game.apply(physical);
+  }
+  return game;
+}
+
+TEST_CASE("replay_default_moves rebuilds the board after the given moves") {
+  const std::optional<Game> game = replay_default_moves(2, {{1, 2}, {1, 3}});
+  REQUIRE(game.has_value());
+  CHECK(game->towers()[1] == std::vector<int>{1});
+  CHECK(game->towers()[2] == std::vector<int>{2});
+  CHECK(game->current_moves() == 2);
+  CHECK_FALSE(replay_default_moves(2, {{2, 3}}).has_value()); // peg 2 empty
 }
 
 // In-memory recipe store keyed by name (std::map keeps names() sorted, like the

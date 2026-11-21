@@ -36,7 +36,7 @@ use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
 use hanoigame::presenter::{self, change_labels_on_pegs, format_move_tally, Labelling};
-use hanoigame::recipe::{format_rebinding_table, RecipeRegistry, Recorder};
+use hanoigame::recipe::{rebinding, rebound_moves, replay_default_moves, RecipeRegistry, Recorder};
 
 /// The shared wx UI definition (repo-root `ui/hanoi.xrc`, reached via the
 /// git-tracked `hanoi.xrc` symlink in this crate). `include_str!` bakes the
@@ -392,7 +392,12 @@ struct GuiState {
     history_panel: Panel,
     history_header: StaticText,
     history_list: ListBox,
+    history_back: Button,
     history_toggle: MenuItem,
+    /// History review (clicking a history row): how many moves the board shows
+    /// and the board after them, or None for the live game. While set, a move
+    /// first asks to delete the later moves (`confirm_leave_review`).
+    review: Option<(usize, HanoiGame)>,
     // Disc drag-drop (spike): the physical peg (0,1,2) whose top disc is being
     // dragged, its size, and the cursor position on the board panel.
     drag_src: Option<usize>,
@@ -443,8 +448,14 @@ impl GuiState {
         self.game = HanoiGame::new(n);
         self.labelling = Labelling::OneTwoThree;
         self.recorder = Recorder::new();
+        self.review = None;
         self.won_via_apply = false;
         self.saved_current = false;
+    }
+
+    /// The game the board shows: the reviewed state, or the live game.
+    fn board(&self) -> &HanoiGame {
+        self.review.as_ref().map_or(&self.game, |(_, game)| game)
     }
 
     fn is_won(&self) -> bool {
@@ -461,7 +472,7 @@ impl GuiState {
     /// the control's current size (wxDragon exposes no resize hook, so a bare
     /// window-resize reflows only on the next state change — close enough).
     fn centred_board_text(&self) -> String {
-        let lines: Vec<String> = presenter::render(&self.game, self.labelling);
+        let lines: Vec<String> = presenter::render(self.board(), self.labelling);
         let Some(first) = lines.first() else {
             return String::new();
         };
@@ -487,9 +498,11 @@ impl GuiState {
             self.board_graphics.refresh(true, None);
         }
 
-        let won: bool = self.is_won();
+        // The move buttons follow the board shown (a reviewed state can have
+        // legal moves even when the live game is won).
+        let board_won: bool = self.board().check_win_condition();
         let legal: Vec<(u32, u32)> = self
-            .game
+            .board()
             .move_options()
             .iter()
             .map(|mv| {
@@ -501,7 +514,7 @@ impl GuiState {
             .collect();
         for (btn, &(f, t)) in self.move_buttons.iter().zip(MOVE_PAIRS.iter()) {
             btn.set_label(&format!("{f} \u{2192} {t}"));
-            btn.enable(!won && legal.contains(&(f, t)));
+            btn.enable(!board_won && legal.contains(&(f, t)));
         }
 
         // Relabel-menu bullets (active permutation marked; display-only). The
@@ -527,7 +540,7 @@ impl GuiState {
             mb.enable_top(1, self.won_once); // Relabel pegs
             mb.enable_top(2, self.won_once); // Recipe
         }
-        self.recipe_save_item.enable(won);
+        self.recipe_save_item.enable(self.is_won());
 
         self.update_history();
         self.update_goal();
@@ -543,6 +556,10 @@ impl GuiState {
         for line in &tally {
             self.history_list.append(line);
         }
+        if let Some((count, _)) = &self.review {
+            self.history_list.set_selection(*count as u32 - 1, true);
+        }
+        self.history_back.enable(self.review.is_some());
         let count: usize = self.recorder.default_moves.len();
         let noun: &str = if count == 1 { "move" } else { "moves" };
         self.history_header.set_label(&format!(
@@ -682,7 +699,82 @@ fn maybe_offer_save_before_discard(state: &Rc<RefCell<GuiState>>) {
 
 // --- Handlers ---------------------------------------------------------------
 
+/// Clicking (or arrowing to) a history row: show the board as it was after that
+/// move. The last move is the live game, so selecting it leaves review.
+fn on_history_select(state: &Rc<RefCell<GuiState>>) {
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    let Some(row) = st.history_list.get_selection() else {
+        return;
+    };
+    let count: usize = row as usize + 1;
+    let total: usize = st.recorder.default_moves.len();
+    if count >= total {
+        st.review = None;
+        st.frame.set_status_text("", 1);
+    } else {
+        let game: HanoiGame =
+            replay_default_moves(st.game.num_disks, &st.recorder.default_moves[..count])
+                .expect("the recorder only holds moves that were legal when made");
+        st.review = Some((count, game));
+        st.frame.set_status_text(
+            &format!("Reviewing move {count} of {total}. Make a move to continue from here, or Back to current."),
+            1,
+        );
+    }
+    st.refresh();
+}
+
+/// "Back to current": leave review and show the live game again.
+fn on_history_back(state: &Rc<RefCell<GuiState>>) {
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    st.review = None;
+    st.frame.set_status_text("", 1);
+    st.refresh();
+}
+
+/// Before a move or an apply while reviewing, ask whether to continue from the
+/// reviewed move, deleting every later one. True when the caller may go on (not
+/// reviewing, or the student said yes and the later moves were deleted).
+fn confirm_leave_review(state: &Rc<RefCell<GuiState>>) -> bool {
+    let (frame, count, total): (Frame, usize, usize) = {
+        let st: std::cell::Ref<'_, GuiState> = state.borrow();
+        let Some((count, _)) = &st.review else {
+            return true;
+        };
+        (st.frame.clone(), *count, st.recorder.default_moves.len())
+    };
+    let later: String = if count + 1 == total {
+        format!("move {total}")
+    } else {
+        format!("moves {}\u{2013}{total}", count + 1)
+    };
+    let answer: i32 = MessageDialog::builder(
+        &frame,
+        &format!("Continue from move {count}? This deletes {later}."),
+        "Continue from here?",
+    )
+    .with_style(MessageDialogStyle::YesNo | MessageDialogStyle::IconQuestion)
+    .build()
+    .show_modal();
+    let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+    if answer != ID_YES {
+        st.refresh(); // snap a dragged disc back onto the reviewed board
+        return false;
+    }
+    if let Some((count, game)) = st.review.take() {
+        st.game = game;
+        st.recorder.truncate(count);
+        // The game changed, so a saved or replayed win no longer describes it.
+        st.saved_current = false;
+        st.won_via_apply = false;
+    }
+    true
+}
+
 fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
+    if !confirm_leave_review(state) {
+        return;
+    }
     let moves_for_dialog: Option<Vec<(u32, u32)>> = {
         let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
         let relabelled: bool = st.labelling != Labelling::OneTwoThree;
@@ -717,6 +809,16 @@ fn on_move(state: &Rc<RefCell<GuiState>>, from_label: u32, to_label: u32) {
     }
 }
 
+/// The fixed-width font every text view that shows aligned columns uses (the
+/// text board, the move history, the recipe and rebinding views), as the
+/// Python oracle's `wx.FONTFAMILY_TELETYPE`. `None` if the font can't be built.
+fn monospace_font() -> Option<Font> {
+    Font::builder()
+        .with_point_size(11)
+        .with_family(FontFamily::Teletype)
+        .build()
+}
+
 /// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
 /// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
 /// a proportional font, which collapses the columns. A read-only teletype `TextCtrl`
@@ -726,11 +828,7 @@ fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
     let text: TextCtrl = TextCtrl::builder(&dlg)
         .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
         .build();
-    if let Some(mono) = Font::builder()
-        .with_point_size(11)
-        .with_family(FontFamily::Teletype)
-        .build()
-    {
+    if let Some(mono) = monospace_font() {
         text.set_font(&mono);
     }
     text.set_value(&lines.join("\n"));
@@ -744,12 +842,97 @@ fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
     dlg.show_modal();
 }
 
+/// The rows of the three-panel rebinding view as aligned monospace text: the
+/// move in the recipe's labels | the label->peg key | the rebound move. A key
+/// cell is marked `>` when it is one of the two bindings that move `selected`
+/// (a row index) uses. Row 0 is the header.
+fn rebinding_rows(
+    moves: &[(u32, u32)],
+    labelling: Labelling,
+    selected: Option<usize>,
+) -> Vec<String> {
+    let key: [(u32, u32); 3] = rebinding(labelling);
+    let rebound: Vec<(u32, u32)> = rebound_moves(moves, labelling);
+    let used: Option<(u32, u32)> = selected.map(|i| moves[i]);
+    let rows: usize = moves.len().max(key.len());
+    let mut lines: Vec<String> = vec![format!(
+        "{:<20}| {:<20}| {}",
+        "Recipe (its labels)", "Rebinding", "Rebound (pegs)"
+    )];
+    for i in 0..rows {
+        let left: String = moves
+            .get(i)
+            .map(|&(from_label, to_label)| format!("{}: {from_label} -> {to_label}", i + 1))
+            .unwrap_or_default();
+        let mid: String = key
+            .get(i)
+            .map(|&(label, peg)| {
+                let marked: bool = used
+                    .is_some_and(|(from_label, to_label)| label == from_label || label == to_label);
+                format!(
+                    "{} label {label} -> peg {peg}",
+                    if marked { ">" } else { " " }
+                )
+            })
+            .unwrap_or_default();
+        let right: String = rebound
+            .get(i)
+            .map(|&(from_peg, to_peg)| format!("{}: {from_peg} -> {to_peg}", i + 1))
+            .unwrap_or_default();
+        lines.push(format!("{left:<20}| {mid:<20}| {right}"));
+    }
+    lines
+}
+
+/// The three-panel rebinding view (feature-spec §4.8) as ONE list box, one
+/// row per move: wxDragon's `ListBox` cannot read or set its scroll position,
+/// so the three columns live in one control, which keeps them scrolling and
+/// selecting together. Selecting a move row marks the two key bindings it uses.
 fn show_rebinding(frame: &Frame, title: &str, moves: &[(u32, u32)], labelling: Labelling) {
-    let table: Vec<String> = format_rebinding_table(moves, labelling, "Recipe (its labels)");
-    if table.is_empty() {
+    if labelling == Labelling::OneTwoThree {
         return;
     }
-    show_monospace_dialog(frame, title, &table);
+    let dlg: Dialog = Dialog::builder(frame, title).with_size(640, 460).build();
+    let mono: Option<Font> = monospace_font();
+    let rows: Vec<String> = rebinding_rows(moves, labelling, None);
+    let header: StaticText = StaticText::builder(&dlg).with_label(&rows[0]).build();
+    let list: ListBox = ListBox::builder(&dlg).build();
+    if let Some(font) = mono.as_ref() {
+        header.set_font(font);
+        list.set_font(font);
+    }
+    let body: Vec<&str> = rows[1..].iter().map(String::as_str).collect();
+    list.set_items(&body);
+    let moves_owned: Vec<(u32, u32)> = moves.to_vec();
+    let list_for_select: ListBox = list.clone();
+    list.on_selection_changed(move |_| {
+        let Some(row) = list_for_select.get_selection() else {
+            return;
+        };
+        let row: usize = row as usize;
+        if row >= moves_owned.len() {
+            return;
+        }
+        let marked: Vec<String> = rebinding_rows(&moves_owned, labelling, Some(row));
+        for (i, line) in marked[1..].iter().enumerate() {
+            list_for_select.set_string(i as u32, line);
+        }
+        list_for_select.set_selection(row as u32, true);
+    });
+    let close: Button = Button::builder(&dlg).with_label("Close").build();
+    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+    sizer.add(
+        &header,
+        0,
+        SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Top,
+        8,
+    );
+    sizer.add(&list, 1, SizerFlag::Expand | SizerFlag::All, 8);
+    sizer.add(&close, 0, SizerFlag::All, 8);
+    dlg.set_sizer(sizer, true);
+    let dlg_for_close: Dialog = dlg.clone();
+    close.on_click(move |_| dlg_for_close.end_modal(ID_OK));
+    dlg.show_modal();
 }
 
 fn on_relabel(state: &Rc<RefCell<GuiState>>, perm: [u32; 3]) {
@@ -833,6 +1016,9 @@ fn on_save(state: &Rc<RefCell<GuiState>>) {
 /// Recipe menu → <name> → Apply: replay the recipe under the current labelling;
 /// under a relabelling, pop the three-panel rebinding teaching view.
 fn apply_recipe_by_name(state: &Rc<RefCell<GuiState>>, name: &str) {
+    if !confirm_leave_review(state) {
+        return;
+    }
     let (frame, relabelled, moves): (Frame, bool, Option<Vec<(u32, u32)>>) = {
         let st: std::cell::Ref<'_, GuiState> = state.borrow();
         let moves: Option<Vec<(u32, u32)>> = st.registry.get(name).map(|r| r.default_moves.clone());
@@ -1190,6 +1376,11 @@ fn main() {
         let board_text: TextCtrl = TextCtrl::builder(&board_slot)
             .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
             .build();
+        // The text board is ASCII art: its columns line up only in a fixed-width
+        // font (and `centred_board_text` pads by the character width).
+        if let Some(mono) = monospace_font() {
+            board_text.set_font(&mono);
+        }
         board_text.show(false); // graphics is the default view
         let slot_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         slot_sizer.add(&board_graphics, 1, SizerFlag::Expand, 0);
@@ -1244,14 +1435,16 @@ fn main() {
         }
         let history_header: StaticText = StaticText::builder(&history_panel).with_label("").build();
         let history_list: ListBox = ListBox::builder(&history_panel).build();
-        if let Some(mono) = Font::builder()
-            .with_point_size(11)
-            .with_family(FontFamily::Teletype)
-            .build()
-        {
+        if let Some(mono) = monospace_font() {
             history_list.set_font(&mono);
         }
         history_list.set_min_size(Size::new(240, 220));
+        // Clicking a move shows the board as it was after it (wired below, once
+        // the shared state exists); "Back to current" returns to the live game.
+        let history_back: Button = Button::builder(&history_panel)
+            .with_label("Back to current")
+            .build();
+        history_back.enable(false);
         let history_sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
         history_sizer.add(&history_title, 0, SizerFlag::All, 6);
         history_sizer.add(
@@ -1264,6 +1457,12 @@ fn main() {
             &history_list,
             1,
             SizerFlag::Expand | SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
+            6,
+        );
+        history_sizer.add(
+            &history_back,
+            0,
+            SizerFlag::Left | SizerFlag::Right | SizerFlag::Bottom,
             6,
         );
         history_panel.set_sizer(history_sizer, true);
@@ -1304,12 +1503,24 @@ fn main() {
             history_panel: history_panel.clone(),
             history_header: history_header.clone(),
             history_list: history_list.clone(),
+            history_back: history_back.clone(),
+            review: None,
             history_toggle,
             drag_src: None,
             drag_size: 0,
             drag_x: 0,
             drag_y: 0,
         }));
+
+        // History review: a history row shows the board after that move.
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            history_list.on_selection_changed(move |_| on_history_select(&st));
+        }
+        {
+            let st: Rc<RefCell<GuiState>> = state.clone();
+            history_back.on_click(move |_| on_history_back(&st));
+        }
 
         // Graphics board paint handler.
         {
@@ -1323,7 +1534,7 @@ fn main() {
                     &dc,
                     w,
                     h,
-                    &s.game,
+                    s.board(),
                     s.labelling,
                     s.drag_src,
                     s.drag_size,
@@ -1346,12 +1557,12 @@ fn main() {
                 };
                 let Some(pos) = e.get_position() else { return };
                 let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
-                if s.is_won() {
+                if s.board().check_win_condition() {
                     return;
                 }
                 let w: i32 = s.board_graphics.get_size().width;
                 let peg: usize = nearest_board_peg(pos.x, w);
-                if let Some(&top) = s.game.towers[peg].last() {
+                if let Some(&top) = s.board().towers[peg].last() {
                     s.drag_src = Some(peg);
                     s.drag_size = top;
                     s.drag_x = pos.x;

@@ -53,8 +53,10 @@ ignore = []
 # The GUI smoke harness prints "SMOKE OK <n>" as its pass signal -- that
 # terminal line IS the harness's result (same reason as the demos above).
 "tools/gui_smoke.py" = ["T201"]
+"tools/gl_smoke.py" = ["T201"]
 
 [project.scripts]
 hanoi = "hanoigame.hanoigame:main"
 hanoi-cli = "hanoigame.hanoicli:main"
 hanoi-gui = "hanoigame.hanoigui:main"
+hanoi-gl = "hanoigame.hanoigl:main"

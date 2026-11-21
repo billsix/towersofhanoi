@@ -27,7 +27,9 @@ use hanoigame::commands::Command;
 use hanoigame::engine::{DispatchResult, GameSession};
 use hanoigame::model::HanoiGame;
 use hanoigame::presenter::{self, change_labels_on_pegs, Labelling};
-use hanoigame::recipe::{apply, rebinding, rebound_moves, RecipeRegistry, Recorder, StepResult};
+use hanoigame::recipe::{
+    apply, rebinding, rebound_moves, replay_default_moves, RecipeRegistry, Recorder, StepResult,
+};
 
 const MAX_DISKS: u32 = 10;
 const DEFAULT_DISKS: u32 = 3;
@@ -39,6 +41,9 @@ struct AppState {
     game: HanoiGame,
     labelling: Labelling,
     recorder: Recorder,
+    /// History review (clicking a history row): how many moves the board shows,
+    /// or None for the live game.
+    review: Option<usize>,
 }
 
 impl AppState {
@@ -48,6 +53,7 @@ impl AppState {
             game: HanoiGame::new(num_disks),
             labelling: Labelling::OneTwoThree,
             recorder: Recorder::new(),
+            review: None,
         }
     }
 
@@ -55,6 +61,18 @@ impl AppState {
         self.game = HanoiGame::new(num_disks);
         self.labelling = Labelling::OneTwoThree;
         self.recorder = Recorder::new();
+        self.review = None;
+    }
+
+    /// The game the board shows: the state after the reviewed move, or the live game.
+    fn shown(&self) -> HanoiGame {
+        match self.review {
+            Some(count) => {
+                replay_default_moves(self.game.num_disks, &self.recorder.default_moves[..count])
+                    .expect("the recorder only holds moves that were legal when made")
+            }
+            None => self.game.clone(),
+        }
     }
 
     /// Run a command through a transient [`GameSession`] borrowing the registry
@@ -93,10 +111,10 @@ impl AppState {
     /// Build the serializable view the frontend renders.
     fn snapshot(&self, message: String) -> Snapshot {
         let num_disks: u32 = self.game.num_disks;
+        let shown: HanoiGame = self.shown();
         let labels: [u32; 3] =
             [0, 1, 2].map(|i| (change_labels_on_pegs(self.labelling, i) + 1) as u32);
-        let legal: Vec<[u32; 2]> = self
-            .game
+        let legal: Vec<[u32; 2]> = shown
             .move_options()
             .iter()
             .map(|mv| {
@@ -134,14 +152,16 @@ impl AppState {
             .map(|&(a, b)| [a, b])
             .collect();
         Snapshot {
-            board: presenter::render(&self.game, self.labelling),
-            towers: self.game.towers.clone(),
+            board: presenter::render(&shown, self.labelling),
+            towers: shown.towers.clone(),
             num_disks,
             moves: self.game.current_moves,
             min_moves: (1u64 << num_disks) - 1,
             labels,
             legal,
             won: self.game.check_win_condition(),
+            board_won: shown.check_win_condition(),
+            review: self.review,
             rebinding,
             recipes,
             history,
@@ -220,7 +240,14 @@ struct Snapshot {
     labels: [u32; 3],
     /// Currently legal `[from_label, to_label]` moves.
     legal: Vec<[u32; 2]>,
+    /// Whether the live game is won.
     won: bool,
+    /// Whether the board shown (`board`, `towers`, `legal`) is won: the live
+    /// game, or the reviewed state while `review` is set.
+    board_won: bool,
+    /// While reviewing the history: how many moves the board shows (`board`,
+    /// `towers` and `legal` describe that state); `null` for the live game.
+    review: Option<usize>,
     /// `[label, physical_peg]` pairs when relabelled (empty under the default) —
     /// the recipe-rebinding teaching key.
     rebinding: Vec<[u32; 2]>,
@@ -287,6 +314,47 @@ fn do_move(state: State<'_, Mutex<AppState>>, from: u32, to: u32) -> Snapshot {
     st.snapshot(message)
 }
 
+/// Review the board as it was after the first `count` moves; the last move is
+/// the live game, so it leaves review.
+#[tauri::command]
+fn review_move(state: State<'_, Mutex<AppState>>, count: usize) -> Snapshot {
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    let total: usize = st.recorder.default_moves.len();
+    st.review = if count >= 1 && count < total {
+        Some(count)
+    } else {
+        None
+    };
+    let message: String = match st.review {
+        Some(count) => format!(
+            "Reviewing move {count} of {total}. Make a move to continue from here, or Back to current."
+        ),
+        None => String::new(),
+    };
+    st.snapshot(message)
+}
+
+/// Leave review and show the live game.
+#[tauri::command]
+fn review_back(state: State<'_, Mutex<AppState>>) -> Snapshot {
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    st.review = None;
+    st.snapshot(String::new())
+}
+
+/// Continue from the reviewed move: the live game becomes the reviewed state and
+/// every later move is deleted.
+#[tauri::command]
+fn continue_from_review(state: State<'_, Mutex<AppState>>) -> Snapshot {
+    let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+    if let Some(count) = st.review.take() {
+        st.game = replay_default_moves(st.game.num_disks, &st.recorder.default_moves[..count])
+            .expect("the recorder only holds moves that were legal when made");
+        st.recorder.truncate(count);
+    }
+    st.snapshot(String::new())
+}
+
 #[tauri::command]
 fn relabel(state: State<'_, Mutex<AppState>>, labels: [u32; 3]) -> Snapshot {
     let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
@@ -346,6 +414,9 @@ fn main() {
             snapshot,
             new_game,
             do_move,
+            review_move,
+            review_back,
+            continue_from_review,
             relabel,
             save_recipe,
             apply_recipe,

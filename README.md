@@ -12,7 +12,7 @@ Runs on Linux, macOS, and Windows (WSL2, or mingw/cygwin).
 Each language is a **self-contained subproject** with its own container image and `make`
 targets — build and run it from its own directory:
 
-- **`python/`** — the canonical implementation (three front-ends).
+- **`python/`** — the canonical implementation (four front-ends).
 - **`rust/`** — a Rust reimplementation kept in sync feature-for-feature, including the
   Tauri desktop app at `rust/tauri/`.
 - **`cpp/`** — a C++ port with a Dear ImGui GUI, building a native binary **and** WebAssembly.
@@ -25,18 +25,21 @@ targets — build and run it from its own directory:
 
 ## Python
 
-Three front-ends share the same game model and commands:
+Four front-ends share the same game model and commands:
 
 - `hanoi` (a.k.a. `hanoigame`) — ncurses, in the terminal
 - `hanoi-cli` — plain stdin/stdout (good for pipes and screen readers); at a terminal,
   Tab completes commands and saved-recipe names
 - `hanoi-gui` — wxPython window with a text or 2D-graphics board (needs a display)
+- `hanoi-gl` — a 3D OpenGL board: drag the discs, orbit the camera; it shows how a program
+  works out which object you clicked (colour-ID picking)
 
 ```sh
 cd python
 make cli      # hanoi-cli
 make tui      # hanoi (ncurses)
 make wx       # hanoi-gui (opens on your desktop; X11 + Wayland forwarded automatically)
+make gl       # hanoi-gl, the 3D board
 make shell    # a dev shell; inside, run hanoi / hanoi-cli / hanoi-gui
 ```
 

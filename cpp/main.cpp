@@ -29,7 +29,9 @@
 #include <array>
 #include <cfloat>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -59,6 +61,7 @@ struct RecipeView {
   std::string left_header;
   std::vector<std::array<int, 2>> moves;
   hanoi::Labelling labelling = hanoi::Labelling::OneTwoThree;
+  int selected = -1; // the selected move's row, or -1 for none
 };
 
 // The whole app state.
@@ -93,10 +96,22 @@ struct App {
   int drag_size = 0;
   float drag_x = 0.0f;
   float drag_y = 0.0f;
+  // History review (clicking a history row): how many moves the board shows
+  // (-1 = the live game) and the board after them. A move or apply made while
+  // reviewing waits (pending_*) on the "Continue from here?" modal.
+  int review = -1;
+  std::optional<hanoi::Game> review_game;
+  int pending_fp = -1;
+  int pending_tp = -1;
+  std::string pending_apply;
+  bool open_continue = false;
 
   void new_game(int n) {
     game = hanoi::Game(n);
     recorder.reset();
+    review = -1;
+    review_game.reset();
+    clear_pending();
     status.clear();
     view.active = false;
     open_win = false;
@@ -116,6 +131,54 @@ struct App {
   }
 
   [[nodiscard]] bool won() const { return game.check_win_condition(); }
+
+  // The game the board shows: the reviewed state, or the live game.
+  [[nodiscard]] const hanoi::Game &board() const {
+    return review_game ? *review_game : game;
+  }
+  [[nodiscard]] bool has_pending() const {
+    return pending_fp >= 0 || !pending_apply.empty();
+  }
+  void clear_pending() {
+    pending_fp = -1;
+    pending_tp = -1;
+    pending_apply.clear();
+  }
+
+  // Review the board as it was after the first `count` moves; the last move is
+  // the live game, so it leaves review.
+  void review_move(int count) {
+    const int total = static_cast<int>(recorder.moves().size());
+    if (count >= total) {
+      review = -1;
+      review_game.reset();
+      status.clear();
+      return;
+    }
+    const std::vector<std::array<int, 2>> first(
+        recorder.moves().begin(),
+        recorder.moves().begin() + static_cast<std::ptrdiff_t>(count));
+    review = count;
+    review_game = hanoi::replay_default_moves(game.num_disks(), first);
+    status = "Reviewing move " + std::to_string(count) + " of " +
+             std::to_string(total) +
+             ". Make a move to continue from here, or Back to current.";
+  }
+
+  // Continue from the reviewed move: the live game becomes the reviewed board
+  // and every later move is deleted.
+  void continue_from_review() {
+    if (review < 0 || !review_game) {
+      return;
+    }
+    game = *review_game;
+    recorder.truncate(static_cast<std::size_t>(review));
+    review = -1;
+    review_game.reset();
+    // The game changed, so a saved or replayed win no longer describes it.
+    saved_current = false;
+    won_via_apply = false;
+  }
 };
 
 // On a win, capture the shared celebration lines and request the modal (shown
@@ -178,7 +241,7 @@ void do_board_move(App &app, int fp, int tp);
 // Draw the three pegs (coloured by label) + disks; when relabelled, a second
 // label row shows the physical 1,2,3 reference under the active labels.
 void draw_board(App &app) {
-  const hanoi::Game &game = app.game;
+  const hanoi::Game &game = app.board();
   ImDrawList *dl = ImGui::GetWindowDrawList();
   const ImVec2 origin = ImGui::GetCursorScreenPos();
   const float board_w = ImGui::GetContentRegionAvail().x;
@@ -223,8 +286,8 @@ void draw_board(App &app) {
     }
     return best;
   };
-  if (app.won()) {
-    app.drag_src = -1; // dragging is disabled once solved
+  if (game.check_win_condition() || app.has_pending()) {
+    app.drag_src = -1; // dragging is off once solved, and while asking
   } else {
     const ImVec2 mp = ImGui::GetMousePos();
     if (ImGui::IsItemActivated()) {
@@ -327,14 +390,32 @@ void draw_recipe_view(App &app) {
     const std::vector<std::array<int, 2>> rebound =
         hanoi::rebound_moves(app.view.moves, app.view.labelling);
     const std::size_t rows = app.view.moves.size();
+    // One table, so the three columns scroll together. Clicking a move row
+    // selects it across all columns, and the key marks (with an arrowhead) the
+    // two label->peg bindings that move uses (">": the default ImGui font has
+    // no arrowhead glyph).
+    auto key_cell = [&app, &key](std::size_t i) {
+      const int sel = app.view.selected;
+      const bool used =
+          sel >= 0 &&
+          (app.view.moves[static_cast<std::size_t>(sel)][0] == key[i][0] ||
+           app.view.moves[static_cast<std::size_t>(sel)][1] == key[i][0]);
+      ImGui::Text("%s label %d -> peg %d", used ? ">" : " ", key[i][0],
+                  key[i][1]);
+    };
     for (std::size_t i = 0; i < rows; ++i) {
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
-      ImGui::Text("%zu: %d -> %d", i + 1, app.view.moves[i][0],
-                  app.view.moves[i][1]);
+      char label[32];
+      std::snprintf(label, sizeof label, "%zu: %d -> %d##move%zu", i + 1,
+                    app.view.moves[i][0], app.view.moves[i][1], i);
+      if (ImGui::Selectable(label, app.view.selected == static_cast<int>(i),
+                            ImGuiSelectableFlags_SpanAllColumns)) {
+        app.view.selected = static_cast<int>(i);
+      }
       ImGui::TableSetColumnIndex(1);
       if (i < key.size()) {
-        ImGui::Text("label %d -> peg %d", key[i][0], key[i][1]);
+        key_cell(i);
       }
       ImGui::TableSetColumnIndex(2);
       ImGui::Text("%zu: %d -> %d", i + 1, rebound[i][0], rebound[i][1]);
@@ -344,7 +425,7 @@ void draw_recipe_view(App &app) {
     for (std::size_t i = rows; i < key.size(); ++i) {
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(1);
-      ImGui::Text("label %d -> peg %d", key[i][0], key[i][1]);
+      key_cell(i);
     }
     ImGui::EndTable();
   }
@@ -362,6 +443,7 @@ void open_view(App &app, const std::string &title,
   app.view.left_header = left_header;
   app.view.moves = moves;
   app.view.labelling = app.labelling;
+  app.view.selected = -1;
 }
 
 // Dispatch a physical from->to move -- shared by the move buttons and a disc
@@ -370,6 +452,12 @@ void open_view(App &app, const std::string &title,
 // legal -> apply + record + status, the single-move rebinding under a
 // relabelling, and the win verdict.
 void do_board_move(App &app, int fp, int tp) {
+  if (app.review >= 0) { // reviewing: ask first (draw_continue_modal)
+    app.pending_fp = fp;
+    app.pending_tp = tp;
+    app.open_continue = true;
+    return;
+  }
   const int from_label = hanoi::change_labels_on_pegs(app.labelling, fp) + 1;
   const int to_label = hanoi::change_labels_on_pegs(app.labelling, tp) + 1;
   if (app.won()) {
@@ -417,6 +505,11 @@ void view_recipe(App &app, const std::string &name) {
 void apply_recipe(App &app, const std::string &name) {
   const hanoi::Recipe *r = app.registry.get(name);
   if (r == nullptr) {
+    return;
+  }
+  if (app.review >= 0) { // reviewing: ask first (draw_continue_modal)
+    app.pending_apply = name;
+    app.open_continue = true;
     return;
   }
   const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
@@ -691,10 +784,12 @@ void draw_moves(App &app) {
   ImGui::Separator();
   ImGui::TextUnformatted("Moves (current labels):");
   std::array<bool, 9> legal{};
-  for (const hanoi::Move &m : app.game.move_options()) {
+  // The buttons follow the board shown (a reviewed state can have legal moves
+  // even when the live game is won).
+  for (const hanoi::Move &m : app.board().move_options()) {
     legal[static_cast<std::size_t>(m.from_peg * 3 + m.to_peg)] = true;
   }
-  const bool won = app.won();
+  const bool won = app.board().check_win_condition();
   for (const std::array<int, 2> &pair : kPegPairs) {
     const int fp = pair[0];
     const int tp = pair[1];
@@ -736,11 +831,66 @@ void draw_history(App &app) {
   if (moves.empty()) {
     ImGui::TextDisabled("  (no moves yet)");
   } else {
+    // Clicking a move shows the board as it was after it.
+    int clicked = -1;
     for (std::size_t i = 0; i < moves.size(); ++i) {
-      ImGui::Text("%zu. %d -> %d", i + 1, moves[i][0], moves[i][1]);
+      char row[32];
+      std::snprintf(row, sizeof row, "%zu. %d -> %d##hist%zu", i + 1,
+                    moves[i][0], moves[i][1], i);
+      if (ImGui::Selectable(row, app.review == static_cast<int>(i) + 1)) {
+        clicked = static_cast<int>(i) + 1;
+      }
+    }
+    if (clicked > 0) {
+      app.review_move(clicked);
     }
   }
   ImGui::EndChild();
+  if (app.review >= 0 && ImGui::Button("Back to current")) {
+    app.review = -1;
+    app.review_game.reset();
+    app.clear_pending();
+    app.status.clear();
+  }
+}
+
+// A move or apply made while reviewing: continue from the reviewed move
+// (deleting the later ones), or stay in review.
+void draw_continue_modal(App &app) {
+  if (app.open_continue) {
+    ImGui::OpenPopup("Continue from here?");
+    app.open_continue = false;
+  }
+  if (ImGui::BeginPopupModal("Continue from here?", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    const int count = app.review;
+    const int total = static_cast<int>(app.recorder.moves().size());
+    if (count + 1 == total) {
+      ImGui::Text("Continue from move %d? This deletes move %d.", count, total);
+    } else {
+      ImGui::Text("Continue from move %d? This deletes moves %d-%d.", count,
+                  count + 1, total);
+    }
+    if (ImGui::Button("Yes")) {
+      const int fp = app.pending_fp;
+      const int tp = app.pending_tp;
+      const std::string apply_name = app.pending_apply;
+      app.clear_pending();
+      app.continue_from_review();
+      if (fp >= 0) {
+        do_board_move(app, fp, tp);
+      } else {
+        apply_recipe(app, apply_name);
+      }
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("No")) {
+      app.clear_pending();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
 }
 
 void draw_frame(App &app) {
@@ -767,6 +917,7 @@ void draw_frame(App &app) {
   draw_discard_save_modal(app);
   draw_help_modal(app);
   draw_illegal_modal(app);
+  draw_continue_modal(app);
 
   // Tier-1 goal line + the running count vs optimal.
   ImGui::Text("Goal: move all %d discs to peg 3   (Moves: %d / optimal %d)",

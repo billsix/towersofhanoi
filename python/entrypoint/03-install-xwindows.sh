@@ -9,8 +9,8 @@
 # Fedora host, or in a guest with no container runtime. Run 01-install-base.sh first.
 #
 # hanoi-gui is wxPython/GTK with a 2D (wx.GraphicsContext / Cairo) board renderer -- it
-# needs GTK plus the X11 and Wayland client libraries, but NO OpenGL. That is why this
-# list omits the mesa GL drivers and glfw that a GL project would add here.
+# needs GTK plus the X11 and Wayland client libraries, but no OpenGL. The 3D front-end's
+# GL stack (glfw, Mesa) is its own group, 05-install-gl.sh.
 #
 # Single dnf call, so its own exit status is the gate.
 set -uo pipefail
