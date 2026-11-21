@@ -44,10 +44,6 @@ const std::array<ImU32, 3> kLabelColors{IM_COL32(70, 130, 220, 255),
                                         IM_COL32(220, 190, 60, 255),
                                         IM_COL32(220, 80, 80, 255)};
 
-// The physical peg pairs, in canonical order, paralleling model.move_options().
-constexpr std::array<std::array<int, 2>, 6> kPegPairs{
-    {{0, 1}, {0, 2}, {1, 0}, {1, 2}, {2, 0}, {2, 1}}};
-
 // 2^n - 1, the optimal move count (presenter/engine min_moves).
 int optimal_moves(int n) { return (1 << n) - 1; }
 
@@ -105,6 +101,7 @@ struct App {
   int pending_tp = -1;
   std::string pending_apply;
   bool open_continue = false;
+  int pending_from = 0; // the keyboard move's typed from-peg, 0 = none
 
   void new_game(int n) {
     game = hanoi::Game(n);
@@ -234,7 +231,7 @@ std::string illegal_reason(const hanoi::Game &g, int fp, int tp, int from_label,
   return "Invalid move.";
 }
 
-// Dispatch a physical from->to move (shared by the move buttons and disc
+// Dispatch a physical from->to move (shared by the keyboard move and disc
 // drag-drop). Defined after open_view; forward-declared here for draw_board.
 void do_board_move(App &app, int fp, int tp);
 
@@ -272,9 +269,8 @@ void draw_board(App &app) {
   // the board owns the gesture while the draw list paints over it. Press picks
   // up the top disc of the nearest peg; the disc follows the cursor; release
   // drops onto the nearest peg (forgiving) and dispatches through the same
-  // do_board_move the buttons use. Dragging is off once the game is won. The
-  // move buttons stay as the keyboard/accessible path. Mirrors the wxPython
-  // GraphicsBoardRenderer spike.
+  // do_board_move the keyboard move uses. Dragging is off once the game is
+  // won. Mirrors the wxPython GraphicsBoardRenderer.
   ImGui::InvisibleButton("##board", ImVec2(board_w, board_h + extra));
   const auto nearest_peg = [&](float x) -> int {
     int best = 0;
@@ -446,8 +442,8 @@ void open_view(App &app, const std::string &title,
   app.view.selected = -1;
 }
 
-// Dispatch a physical from->to move -- shared by the move buttons and a disc
-// drag-drop so a dragged move and a clicked move take one path (mirrors the
+// Dispatch a physical from->to move -- shared by the keyboard move and a disc
+// drag-drop so a dragged move and a typed move take one path (mirrors the
 // wxPython _on_move). Illegal -> the distinct rejection reason in a popup;
 // legal -> apply + record + status, the single-move rebinding under a
 // relabelling, and the win verdict.
@@ -775,47 +771,51 @@ void draw_illegal_modal(App &app) {
   }
 }
 
-// The move buttons: all six are ALWAYS shown in a fixed layout (so they never
-// jump), in the current labels. Illegal moves are GRAYED (muted button + text
-// colours) so they read as unavailable, but stay clickable so a click still
-// pops a dialog with the distinct reason (empty source / larger-on-smaller); a
-// legal one is applied + recorded.
+// How to move: drag a disc on the board, or the keyboard move -- type the
+// from-peg number, then the to-peg number; Esc cancels (ui-design-principles
+// ruling 7; there are no move buttons). The keys go through do_board_move, the
+// same checked path as a drop, so an illegal pair pops up its reason.
 void draw_moves(App &app) {
   ImGui::Separator();
-  ImGui::TextUnformatted("Moves (current labels):");
-  std::array<bool, 9> legal{};
-  // The buttons follow the board shown (a reviewed state can have legal moves
-  // even when the live game is won).
-  for (const hanoi::Move &m : app.board().move_options()) {
-    legal[static_cast<std::size_t>(m.from_peg * 3 + m.to_peg)] = true;
+  const ImGuiIO &io = ImGui::GetIO();
+  if (!io.WantCaptureKeyboard &&
+      !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)) {
+    static constexpr std::array<std::array<ImGuiKey, 2>, 3> kPegKeys{
+        {{ImGuiKey_1, ImGuiKey_Keypad1},
+         {ImGuiKey_2, ImGuiKey_Keypad2},
+         {ImGuiKey_3, ImGuiKey_Keypad3}}};
+    for (std::size_t i = 0; i < kPegKeys.size(); ++i) {
+      if (!ImGui::IsKeyPressed(kPegKeys[i][0], false) &&
+          !ImGui::IsKeyPressed(kPegKeys[i][1], false)) {
+        continue;
+      }
+      const int label = static_cast<int>(i) + 1;
+      const int pending = app.pending_from;
+      app.pending_from = 0;
+      if (pending == 0) {
+        app.pending_from = label;
+      } else if (pending != label) {
+        const std::optional<std::array<int, 2>> physical =
+            hanoi::labels_to_towers(app.labelling, pending, label);
+        if (physical) {
+          do_board_move(app, (*physical)[0], (*physical)[1]);
+        }
+      } else {
+        // The same peg twice cancels.
+      }
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+      app.pending_from = 0;
+    }
   }
-  const bool won = app.board().check_win_condition();
-  for (const std::array<int, 2> &pair : kPegPairs) {
-    const int fp = pair[0];
-    const int tp = pair[1];
-    const int from_label = hanoi::change_labels_on_pegs(app.labelling, fp) + 1;
-    const int to_label = hanoi::change_labels_on_pegs(app.labelling, tp) + 1;
-    char btn[24];
-    std::snprintf(btn, sizeof(btn), "%d -> %d##%d%d", from_label, to_label, fp,
-                  tp);
-    const bool is_legal = !won && legal[static_cast<std::size_t>(fp * 3 + tp)];
-    if (!is_legal) {
-      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
-      ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                            ImVec4(0.38f, 0.38f, 0.42f, 1.0f));
-      ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                            ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
-      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.60f, 0.60f, 0.63f, 1.0f));
-    }
-    if (ImGui::Button(btn)) {
-      do_board_move(app, fp, tp); // same dispatch path as a disc drag-drop
-    }
-    if (!is_legal) {
-      ImGui::PopStyleColor(4);
-    }
-    ImGui::SameLine();
+  if (app.pending_from == 0) {
+    ImGui::TextWrapped("Drag a top disc onto another peg, or type the "
+                       "from-peg number, then the to-peg number (Esc "
+                       "cancels).");
+  } else {
+    ImGui::Text("From peg %d: type the to-peg number (Esc cancels).",
+                app.pending_from);
   }
-  ImGui::NewLine();
 }
 
 // The always-visible Tier-1 move history: the numbered default-space (physical

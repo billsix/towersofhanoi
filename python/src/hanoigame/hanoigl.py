@@ -2,7 +2,7 @@
 
 Every feature the other GUIs have (feature-spec §7): relabelling, recipes
 with the three-panel rebinding view, the always-visible move history with
-review, the move buttons, the valid moves, the learning-flow tiers, How to
+review, the keyboard move, the valid moves, the learning-flow tiers, How to
 Play and the win celebration. The interface is Dear ImGui through
 imgui-bundle, the way github.com/billsix/modelviewprojection's demos use it;
 the board is drawn in 3D underneath. Discs are tori and pegs cylinders,
@@ -27,7 +27,7 @@ peg. Collision detection keeps it physical: a disc moves sideways only where it
 would not intersect a peg (`collides_with_peg`), so it must clear the peg top
 first, and it comes down until it rests on that peg's top disc (`rest_y`). An
 illegal drop (larger on smaller) slides back down its own peg. A drop and a
-move button take the same path (`HanoiGL.make_move`) through the shared engine
+keyboard move take the same path (`HanoiGL.make_move`) through the shared engine
 (`engine.GameSession.dispatch`), like every other front-end.
 
 The transforms use the matrix stack of gacalc
@@ -659,14 +659,6 @@ LABEL_COLOURS: list[tuple[float, float, float]] = [
     (0.84, 0.33, 0.33),
 ]
 PANEL_WIDTH: float = 380.0  # the right-hand Game panel, in imgui units
-MOVE_PAIRS: tuple[tuple[int, int], ...] = (
-    (1, 2),
-    (1, 3),
-    (2, 1),
-    (2, 3),
-    (3, 1),
-    (3, 2),
-)
 RELABEL_PERMUTATIONS: tuple[tuple[int, int, int], ...] = (
     (1, 2, 3),
     (1, 3, 2),
@@ -771,6 +763,8 @@ class HanoiGL:
         self.pending: PendingAction | None = None
         self.illegal_message: str = ""
         self.recipe_name: str = ""
+        # The keyboard move's typed from-peg label, waiting for the to-peg.
+        self.pending_from: int | None = None
         # Popups to open on the next frame (imgui opens them by name).
         self.popups_to_open: list[str] = ["How to Play"]
         self.lit: int = shaders.compileProgram(
@@ -800,13 +794,6 @@ class HanoiGL:
     def _label(self, peg: int) -> int:
         """The 1-indexed label physical peg `peg` wears now."""
         return change_labels_on_pegs(self.session.labelling, peg) + 1
-
-    def legal_label_moves(self) -> set[tuple[int, int]]:
-        """The legal moves on the board shown, as (from, to) labels."""
-        return {
-            (self._label(valid.move.from_peg), self._label(valid.move.to_peg))
-            for valid in self.shown_game().move_options()
-        }
 
     def request_new_game(self, num_disks: int) -> None:
         """New Game: if a hand-won solution was not saved, ask first."""
@@ -847,8 +834,8 @@ class HanoiGL:
         )
 
     def make_move(self, from_label: int, to_label: int) -> None:
-        """Make a move in the current labels: the one path for the move
-        buttons and a dropped disc (feature-spec §4.2, ruling 7)."""
+        """Make a move in the current labels: the one path for the keyboard
+        move and a dropped disc (feature-spec §4.2, ruling 7)."""
         if self.review_count is not None:
             self.pending = PendingAction(move=(from_label, to_label))
             self.popups_to_open.append("Continue from here?")
@@ -1347,7 +1334,7 @@ class HanoiGL:
 
     def update(self, dt: float) -> None:
         """Advance the moving disc; when it lands on another peg, make the
-        move through the same path as a move button."""
+        move through the same path as the keyboard move."""
         if self.moving is None:
             return
         moving: MovingDisc = self.moving
@@ -1379,11 +1366,40 @@ class HanoiGL:
             imgui.MouseButton_.left
         ) or imgui.is_mouse_released(imgui.MouseButton_.right):
             self.release()
-        if not io.want_capture_keyboard:
+        if not io.want_capture_keyboard and not imgui.is_popup_open(
+            "", imgui.PopupFlags_.any_popup_id
+        ):
+            self._keyboard_move()
             if imgui.is_key_pressed(imgui.Key.p):
                 self.show_pick_buffer = not self.show_pick_buffer
             if imgui.is_key_pressed(imgui.Key.r):
                 self.camera = OrbitCamera()
+
+    def _keyboard_move(self) -> None:
+        """The keyboard move: a peg number picks the from-peg, the next one
+        moves there (through `make_move`, like a drop); Esc cancels."""
+        if imgui.is_key_pressed(imgui.Key.escape):
+            self.pending_from = None
+        if self.shown_game().check_win_condition():
+            return
+        label: int
+        key: imgui.Key
+        keypad_key: imgui.Key
+        for label, key, keypad_key in (
+            (1, imgui.Key._1, imgui.Key.keypad1),
+            (2, imgui.Key._2, imgui.Key.keypad2),
+            (3, imgui.Key._3, imgui.Key.keypad3),
+        ):
+            if not (
+                imgui.is_key_pressed(key) or imgui.is_key_pressed(keypad_key)
+            ):
+                continue
+            pending: int | None = self.pending_from
+            self.pending_from = None
+            if pending is None:
+                self.pending_from = label
+            elif pending != label:
+                self.make_move(pending, label)
 
     # --- The imgui interface ---------------------------------------------
 
@@ -1496,18 +1512,15 @@ class HanoiGL:
             imgui.text_wrapped(ascii_text(self.status))
 
         imgui.separator()
-        imgui.text("Move (current labels):")
-        legal: set[tuple[int, int]] = self.legal_label_moves()
-        solved: bool = board.check_win_condition()
-        index: int
-        pair: tuple[int, int]
-        for index, pair in enumerate(MOVE_PAIRS):
-            if index % 2:
-                imgui.same_line()
-            imgui.begin_disabled(solved or pair not in legal)
-            if imgui.button(f"{pair[0]} -> {pair[1]}", imgui.ImVec2(80, 0)):
-                self.make_move(*pair)
-            imgui.end_disabled()
+        # How to move: drag a disc, or the keyboard move (`_board_input`);
+        # there are no move buttons (ui-design-principles ruling 7).
+        imgui.text_wrapped(
+            "Drag a top disc onto another peg, or type the from-peg number,"
+            " then the to-peg number (Esc cancels)."
+            if self.pending_from is None
+            else f"From peg {self.pending_from}: type the to-peg number"
+            " (Esc cancels)."
+        )
 
         imgui.separator()
         moves: list[tuple[int, int]] = list(self.session.recorder.default_moves)
@@ -1670,7 +1683,8 @@ class HanoiGL:
             imgui.text(ascii_text(HOWTO_TEXT))
             imgui.separator()
             imgui.text(
-                "Drag a top disc to another peg, or use the move buttons."
+                "Drag a top disc to another peg, or type its peg number, then"
+                " the target peg's number."
             )
             imgui.text(
                 "Drag the background (or the right button) to turn the"

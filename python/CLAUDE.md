@@ -15,11 +15,11 @@ The Sphinx book (`../docs/`) and workbook (`../workbook/`) stay at the repo root
     always-visible move history + a dismissible first-run How-to-Play panel reopenable from Help
     Tier 1; relabel/recipes gated until the first win Tier 2; recipes as View/Apply submenus in a
     Recipe menu Tier 3 — see
-    `../tasks/reference/ui-design-principles.md`). 2D-graphics board also has a drag-and-drop-discs
-    spike (+ move buttons); text board under View. (`make wx`)
+    `../tasks/reference/ui-design-principles.md`). Moves: drag a disc on the 2D-graphics board,
+    and the keyboard move (type the from- and to-peg numbers); text board under View. (`make wx`)
   - `hanoi-gl` — OpenGL 3.3 core 3D board (`hanoigl.py`) with a **Dear ImGui** interface
     (imgui-bundle, as modelviewprojection uses it) at full feature parity: menu bar with the
-    learning-flow tiers, a Game panel (goal, valid moves, move buttons, history with review,
+    learning-flow tiers, a Game panel (goal, valid moves, the keyboard-move hint, history with review,
     the three-panel rebinding view), and the dialogs. The board: generated torus discs and
     cylinder pegs, an orbit camera, and **colour-ID picking** through an offscreen framebuffer;
     a picked disc slides up its peg, follows the cursor and drops with collision checks. Uses

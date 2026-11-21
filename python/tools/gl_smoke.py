@@ -97,7 +97,7 @@ assert app.session.recorder.default_moves == [(1, 3)]
 assert "larger on smaller" in app.illegal_message, app.illegal_message
 run_frames(app, renderer, 2)
 
-# A move button takes the same path as a drop.
+# The keyboard move ends in make_move, the same path as a drop.
 app.make_move(1, 2)
 assert app.session.recorder.default_moves == [(1, 3), (1, 2)]
 

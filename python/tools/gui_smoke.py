@@ -42,7 +42,7 @@ assert isinstance(frame.board_renderer, GraphicsBoardRenderer)
 assert frame.board_renderer._move_callback is not None, "drop callback wired"
 
 # A board drop (physical peg 0 -> peg 1) dispatches a legal move on the fresh
-# 3-disc game (top disc from peg 1 to peg 2), exactly like a move button.
+# 3-disc game (top disc from peg 1 to peg 2), as the keyboard move does.
 before: int = len(list(frame.session.recorder.default_moves))
 frame._on_board_drop(0, 1)
 after: int = len(list(frame.session.recorder.default_moves))
@@ -115,6 +115,27 @@ assert frame.session.recorder.default_moves == [(1, 2), (2, 3)], (
     frame.session.recorder.default_moves
 )
 frame._on_history_back(None)
+
+
+# The keyboard move: a peg number, then another, moves through _on_move;
+# Esc cancels a pending from-peg.
+def press_key(code: int) -> None:
+    """Send one key press to the frame's keyboard-move handler."""
+    key_evt: wx.KeyEvent = wx.KeyEvent(wx.wxEVT_CHAR_HOOK)
+    key_evt.SetKeyCode(code)
+    frame._on_key(key_evt)
+
+
+frame._new_game(2)
+press_key(ord("1"))
+assert frame._pending_from == 1, frame._pending_from
+press_key(wx.WXK_ESCAPE)
+assert frame._pending_from is None
+press_key(ord("1"))
+press_key(ord("2"))
+assert frame.session.recorder.default_moves == [(1, 2)], (
+    frame.session.recorder.default_moves
+)
 
 # The View history toggle and the drag interactivity switch must not raise.
 frame._history_toggle.Check(False)

@@ -27,9 +27,7 @@
         <object class="wxBoxSizer">
           <orient>wxHORIZONTAL</orient>
 
-          <!-- Left column: board, move row, relabel dropdown.
-               Move sits above Relabel because moves are the per-step
-               action and relabels are the per-subproblem action. -->
+          <!-- Left column: the board, then the how-to-move hint. -->
           <object class="sizeritem">
             <option>1</option>
             <flag>wxEXPAND</flag>
@@ -58,94 +56,16 @@
                 </object>
               </object>
 
-              <!-- Move buttons: three columns, one per source peg.
-                   Each column stacks the two destinations vertically,
-                   so the leftmost column is "moves from peg 1", the
-                   middle is "from peg 2", and the rightmost is "from
-                   peg 3" — positional, half the horizontal footprint
-                   of a 1x6 row. -->
+              <!-- How to move: drag a disc on the board, or type the
+                   from-peg label then the to-peg label (Esc cancels).
+                   There are no move buttons (ui-design-principles ruling
+                   7). The front-end shows a pending from-peg here too. -->
               <object class="sizeritem">
-                <flag>wxEXPAND|wxLEFT|wxRIGHT</flag>
+                <flag>wxEXPAND|wxLEFT|wxRIGHT|wxBOTTOM</flag>
                 <border>8</border>
-                <object class="wxStaticBoxSizer">
-                  <orient>wxHORIZONTAL</orient>
-                  <label>Move</label>
-
-                  <!-- From peg 1 -->
-                  <object class="sizeritem">
-                    <option>1</option>
-                    <flag>wxEXPAND|wxALL</flag>
-                    <border>2</border>
-                    <object class="wxBoxSizer">
-                      <orient>wxVERTICAL</orient>
-                      <object class="sizeritem">
-                        <option>1</option>
-                        <flag>wxEXPAND|wxBOTTOM</flag>
-                        <border>2</border>
-                        <object class="wxButton" name="move_1_2">
-                          <label>1  →  2</label>
-                        </object>
-                      </object>
-                      <object class="sizeritem">
-                        <option>1</option>
-                        <flag>wxEXPAND</flag>
-                        <object class="wxButton" name="move_1_3">
-                          <label>1  →  3</label>
-                        </object>
-                      </object>
-                    </object>
-                  </object>
-
-                  <!-- From peg 2 -->
-                  <object class="sizeritem">
-                    <option>1</option>
-                    <flag>wxEXPAND|wxALL</flag>
-                    <border>2</border>
-                    <object class="wxBoxSizer">
-                      <orient>wxVERTICAL</orient>
-                      <object class="sizeritem">
-                        <option>1</option>
-                        <flag>wxEXPAND|wxBOTTOM</flag>
-                        <border>2</border>
-                        <object class="wxButton" name="move_2_1">
-                          <label>2  →  1</label>
-                        </object>
-                      </object>
-                      <object class="sizeritem">
-                        <option>1</option>
-                        <flag>wxEXPAND</flag>
-                        <object class="wxButton" name="move_2_3">
-                          <label>2  →  3</label>
-                        </object>
-                      </object>
-                    </object>
-                  </object>
-
-                  <!-- From peg 3 -->
-                  <object class="sizeritem">
-                    <option>1</option>
-                    <flag>wxEXPAND|wxALL</flag>
-                    <border>2</border>
-                    <object class="wxBoxSizer">
-                      <orient>wxVERTICAL</orient>
-                      <object class="sizeritem">
-                        <option>1</option>
-                        <flag>wxEXPAND|wxBOTTOM</flag>
-                        <border>2</border>
-                        <object class="wxButton" name="move_3_1">
-                          <label>3  →  1</label>
-                        </object>
-                      </object>
-                      <object class="sizeritem">
-                        <option>1</option>
-                        <flag>wxEXPAND</flag>
-                        <object class="wxButton" name="move_3_2">
-                          <label>3  →  2</label>
-                        </object>
-                      </object>
-                    </object>
-                  </object>
-
+                <object class="wxStaticText" name="move_hint">
+                  <label>Drag a top disc onto another peg, or type the from-peg number, then the to-peg number (Esc cancels).</label>
+                  <style>wxST_NO_AUTORESIZE</style>
                 </object>
               </object>
 

@@ -212,8 +212,8 @@ Each feature lists *what it does*, what the UI must let the user **see**/**do**,
 - **Review a past move (GUIs; decided 2026-11-21, William Emerison Six <billsix@gmail.com>):** clicking
   (or arrowing to) move *k* in the history shows the board as it was **after move *k*** (the first *k*
   moves replayed: `recipe.replay_default_moves`, `GameSession.state_after`), under the **current**
-  labelling, with a "Back to current" control; the last move is the live game. While reviewing, the move
-  buttons and dragging follow the reviewed board. A move or recipe apply made while reviewing first asks
+  labelling, with a "Back to current" control; the last move is the live game. While reviewing, dragging
+  and the keyboard move follow the reviewed board. A move or recipe apply made while reviewing first asks
   **"Continue from move *k*? This deletes moves *k+1*…*n*."**: yes truncates the game to *k* moves
   (`GameSession.truncate_to`), which un-wins a won game and disables Save until the next win, then makes
   the move; no stays in review. The board takes no other move until the student answers. Text UIs have no
@@ -263,8 +263,11 @@ These are recommendations for *how* a category of UI presents the features above
   Size)** to restart at the current count, quit — the same shape in every GUI), a Relabel menu (the six
   labellings), a Recipe menu (**Save** first, then each saved recipe as a **submenu → View / Apply** —
   the realized shape, see `ui-design-principles.md` ruling #2; not separate Apply/Show/List choosers).
-  Keep action controls **stable** — e.g. show
-  all move buttons and **disable** the illegal ones rather than hiding them, so controls don't jump.
+  Keep action controls **stable** — disable an unavailable action rather than hiding it, so controls
+  don't jump. **Moves have no buttons** (decided 2026-11-21, William Emerison Six <billsix@gmail.com>):
+  drag a disc onto a peg, or use the **keyboard move** — type the from-peg number, then the to-peg number
+  (Esc cancels), shown in a hint line under the board that also shows a pending from-peg. Both go
+  through the same dispatch path as each other (`ui-design-principles.md` ruling 7).
 - **Apply the learning-flow tiers (§3.5):** keep the board + goal line + an **always-visible move-history
   panel** as the Tier-1 workspace; **gate the Relabel and Recipe menus** until the first win (disabled
   with a hint, "dim don't remove"), then leave them enabled for the session; present recipes/rebinding
@@ -349,7 +352,7 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
   → `tasks/archive/2026/10/25/cpp-add-wx-frontend-and-recipe-view-parity.md`.
 - **Python `hanoi-gl`** (added 2026-11-21; full parity the same day) — the 3D OpenGL board with a Dear
   ImGui interface (imgui-bundle, as github.com/billsix/modelviewprojection uses it). Every row of §7
-  holds; the board's labels are drawn under the pegs, colour follows the label, and the move buttons
+  holds; the board's labels are drawn under the pegs, colour follows the label, and the keyboard move
   and a dropped disc share one dispatch path. Its How-to-Play shows on every start (no stored "don't
   show again"), like the C++ ImGui app. Design: `tasks/reference/opengl-color-id-picking.md`.
 - **bash** — a by-design non-interactive demo of the relabelling method (solve scripts composed through
@@ -359,8 +362,8 @@ Summary (full per-row table + gaps: `tasks/archive/2026/10/25/program-feature-sp
 **Update (2026-11-01):** the 2026-10-25 Rust gaps are closed — the **Tauri** app now shows the §4.8
 three-panel view on apply, and the **ratatui** TUI shows the §4.4 valid-moves line. Since then the
 three-tier **learning flow** (rows 16–19: always-visible move history, Tier-2 gating, Tier-3 menu
-placement, the goal-line + "How to Play" onboarding) and **direct-manipulation disc drag-drop** (keep
-the buttons; one shared dispatch) were fanned out to **every** front-end and on-display-verified. Design
+placement, the goal-line + "How to Play" onboarding) and **direct-manipulation disc drag-drop** (one
+shared dispatch; the move buttons were later replaced by the keyboard move, 2026-11-21) were fanned out to **every** front-end and on-display-verified. Design
 authority: `tasks/reference/ui-design-principles.md` rulings 1–7. Archived fan-out tasks under
 `tasks/archive/2026/11/01/` (learning-flow, drag-drop, move-tally).
 
