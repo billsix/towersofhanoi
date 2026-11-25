@@ -1,0 +1,408 @@
+== rust: 15 files, 264 functions
+-- functions named exactly twice (definition and one call)
+rust/hanoi/src/main.rs:491: app []
+rust/hanoi-gui/src/main.rs:1052: apply_recipe_by_name []
+rust/hanoi-egui/src/main.rs:386: board_geometry [HanoiApp]
+rust/hanoi/src/main.rs:354: complete_line []
+rust/hanoigame/src/presenter.rs:228: default_label_row []
+rust/hanoi-egui/src/main.rs:296: do_relabel [HanoiApp]
+rust/hanoi-gui/src/main.rs:170: draw_board_dc []
+rust/hanoi-gui/src/main.rs:315: draw_legal_diagram []
+rust/hanoi/src/main.rs:254: draw_pager []
+rust/hanoigame/src/recipe.rs:284: explain_illegal []
+rust/hanoi-egui/src/main.rs:530: handle_board_drag [HanoiApp]
+rust/hanoigame/src/engine.rs:338: handle_history [GameSession]
+rust/hanoigame/src/engine.rs:316: handle_list [GameSession]
+rust/hanoigame/src/engine.rs:212: handle_move [GameSession]
+rust/hanoigame/src/engine.rs:238: handle_relabel [GameSession]
+rust/hanoigame/src/engine.rs:298: handle_show [GameSession]
+rust/hanoigame/src/model.rs:189: makemove [tests]
+rust/hanoi-gui/src/main.rs:720: on_history_back []
+rust/hanoi-gui/src/main.rs:696: on_history_select []
+rust/hanoi-gui/src/main.rs:768: on_key []
+rust/hanoi-gui/src/main.rs:981: on_new_game []
+rust/hanoi-gui/src/main.rs:1007: on_new_game_same []
+rust/hanoi-gui/src/main.rs:972: on_relabel []
+rust/hanoi-cli/src/main.rs:173: prompt_save []
+rust/tauri/src-tauri/src/main.rs:339: review_back []
+rust/hanoi/src/main.rs:68: row_to_line []
+rust/hanoi-cli/src/main.rs:284: run_interactive []
+rust/hanoi-gui/src/main.rs:860: show_monospace_dialog []
+rust/hanoi-gui/src/main.rs:551: show_move_hint [GuiState]
+rust/tauri/src-tauri/src/main.rs:389: show_recipe []
+rust/hanoi/src/main.rs:157: status_line []
+rust/hanoi-gui/src/main.rs:1187: toggle_history []
+rust/hanoigame/src/engine.rs:123: truncate_to [GameSession]
+rust/hanoi-gui/src/main.rs:565: update_goal [GuiState]
+rust/hanoi-gui/src/main.rs:532: update_history [GuiState]
+rust/tauri/src-tauri/src/main.rs:399: win_celebration []
+-- locals named exactly twice inside their function
+rust/hanoi/src/main.rs:492: let mut registry: RecipeRegistry = RecipeRegistry::new();
+rust/hanoigame/src/recipe.rs:271: let mut replay: Replay = Replay::new(recipe, labelling);
+rust/hanoigame/src/recipe.rs:274: let failed: bool = result.error.is_some();
+rust/hanoi-gui/src/main.rs:1067: let result: DispatchResult = st.dispatch(&Command::Apply(name.to_string()));
+rust/hanoi-egui/src/main.rs:321: let relabelled: bool = self.labelling != Labelling::OneTwoThree;
+rust/hanoi-egui/src/main.rs:325: let result: DispatchResult = self.dispatch(&Command::Apply(name.to_string()));
+rust/hanoigame/src/recipe.rs:615: let recipe = Recipe::new("bad", 3, vec![(1, 3)]);
+rust/hanoigame/src/recipe.rs:533: let recipe = rec.to_recipe("solve2", 2);
+rust/hanoigame/src/recipe.rs:536: let results = apply(&recipe, &mut g2, Labelling::OneTwoThree);
+rust/hanoigame/src/recipe.rs:593: let mut g2 = HanoiGame::new(2);
+rust/hanoigame/src/recipe.rs:601: let recipe = rec.to_recipe("r", 2);
+rust/hanoigame/src/recipe.rs:603: let mut g1 = HanoiGame::new(1);
+rust/tauri/src-tauri/src/main.rs:188: let rebound: Vec<[u32; 2]> = rebound_moves(&recipe.default_moves, labelling)
+rust/tauri/src-tauri/src/main.rs:192: let rebind: Vec<[u32; 2]> = if relabelled {
+rust/tauri/src-tauri/src/main.rs:198: let results: Vec<StepResult> = apply(&recipe, &mut self.game, labelling);
+rust/tauri/src-tauri/src/main.rs:203: let fp: usize = r.from_peg.expect("a successful step carries pegs");
+rust/tauri/src-tauri/src/main.rs:204: let tp: usize = r.to_peg.expect("a successful step carries pegs");
+rust/hanoigame/src/recipe.rs:581: let recipe = rec.to_recipe("solve-2-from-1-to-3", 2);
+rust/hanoigame/src/recipe.rs:585: let results = apply(&recipe, &mut g3, Labelling::OneThreeTwo);
+rust/hanoi-egui/src/main.rs:389: let w: f32 = rect.width();
+rust/hanoi-egui/src/main.rs:394: let avail_w: f32 = (w - 2.0 * margin).max(80.0);
+rust/hanoi-egui/src/main.rs:397: let disc_h: f32 = (avail_h / (n.max(4) as f32) * 0.92).min(30.0);
+rust/hanoi-egui/src/main.rs:399: let peg_w: f32 = (max_disc_w * 0.07).max(8.0);
+rust/hanoi-egui/src/main.rs:402: let peg_top_y: f32 = base_y - peg_h;
+rust/hanoi-egui/src/main.rs:403: let peg_centres: [f32; 3] =
+rust/hanoi/src/main.rs:100: let width: usize = presenter::total_width(n);
+rust/hanoi/src/main.rs:113: let pvw: usize = presenter::peg_visual_width(n);
+rust/hanoi/src/main.rs:549: let mut reg = RecipeRegistry::new();
+rust/hanoi/src/main.rs:550: let session = GameSession::new(0, &mut reg);
+rust/hanoi/src/main.rs:537: let mut reg = RecipeRegistry::new();
+rust/hanoi/src/main.rs:538: let session = GameSession::new(3, &mut reg);
+rust/hanoi-gui/src/main.rs:147: let avail_w: i32 = (w - 2 * margin).max(80);
+rust/hanoi-gui/src/main.rs:148: let peg_zone_w: f64 = f64::from(avail_w) / 3.0;
+rust/hanoi-gui/src/main.rs:612: let rest: String = if lines.len() > 1 {
+rust/hanoi-gui/src/main.rs:617: let body: StaticText = StaticText::builder(&dlg).with_label(&rest).build();
+rust/hanoi-gui/src/main.rs:641: let d: Dialog = dlg.clone();
+rust/hanoi-gui/src/main.rs:478: let char_w: i32 = self.board_text.get_char_width().max(1);
+rust/hanoi-gui/src/main.rs:479: let line_h: i32 = self.board_text.get_char_height().max(1);
+rust/hanoi-gui/src/main.rs:480: let visible_cols: i32 = (size.width / char_w).max(1);
+rust/hanoi-gui/src/main.rs:481: let visible_rows: i32 = (size.height / line_h).max(1);
+rust/hanoi-gui/src/main.rs:482: let line_width: i32 = first.chars().count() as i32;
+rust/hanoi-gui/src/main.rs:483: let h_pad: usize = ((visible_cols - line_width) / 2).max(0) as usize;
+rust/hanoi-gui/src/main.rs:484: let pad: String = " ".repeat(h_pad);
+rust/hanoi-gui/src/main.rs:487: let v_pad: usize = (visible_rows - centred.len() as i32 - 1).max(0) as usize;
+rust/hanoi-cli/src/main.rs:104: let pairs: Vec<rustyline::completion::Pair> = completions(line, word, &self.recipe_names)
+rust/hanoi/src/main.rs:360: let fill: String = if cands.len() == 1 {
+rust/hanoi/src/main.rs:371: let base: &str = input.strip_suffix(text).unwrap_or(input);
+rust/hanoi-cli/src/main.rs:546: let all: std::collections::HashSet<String> =
+rust/hanoi-cli/src/main.rs:548: let expected: std::collections::HashSet<String> = hanoigame::commands::COMMAND_VERBS
+rust/hanoi-gui/src/main.rs:738: let later: String = if count + 1 == total {
+rust/hanoi-gui/src/main.rs:743: let answer: i32 = MessageDialog::builder(
+rust/hanoigame/src/presenter.rs:229: let width: usize = total_width(num_disks);
+rust/hanoi-cli/src/main.rs:375: let out = drive(&script(&["3", "quit"]));
+rust/hanoi-egui/src/main.rs:184: let result: DispatchResult = session.dispatch(cmd);
+rust/hanoi-gui/src/main.rs:419: let result: DispatchResult = session.dispatch(cmd);
+rust/tauri/src-tauri/src/main.rs:89: let result: DispatchResult = session.dispatch(cmd);
+rust/hanoigame/src/engine.rs:406: let mut reg = RecipeRegistry::new();
+rust/hanoigame/src/engine.rs:419: let err = s.dispatch(&Command::Move {
+rust/hanoi-egui/src/main.rs:280: let relabelled: bool = self.labelling != Labelling::OneTwoThree;
+rust/hanoi-egui/src/main.rs:281: let result: DispatchResult = self.dispatch(&Command::Move {
+rust/tauri/src-tauri/src/main.rs:305: let result: DispatchResult = st.dispatch(&Command::Move {
+rust/tauri/src-tauri/src/main.rs:309: let message: String = result
+rust/hanoi-egui/src/main.rs:297: let result: DispatchResult = self.dispatch(&Command::Relabel(perm));
+rust/hanoi-egui/src/main.rs:308: let msg: String = self.save(&name);
+rust/hanoi-gui/src/main.rs:201: let avail_w: i32 = (w - 2 * margin).max(80);
+rust/hanoi-gui/src/main.rs:203: let peg_zone_w: f64 = f64::from(avail_w) / 3.0;
+rust/hanoi-gui/src/main.rs:209: let peg_top_y: f64 = base_y - peg_h;
+rust/hanoi-gui/src/main.rs:239: let y: f64 = base_y - (idx as f64 + 1.0) * disc_h * 1.04;
+rust/hanoi-gui/src/main.rs:282: let ref_y: f64 = active_label_y + 26.0;
+rust/hanoi/src/main.rs:239: let lines: Vec<Line<'static>> = vec![
+rust/hanoi/src/main.rs:208: let visible: Vec<Line> = msg_lines
+rust/hanoi-cli/src/main.rs:328: let mut input = input_text.as_bytes();
+rust/hanoigame/src/recipe.rs:338: let body: String = rebinding(labelling)
+rust/hanoigame/src/recipe.rs:414: let rows: usize = left.len().max(mid.len()).max(right.len());
+rust/hanoigame/src/presenter.rs:387: let noun: &str = if moves == 1 { "move" } else { "moves" };
+rust/hanoigame/src/presenter.rs:396: let extra: u64 = moves - min_moves;
+rust/hanoigame/src/engine.rs:268: let results: Vec<StepResult> = apply(&recipe, &mut self.game, self.labelling);
+rust/hanoigame/src/engine.rs:283: let fp: usize = result.from_peg.expect("a successful step carries pegs");
+rust/hanoigame/src/engine.rs:284: let tp: usize = result.to_peg.expect("a successful step carries pegs");
+rust/hanoi-egui/src/main.rs:563: let from_label: u32 = (change_labels_on_pegs(self.labelling, src) + 1) as u32;
+rust/hanoi-egui/src/main.rs:564: let to_label: u32 = (change_labels_on_pegs(self.labelling, target) + 1) as u32;
+rust/hanoigame/src/engine.rs:341: let noun: &str = if count == 1 { "move" } else { "moves" };
+rust/hanoigame/src/engine.rs:321: let width: usize = names.iter().map(String::len).max().unwrap_or(0);
+rust/hanoigame/src/engine.rs:305: let plural: &str = if n == 1 { "" } else { "s" };
+rust/hanoigame/src/solvers/recursive.rs:37: let two_minus_1_i_to_t: String = hanoi_1(i, g, t);
+rust/hanoigame/src/solvers/recursive.rs:38: let big_peg_to_goal: String = hanoi_1(i, t, g);
+rust/hanoigame/src/solvers/recursive.rs:39: let two_minus_1_t_to_g: String = hanoi_1(t, i, g);
+rust/hanoigame/src/solvers/recursive.rs:56: let three_minus_1_i_to_t: String = hanoi_2(i, g, t);
+rust/hanoigame/src/solvers/recursive.rs:57: let big_peg_to_goal: String = hanoi_1(i, t, g);
+rust/hanoigame/src/solvers/recursive.rs:58: let three_minus_1_t_to_g: String = hanoi_2(t, i, g);
+rust/hanoigame/src/solvers/recursive.rs:65: let four_minus_1_i_to_t: String = hanoi_3(i, g, t);
+rust/hanoigame/src/solvers/recursive.rs:66: let big_peg_to_goal: String = hanoi_1(i, t, g);
+rust/hanoigame/src/solvers/recursive.rs:67: let four_minus_1_t_to_g: String = hanoi_3(t, i, g);
+rust/hanoigame/src/solvers/recursive.rs:79: let n_minus_1_i_to_t: String = hanoi_n(n - 1, i, g, t);
+rust/hanoigame/src/solvers/recursive.rs:80: let big_peg_to_goal: String = hanoi_n(1, i, t, g);
+rust/hanoigame/src/solvers/recursive.rs:81: let n_minus_1_t_to_g: String = hanoi_n(n - 1, t, i, g);
+rust/hanoi-cli/src/main.rs:388: let out = drive("0\n11\nfoo\n3\nquit\n");
+rust/hanoigame/src/presenter.rs:100: let target: usize = (label - 1) as usize;
+rust/hanoigame/src/presenter.rs:447: let cases: [(&[u32], Labelling); 6] = [
+rust/hanoigame/src/presenter.rs:430: let fp: usize = label_to_tower(labelling, from_label)?;
+rust/hanoigame/src/presenter.rs:431: let tp: usize = label_to_tower(labelling, to_label)?;
+rust/hanoi-egui/src/main.rs:1043: let options: eframe::NativeOptions = eframe::NativeOptions {
+rust/hanoi-egui/src/main.rs:1059: let web_options: eframe::WebOptions = eframe::WebOptions::default();
+rust/hanoi-gui/src/main.rs:1281: let show_howto_on_start: bool = config.read_bool(CONFIG_SHOW_HOWTO, true);
+rust/hanoi-gui/src/main.rs:1328: let recipe_save_item: MenuItem = recipe_menu_build
+rust/hanoi-gui/src/main.rs:1376: let menu_bar: MenuBar = MenuBar::builder()
+rust/hanoi-gui/src/main.rs:1385: let recipe_menu: Menu = frame
+rust/hanoi-gui/src/main.rs:1394: let status_bar: StatusBar = frame.create_status_bar(3, 0, ID_ANY as i32, "");
+rust/hanoi-gui/src/main.rs:1558: let panel_clone: Panel = board_graphics.clone();
+rust/hanoi-gui/src/main.rs:1638: let from_label: u32 = (change_labels_on_pegs(labelling, src) + 1) as u32;
+rust/hanoi-gui/src/main.rs:1639: let to_label: u32 = (change_labels_on_pegs(labelling, target) + 1) as u32;
+rust/hanoi-gui/src/main.rs:1692: let is_apply: bool = offset % 2 == 1;
+rust/hanoi/src/main.rs:511: let mut terminal: DefaultTerminal = ratatui::init();
+rust/hanoi/src/main.rs:512: let result: std::io::Result<()> = app(&mut terminal);
+rust/hanoi-gui/src/main.rs:659: let label: StaticText = StaticText::builder(&dlg)
+rust/hanoigame/src/engine.rs:386: let lines = s.move_teaching_lines(&good, &r);
+rust/hanoi-gui/src/main.rs:769: let WindowEventData::Keyboard(key_event) = ev else {
+rust/hanoi-gui/src/main.rs:773: let key: i32 = key_event.get_key_code().unwrap_or(0);
+rust/hanoi-gui/src/main.rs:789: let pending: Option<u32> = st.pending_from.take();
+rust/hanoi-gui/src/main.rs:812: let moves_for_dialog: Option<Vec<(u32, u32)>> = {
+rust/hanoi-gui/src/main.rs:814: let relabelled: bool = st.labelling != Labelling::OneTwoThree;
+rust/hanoi-gui/src/main.rs:815: let result: DispatchResult = st.dispatch(&Command::Move {
+rust/hanoi-gui/src/main.rs:1010: let n: u32 = st.disc_count;
+rust/hanoi-gui/src/main.rs:974: let result: DispatchResult = st.dispatch(&Command::Relabel(perm));
+rust/hanoi-gui/src/main.rs:1041: let msg: String = st.save(&name);
+rust/hanoi-egui/src/main.rs:429: let w: f32 = rect.width();
+rust/hanoi-egui/src/main.rs:472: let y: f32 = base_y - (idx as f32 + 1.0) * disc_h * 1.04;
+rust/hanoi-egui/src/main.rs:503: let ref_y: f32 = active_label_y + 26.0;
+rust/hanoigame/src/commands.rs:209: let cases: [(&str, Command); 11] = [
+rust/hanoigame/src/commands.rs:243: let cases: [(&str, [u32; 3]); 4] = [
+rust/hanoi/src/main.rs:460: let default_name: String =
+rust/hanoi/src/main.rs:462: let save_hint: [&str; 1] =
+rust/hanoi/src/main.rs:478: let again_hint: [&str; 1] = ["Play again? (y/n)"];
+rust/hanoi/src/main.rs:564: let mut reg = RecipeRegistry::new();
+rust/hanoi/src/main.rs:565: let session = GameSession::new(3, &mut reg);
+rust/hanoi-cli/src/main.rs:136: let _ = writeln!(
+rust/hanoi-cli/src/main.rs:142: let _ = writeln!(output, "{line}");
+rust/hanoi-cli/src/main.rs:154: let line: String = reader.read(
+rust/hanoi-cli/src/main.rs:176: let prompt: String = format!(
+rust/hanoi-cli/src/main.rs:77: let _ = self.editor.add_history_entry(line.as_str());
+rust/hanoi/src/main.rs:299: let key: Key = match k.code {
+rust/hanoigame/src/recipe.rs:325: let peg: usize =
+rust/hanoi-gui/src/main.rs:889: let rebound: Vec<(u32, u32)> = rebound_moves(moves, labelling);
+rust/hanoi-gui/src/main.rs:890: let used: Option<(u32, u32)> = selected.map(|i| moves[i]);
+rust/hanoi-gui/src/main.rs:891: let rows: usize = moves.len().max(key.len());
+rust/hanoi-gui/src/main.rs:897: let left: String = moves
+rust/hanoi-gui/src/main.rs:901: let mid: String = key
+rust/hanoi-gui/src/main.rs:904: let marked: bool = used
+rust/hanoi-gui/src/main.rs:912: let right: String = rebound
+rust/hanoigame/src/recipe.rs:367: let fp: usize = label_to_tower(labelling, from_label).expect("labels are 1..=3");
+rust/hanoigame/src/recipe.rs:368: let tp: usize = label_to_tower(labelling, to_label).expect("labels are 1..=3");
+rust/hanoi-gui/src/main.rs:1158: let label: String = format!(
+rust/hanoi-cli/src/main.rs:522: let chunks = [
+rust/hanoi-cli/src/main.rs:535: let out = drive(&script(&chunks));
+rust/hanoigame/src/recipe.rs:560: let pegs: Vec<(Option<usize>, Option<usize>)> =
+rust/hanoi-gui/src/main.rs:503: let current: [u32; 3] =
+rust/hanoi-gui/src/main.rs:506: let marker: &str = if *perm == current {
+rust/tauri/src-tauri/src/main.rs:361: let result: DispatchResult = st.dispatch(&Command::Relabel(labels));
+rust/tauri/src-tauri/src/main.rs:362: let message: String = result.lines.first().cloned().unwrap_or_default();
+rust/hanoi/src/main.rs:556: let mut reg = RecipeRegistry::new();
+rust/hanoigame/src/presenter.rs:281: let pvw: usize = peg_visual_width(n);
+rust/hanoigame/src/presenter.rs:464: let lines = render(&game, Labelling::OneTwoThree);
+rust/hanoigame/src/presenter.rs:496: let game = HanoiGame::new(3);
+rust/hanoigame/src/presenter.rs:506: let game = HanoiGame::new(n);
+rust/hanoigame/src/presenter.rs:480: let game = HanoiGame::new(3);
+rust/hanoigame/src/presenter.rs:488: let game = HanoiGame::new(3);
+rust/hanoigame/src/presenter.rs:520: let mv = game.move_options()[0];
+rust/hanoigame/src/recipe.rs:624: let mut g2 = HanoiGame::new(2);
+rust/hanoigame/src/recipe.rs:632: let recipe = rec.to_recipe("r", 2);
+rust/tauri/src-tauri/src/main.rs:328: let message: String = match st.review {
+rust/hanoi-cli/src/main.rs:279: let mut reader: StreamReader<'_, R> = StreamReader { input };
+rust/hanoi-cli/src/main.rs:298: let mut reader: RustylineReader = RustylineReader { editor };
+rust/hanoi-egui/src/main.rs:200: let msg: String = session.save_recipe(name);
+rust/hanoi-gui/src/main.rs:436: let msg: String = session.save_recipe(name);
+rust/tauri/src-tauri/src/main.rs:105: let msg: String = session.save_recipe(name);
+rust/hanoi-cli/src/main.rs:397: let out = drive(&script(&["3", "save mid-game", "quit"]));
+rust/hanoigame/src/engine.rs:170: let overwrote: bool = self.registry.contains(name);
+rust/tauri/src-tauri/src/main.rs:369: let message: String = if st.game.check_win_condition() && !name.trim().is_empty() {
+rust/hanoi-egui/src/main.rs:593: let rebound: Vec<(u32, u32)> = rebound_moves(&self.moves, self.labelling);
+rust/hanoi-egui/src/main.rs:594: let used: Option<(u32, u32)> = self.selected.map(|i| self.moves[i]);
+rust/hanoi-egui/src/main.rs:595: let rows: usize = self.moves.len().max(key.len());
+rust/hanoi-egui/src/main.rs:604: let is_selected: bool = self.selected == Some(i);
+rust/hanoi-egui/src/main.rs:615: let marked: bool = used.is_some_and(|(from_label, to_label)| {
+rust/hanoi-egui/src/main.rs:618: let marker: &str = if marked { "▶" } else { " " };
+rust/hanoi-gui/src/main.rs:1215: let body: StaticText = StaticText::builder(&dlg).with_label(HOWTO_TEXT).build();
+rust/hanoi-gui/src/main.rs:874: let dlg_for_close: Dialog = dlg.clone();
+rust/hanoi-gui/src/main.rs:552: let text: String = match self.pending_from {
+rust/hanoi-gui/src/main.rs:930: let mono: Option<Font> = monospace_font();
+rust/hanoi-gui/src/main.rs:938: let body: Vec<&str> = rows[1..].iter().map(String::as_str).collect();
+rust/hanoi-gui/src/main.rs:950: let marked: Vec<String> = rebinding_rows(&moves_owned, labelling, Some(row));
+rust/hanoi-gui/src/main.rs:967: let dlg_for_close: Dialog = dlg.clone();
+rust/tauri/src-tauri/src/main.rs:390: let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
+rust/tauri/src-tauri/src/main.rs:115: let labels: [u32; 3] =
+rust/tauri/src-tauri/src/main.rs:117: let legal: Vec<[u32; 2]> = shown
+rust/tauri/src-tauri/src/main.rs:127: let relabelled: bool = self.labelling != Labelling::OneTwoThree;
+rust/tauri/src-tauri/src/main.rs:136: let recipes: Vec<RecipeInfo> = self
+rust/tauri/src-tauri/src/main.rs:148: let history: Vec<[u32; 2]> = self
+rust/hanoigame/src/solvers/iterative.rs:73: let x_minus_1_i_to_t: String = swap_temporary_and_goal(&moves);
+rust/hanoigame/src/solvers/iterative.rs:74: let big_peg_to_goal: &str = "1 -> 3";
+rust/hanoigame/src/solvers/iterative.rs:75: let x_minus_1_t_to_g: String = swap_initial_and_temporary(&moves);
+rust/hanoi/src/main.rs:158: let a: usize = change_labels_on_pegs(session.labelling, 0) + 1;
+rust/hanoi/src/main.rs:159: let b: usize = change_labels_on_pegs(session.labelling, 1) + 1;
+rust/hanoi/src/main.rs:160: let c: usize = change_labels_on_pegs(session.labelling, 2) + 1;
+rust/hanoi-egui/src/main.rs:655: let board_won: bool = self.board().check_win_condition();
+rust/hanoi-egui/src/main.rs:656: let waiting: bool = self.pending_continue.is_some();
+rust/hanoi-egui/src/main.rs:658: let pressed: Option<u32> = ctx.input(|input| {
+rust/hanoi-egui/src/main.rs:707: let can_save: bool = won && !self.recorder.default_moves.is_empty();
+rust/hanoi-egui/src/main.rs:842: let desired: egui::Vec2 = egui::vec2(
+rust/hanoi-gui/src/main.rs:533: let tally: Vec<String> = format_move_tally(&self.recorder.default_moves);
+rust/hanoi-gui/src/main.rs:543: let noun: &str = if count == 1 { "move" } else { "moves" };
+rust/hanoigame/src/engine.rs:135: let f: usize = change_labels_on_pegs(self.labelling, mv.from_peg) + 1;
+rust/hanoigame/src/engine.rs:136: let t: usize = change_labels_on_pegs(self.labelling, mv.to_peg) + 1;
+== c++: 6 files, 154 functions
+-- functions named exactly twice (definition and one call)
+cpp/hanoiwx.cpp:1025: apply_recipe_by_name [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:171: attach [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:729: build_history_panel [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:506: build_menu_bar [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:576: build_ui [__anon449ddb860111::HanoiFrame]
+cpp/main.cpp:167: continue_from_review [__anon866f32ed0111::App]
+cpp/hanoiwx.cpp:130: draw_badge [__anon449ddb860111]
+cpp/main.cpp:686: draw_discard_save_modal [__anon866f32ed0111]
+cpp/main.cpp:897: draw_frame [__anon866f32ed0111]
+cpp/main.cpp:717: draw_help_modal [__anon866f32ed0111]
+cpp/main.cpp:826: draw_history [__anon866f32ed0111]
+cpp/main.cpp:756: draw_illegal_modal [__anon866f32ed0111]
+cpp/main.cpp:537: draw_menubar [__anon866f32ed0111]
+cpp/main.cpp:779: draw_moves [__anon866f32ed0111]
+cpp/main.cpp:362: draw_recipe_view [__anon866f32ed0111]
+cpp/main.cpp:625: draw_save_modal [__anon866f32ed0111]
+cpp/src/recipe.hpp:170: explain_illegal [hanoi::detail]
+cpp/hanoiwx.cpp:155: find_xrc [__anon449ddb860111]
+cpp/hanoiwx.cpp:186: has_game [__anon449ddb860111::BoardView]
+cpp/main.cpp:136: has_pending [__anon866f32ed0111::App]
+cpp/hanoiwx.cpp:651: hide_recipe_sidebar [__anon449ddb860111::HanoiFrame]
+cpp/main.cpp:216: illegal_reason [__anon866f32ed0111]
+cpp/src/model.hpp:79: is_valid_move [hanoi::Game]
+cpp/hanoiwx.cpp:90: lighten [__anon449ddb860111]
+cpp/hanoiwx.cpp:674: maybe_show_howto [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:930: on_about [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:364: on_capture_lost [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:1406: on_help_howto [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:782: on_history_back [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:758: on_history_select [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:321: on_left_down [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:351: on_left_up [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:342: on_motion [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:897: on_new_game_prompt [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:908: on_new_game_same [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:423: on_paint [__anon449ddb860111::LegalMoveDiagram]
+cpp/hanoiwx.cpp:1007: on_relabel [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:1100: on_save [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:1399: on_toggle_history [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:196: paint_graphics [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:294: paint_text [__anon449ddb860111::BoardView]
+cpp/main.cpp:147: review_move [__anon866f32ed0111::App]
+cpp/hanoiwx.cpp:315: set_interactive [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:311: set_move_callback [__anon449ddb860111::BoardView]
+cpp/hanoiwx.cpp:790: shown_game [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:1391: update_goal [__anon449ddb860111::HanoiFrame]
+cpp/hanoiwx.cpp:187: use_graphics [__anon449ddb860111::BoardView]
+-- locals named exactly twice inside their function
+cpp/hanoiwx.cpp:523: const int item_id = wxXmlResource::GetXRCID(id);
+cpp/hanoiwx.cpp:542: relabel_menu_pos_ = mb->FindMenu("Relabel pegs");
+cpp/hanoiwx.cpp:543: recipe_menu_pos_ = relabel_menu_pos_ + 1;
+cpp/hanoiwx.cpp:552: const int view_pos = mb->FindMenu("View");
+cpp/hanoiwx.cpp:637: history_panel_ = build_history_panel();
+cpp/src/model.hpp:65: const int disk = towers_[m.from_peg].back();
+cpp/main.cpp:511: const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
+cpp/hanoiwx.cpp:736: history_header_ = new wxStaticText(panel, wxID_ANY, "");
+cpp/hanoiwx.cpp:739: const int row_h = std::max(1, history_list_->GetCharHeight());
+cpp/hanoiwx.cpp:542: relabel_menu_pos_ = mb->FindMenu("Relabel pegs");
+cpp/hanoiwx.cpp:543: recipe_menu_pos_ = relabel_menu_pos_ + 1;
+cpp/hanoiwx.cpp:552: const int view_pos = mb->FindMenu("View");
+cpp/hanoiwx.cpp:577: panel_ = xrc()->LoadPanel(this, "HanoiPanel");
+cpp/hanoiwx.cpp:637: history_panel_ = build_history_panel();
+cpp/main.cpp:171: game = *review_game;
+cpp/main.cpp:476: const bool relabelled = app.labelling != hanoi::Labelling::OneTwoThree;
+cpp/main.cpp:253: const float avail_w = inner_w > 80.0f ? inner_w : 80.0f;
+cpp/main.cpp:260: const float extra = relabelled ? 46.0f : 32.0f;
+cpp/main.cpp:877: const int tp = app.pending_tp;
+cpp/main.cpp:878: const std::string apply_name = app.pending_apply;
+cpp/main.cpp:700: const std::string name = hanoi::default_recipe_name(app.game.num_disks());
+cpp/main.cpp:709: const int n = app.pending_new_game >= 1 ? app.pending_new_game : 3;
+cpp/hanoiwx.cpp:446: const double bottom_w = legal ? big_w : small_w;
+cpp/hanoiwx.cpp:447: const double upper_w = legal ? small_w : big_w;
+cpp/hanoiwx.cpp:471: wxDouble th = 0;
+cpp/hanoiwx.cpp:472: wxDouble td = 0;
+cpp/hanoiwx.cpp:473: wxDouble te = 0;
+cpp/main.cpp:898: ImGuiIO &io = ImGui::GetIO();
+cpp/main.cpp:546: const std::string item = std::to_string(n) + " disks";
+cpp/main.cpp:781: const ImGuiIO &io = ImGui::GetIO();
+cpp/main.cpp:368: const bool relabelled = app.view.labelling != hanoi::Labelling::OneTwoThree;
+cpp/main.cpp:638: const bool has_name = app.name_buf[0] != '\0';
+cpp/main.cpp:641: const bool overwrote = app.registry.get(name) != nullptr;
+cpp/src/recipe.hpp:357: const std::size_t rows = std::max({left.size(), mid.size(), right.size()});
+cpp/src/presenter.hpp:164: const char *noun = moves == 1 ? "move" : "moves";
+cpp/src/presenter.hpp:103: const int target = label - 1;
+cpp/src/presenter.hpp:104: const std::array<int, 3> order = label_order(l);
+cpp/hanoiwx.cpp:950: const int to_label = hanoi::change_labels_on_pegs(labelling_, to_peg) + 1;
+cpp/hanoiwx.cpp:766: review_count_ = -1;
+cpp/hanoiwx.cpp:773: review_count_ = count;
+cpp/hanoiwx.cpp:774: review_game_ = hanoi::replay_default_moves(game_.num_disks(), first);
+cpp/hanoiwx.cpp:431: const double width = GetClientSize().GetWidth();
+cpp/hanoiwx.cpp:1131: won_once_ = true;
+cpp/main.cpp:55: bool active = false;
+cpp/main.cpp:65: hanoi::Game game{3};
+cpp/main.cpp:98: int review = -1;
+cpp/hanoiwx.cpp:213: const double avail_w = std::max(80.0, w - 2 * margin);
+cpp/hanoiwx.cpp:221: const double peg_top_y = base_y - peg_h;
+cpp/hanoiwx.cpp:274: const double ref_y = active_label_y + 26.0;
+cpp/src/recipe.hpp:276: const std::optional<int> peg = label_to_tower(labelling, label);
+cpp/src/recipe.hpp:301: const std::optional<int> fp = label_to_tower(labelling, mv[0]);
+cpp/src/recipe.hpp:302: const std::optional<int> tp = label_to_tower(labelling, mv[1]);
+cpp/hanoiwx.cpp:1321: recipe_menu_names_ = names;
+cpp/hanoiwx.cpp:1329: const bool w = shown.check_win_condition();
+cpp/main.cpp:150: review = -1;
+cpp/main.cpp:158: review = count;
+cpp/main.cpp:159: review_game = hanoi::replay_default_moves(game.num_disks(), first);
+cpp/hanoiwx.cpp:1116: const bool overwrote = registry_.get(key) != nullptr;
+cpp/hanoiwx.cpp:694: wxStaticText *body = new wxStaticText(&dlg, wxID_ANY, kHowtoText);
+cpp/hanoiwx.cpp:695: LegalMoveDiagram *diagram = new LegalMoveDiagram(&dlg);
+cpp/hanoiwx.cpp:700: wxButton *got_it = new wxButton(&dlg, wxID_OK, "Got it");
+cpp/src/recipe.hpp:50: return Recipe{name, disk_count, moves_};
+== bash: 43 files, 43 functions
+-- functions named exactly twice (definition and one call)
+-- locals named exactly twice inside their function
+cpp/tools/check-no-network.sh:26: cpp_dir="$(cd "$here/.." && pwd)"
+cpp/tools/check-no-network.sh:29: web_files=(
+cpp/tools/check-no-network.sh:33: pattern='(https?|wss?)://|(src|href)=["'\''"]?//|url\(//'
+cpp/tools/update-imgui.sh:18: CPP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cpp/tools/update-imgui.sh:38: VER="$(grep -m1 '#define IMGUI_VERSION ' "$DEST/imgui.h" | sed 's/.*"\(.*\)".*/\1/')"
+rust/tools/check-no-network.sh:30: scan_dir="$rust_dir/tauri/frontend"
+rust/tools/check-no-network.sh:31: egui_files=(
+== javascript: 1 files, 26 functions
+-- functions named exactly twice (definition and one call)
+rust/tauri/frontend/main.js:748: init []
+rust/tauri/frontend/main.js:629: initBoardDrag []
+rust/tauri/frontend/main.js:597: initMenuBar []
+rust/tauri/frontend/main.js:340: isActive [renderRelabelMenu]
+rust/tauri/frontend/main.js:526: renderApplyView []
+rust/tauri/frontend/main.js:439: renderRecipeMenu []
+rust/tauri/frontend/main.js:338: renderRelabelMenu []
+rust/tauri/frontend/main.js:359: showWinTeaching []
+-- locals named exactly twice inside their function
+rust/tauri/frontend/main.js:121: const availW = Math.max(w - 2 * margin, 80);
+rust/tauri/frontend/main.js:122: const pegZoneW = availW / 3;
+rust/tauri/frontend/main.js:256: const availW = Math.max(w - 2 * margin, 80);
+rust/tauri/frontend/main.js:258: const pegZoneW = availW / 3;
+rust/tauri/frontend/main.js:264: const pegTopY = baseY - pegH;
+rust/tauri/frontend/main.js:288: const y = baseY - (idx + 1) * discH * 1.04;
+rust/tauri/frontend/main.js:807: const labels = [Number(raw[0]), Number(raw[1]), Number(raw[2])];
+rust/tauri/frontend/main.js:828: const steps = /** @type {string[]} */ (await invoke("show_recipe", {
+rust/tauri/frontend/main.js:875: const btn = /** @type {HTMLElement} */ (e.target);
+rust/tauri/frontend/main.js:630: const canvas =
+rust/tauri/frontend/main.js:603: const willOpen = !menu.classList.contains("open");
+rust/tauri/frontend/main.js:340: const isActive = (perm) =>
+rust/tauri/frontend/main.js:696: const later = count + 1 === total
+rust/tauri/frontend/main.js:699: const choice = /** @type {string} */ (
+rust/tauri/frontend/main.js:399: const num = latest.num_disks;
+rust/tauri/frontend/main.js:400: const choice = /** @type {string} */ (
+rust/tauri/frontend/main.js:463: const firstWin = s.won && !wonOnce;
+rust/tauri/frontend/main.js:443: const body = s.recipes.length === 0
+rust/tauri/frontend/main.js:164: const rgb = ([r, g, b]) => `rgb(${r},${g},${b})`;
+rust/tauri/frontend/main.js:226: const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+rust/tauri/frontend/main.js:542: const left = m ? `${i + 1}: ${m[0]} → ${m[1]}` : "";
+rust/tauri/frontend/main.js:543: const mid = k
+rust/tauri/frontend/main.js:546: const right = r ? `${i + 1}: ${r[0]} → ${r[1]}` : "";
+rust/tauri/frontend/main.js:547: const attrs = m ? ` class="move-row" data-row="${i}"` : "";
