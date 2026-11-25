@@ -144,8 +144,8 @@ fn disc_width(size: u32, n: u32, max_w: f64) -> f64 {
 /// board drawing and the drag hit-test so they agree on where the pegs are.
 fn board_peg_centres(w: i32) -> [f64; 3] {
     let margin: i32 = 20;
-    let avail_w: i32 = (w - 2 * margin).max(80);
-    let peg_zone_w: f64 = f64::from(avail_w) / 3.0;
+    // A third of the width left between the margins (at least 80 px).
+    let peg_zone_w: f64 = f64::from((w - 2 * margin).max(80)) / 3.0;
     [0, 1, 2].map(|i| f64::from(margin) + peg_zone_w * (f64::from(i) + 0.5))
 }
 
@@ -161,165 +161,6 @@ fn nearest_board_peg(x: i32, w: i32) -> usize {
         }
     }
     best
-}
-
-/// Draw the board. `drag_src`/`drag_size`/`drag_x`/`drag_y` describe the disc
-/// currently being dragged (if any): it is omitted from its home peg and drawn
-/// following the cursor.
-#[allow(clippy::too_many_arguments)]
-fn draw_board_dc(
-    dc: &AutoBufferedPaintDC,
-    w: i32,
-    h: i32,
-    game: &HanoiGame,
-    labelling: Labelling,
-    drag_src: Option<usize>,
-    drag_size: u32,
-    drag_x: i32,
-    drag_y: i32,
-) {
-    // Vertical background gradient (top lighter), matching the wxPython renderer's
-    // GraphicsContext gradient; the DC can't gradient-fill the rounded pegs/discs, so
-    // those stay flat. Transparent text background so the label digits have no box.
-    dc.gradient_fill_linear(
-        DcRect::new(0, 0, w, h),
-        Colour::rgb(45, 52, 68),
-        Colour::rgb(20, 26, 38),
-        GradientDirection::South,
-    );
-    dc.set_background_mode(BackgroundMode::Transparent);
-
-    let n: u32 = game.num_disks;
-    if n == 0 {
-        return;
-    }
-    let relabelled: bool = labelling != Labelling::OneTwoThree;
-
-    let margin: i32 = 20;
-    let label_band_h: i32 = if relabelled { 60 } else { 36 };
-    let base_h: i32 = 14;
-    let avail_w: i32 = (w - 2 * margin).max(80);
-    let avail_h: i32 = (h - 2 * margin - label_band_h - base_h).max(80);
-    let peg_zone_w: f64 = f64::from(avail_w) / 3.0;
-    let disc_h: f64 = (f64::from(avail_h) / f64::from(n.max(4)) * 0.92).min(30.0);
-    let max_disc_w: f64 = peg_zone_w * 0.92;
-    let peg_w: f64 = (max_disc_w * 0.07).max(8.0);
-    let peg_h: f64 = f64::from(avail_h) * 0.95;
-    let base_y: f64 = f64::from(h - margin - label_band_h - base_h);
-    let peg_top_y: f64 = base_y - peg_h;
-    let peg_centres: [f64; 3] = board_peg_centres(w);
-
-    // Base bar.
-    dc.set_pen(Colour::rgb(90, 64, 38), 1, PenStyle::Solid);
-    dc.set_brush(Colour::rgb(150, 110, 70), BrushStyle::Solid);
-    dc.draw_rounded_rectangle(margin, base_y as i32, w - 2 * margin, base_h, 4.0);
-
-    // Pegs.
-    for &cx in &peg_centres {
-        dc.set_pen(Colour::rgb(120, 86, 50), 1, PenStyle::Solid);
-        dc.set_brush(Colour::rgb(160, 120, 75), BrushStyle::Solid);
-        dc.draw_rounded_rectangle(
-            (cx - peg_w / 2.0) as i32,
-            peg_top_y as i32,
-            peg_w as i32,
-            peg_h as i32,
-            peg_w / 2.0,
-        );
-    }
-
-    // Discs (bottom-up), coloured by size.
-    for (p, stack) in game.towers.iter().enumerate() {
-        let cx: f64 = peg_centres[p];
-        for (idx, &size) in stack.iter().enumerate() {
-            // Omit the disc currently being dragged from its home peg.
-            if drag_src == Some(p) && idx + 1 == stack.len() {
-                continue;
-            }
-            let dw: f64 = disc_width(size, n, max_disc_w);
-            let y: f64 = base_y - (idx as f64 + 1.0) * disc_h * 1.04;
-            let rgb: (u8, u8, u8) = disc_rgb(size);
-            dc.set_pen(darken(rgb, 0.45), 1, PenStyle::Solid);
-            dc.set_brush(colour(rgb), BrushStyle::Solid);
-            dc.draw_rounded_rectangle(
-                (cx - dw / 2.0) as i32,
-                y as i32,
-                dw as i32,
-                disc_h as i32,
-                disc_h / 3.0,
-            );
-        }
-    }
-
-    // Active label badges (coloured circles with the label digit, bold + centred).
-    let active_label_y: f64 = base_y
-        + f64::from(base_h)
-        + if relabelled {
-            18.0
-        } else {
-            f64::from(label_band_h) / 2.0
-        };
-    if let Some(badge_font) = Font::builder()
-        .with_point_size(13)
-        .with_weight(FontWeight::Bold)
-        .build()
-    {
-        dc.set_font(&badge_font);
-    }
-    dc.set_text_foreground(Colour::rgb(255, 255, 255));
-    for (p, &cx) in peg_centres.iter().enumerate() {
-        let label: usize = change_labels_on_pegs(labelling, p);
-        let rgb: (u8, u8, u8) = label_rgb(label);
-        dc.set_pen(darken(rgb, 0.40), 1, PenStyle::Solid);
-        dc.set_brush(colour(rgb), BrushStyle::Solid);
-        dc.draw_circle(cx as i32, active_label_y as i32, 14);
-        let text: String = (label + 1).to_string();
-        let (tw, th): (i32, i32) = dc.get_text_extent(&text);
-        dc.draw_text(&text, cx as i32 - tw / 2, active_label_y as i32 - th / 2);
-    }
-
-    // Default 1-2-3 reference row when relabelled (smaller, neutral, centred).
-    if relabelled {
-        let ref_y: f64 = active_label_y + 26.0;
-        if let Some(ref_font) = Font::builder().with_point_size(10).build() {
-            dc.set_font(&ref_font);
-        }
-        dc.set_text_foreground(Colour::rgb(170, 178, 195));
-        for (p, &cx) in peg_centres.iter().enumerate() {
-            let text: String = (p + 1).to_string();
-            let (tw, th): (i32, i32) = dc.get_text_extent(&text);
-            dc.draw_text(&text, cx as i32 - tw / 2, ref_y as i32 - th / 2);
-        }
-    }
-
-    // The dragged disc follows the cursor, drawn on top in its size colour (as
-    // if lifted off its peg).
-    if drag_src.is_some() {
-        let dw: f64 = disc_width(drag_size, n, max_disc_w);
-        let rgb: (u8, u8, u8) = disc_rgb(drag_size);
-        dc.set_pen(darken(rgb, 0.45), 1, PenStyle::Solid);
-        dc.set_brush(colour(rgb), BrushStyle::Solid);
-        dc.draw_rounded_rectangle(
-            (f64::from(drag_x) - dw / 2.0) as i32,
-            (f64::from(drag_y) - disc_h / 2.0) as i32,
-            dw as i32,
-            disc_h as i32,
-            disc_h / 3.0,
-        );
-    }
-}
-
-/// Draw the legal/illegal-move teaching figure onto a DC: a smaller disc may
-/// rest on a larger one (left, allowed); a larger disc may never rest on a
-/// smaller one (right, forbidden). Mirrors `hanoigui.py` _LegalMoveDiagram
-/// (flat wxDC fills — wxDragon has no `wxGraphicsContext`).
-fn draw_legal_diagram(dc: &AutoBufferedPaintDC, w: i32, h: i32) {
-    // Fill the panel background (AutoBufferedPaintDC must be painted fully).
-    let bg: Colour = Colour::rgb(238, 238, 242);
-    dc.gradient_fill_linear(DcRect::new(0, 0, w, h), bg, bg, GradientDirection::South);
-    dc.set_background_mode(BackgroundMode::Transparent);
-    let half: i32 = w / 2;
-    draw_diagram_example(dc, 0, half, true);
-    draw_diagram_example(dc, half, half, false);
 }
 
 /// One two-disc stack centred in `[x0, x0+width]`: wide-under-narrow when
@@ -540,10 +381,10 @@ impl GuiState {
         }
         self.history_back.enable(self.review.is_some());
         let count: usize = self.recorder.default_moves.len();
-        let noun: &str = if count == 1 { "move" } else { "moves" };
         self.history_header.set_label(&format!(
             "{count} {noun}  optimal {} (default 1-2-3 labels)",
-            self.min_moves()
+            self.min_moves(),
+            noun = if count == 1 { "move" } else { "moves" }
         ));
     }
 
@@ -853,29 +694,6 @@ fn monospace_font() -> Option<Font> {
         .build()
 }
 
-/// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
-/// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
-/// a proportional font, which collapses the columns. A read-only teletype `TextCtrl`
-/// keeps the columns aligned, matching the Python wx.
-fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
-    let dlg: Dialog = Dialog::builder(parent, title).with_size(640, 460).build();
-    let text: TextCtrl = TextCtrl::builder(&dlg)
-        .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
-        .build();
-    if let Some(mono) = monospace_font() {
-        text.set_font(&mono);
-    }
-    text.set_value(&lines.join("\n"));
-    let close: Button = Button::builder(&dlg).with_label("Close").build();
-    let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
-    sizer.add(&text, 1, SizerFlag::Expand | SizerFlag::All, 8);
-    sizer.add(&close, 0, SizerFlag::All, 8);
-    dlg.set_sizer(sizer, true);
-    let dlg_for_close: Dialog = dlg.clone();
-    close.on_click(move |_| dlg_for_close.end_modal(ID_OK));
-    dlg.show_modal();
-}
-
 /// The rows of the three-panel rebinding view as aligned monospace text: the
 /// move in the recipe's labels | the label->peg key | the rebound move. A key
 /// cell is marked `>` when it is one of the two bindings that move `selected`
@@ -1047,54 +865,32 @@ fn on_save(state: &Rc<RefCell<GuiState>>) {
     rebuild_recipe_menu(state);
 }
 
-/// Recipe menu → <name> → Apply: replay the recipe under the current labelling;
-/// under a relabelling, pop the three-panel rebinding teaching view.
-fn apply_recipe_by_name(state: &Rc<RefCell<GuiState>>, name: &str) {
-    if !confirm_leave_review(state) {
-        return;
-    }
-    let (frame, relabelled, moves): (Frame, bool, Option<Vec<(u32, u32)>>) = {
-        let st: std::cell::Ref<'_, GuiState> = state.borrow();
-        let moves: Option<Vec<(u32, u32)>> = st.registry.get(name).map(|r| r.default_moves.clone());
-        (
-            st.frame.clone(),
-            st.labelling != Labelling::OneTwoThree,
-            moves,
-        )
-    };
-    let labelling: Labelling = {
-        let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
-        let result: DispatchResult = st.dispatch(&Command::Apply(name.to_string()));
-        // The move count comes from the recipe, not the apply log (which omits
-        // the per-step log under a relabelling, feature-spec §4.8).
-        if let Some(count) = moves.as_ref().map(Vec::len) {
-            st.frame
-                .set_status_text(&format!("Applied '{name}' \u{2014} {count} moves."), 1);
-        } else if let Some(last) = result.lines.last() {
-            st.frame.set_status_text(last, 1);
-        }
-        st.refresh();
-        if st.is_won() {
-            st.won_via_apply = true;
-        }
-        st.labelling
-    };
-    celebrate_win(state);
-    if relabelled {
-        if let Some(moves) = moves {
-            show_rebinding(
-                &frame,
-                &format!("Rebinding for '{name}'"),
-                &moves,
-                labelling,
-            );
-        }
-    }
-}
-
 /// Recipe menu → <name> → View: show a saved recipe's steps; under a
 /// relabelling, the three-panel rebinding view instead.
 fn view_recipe(state: &Rc<RefCell<GuiState>>, name: &str) {
+    /// Show `lines` in a MONOSPACE dialog. The rebinding / recipe-show text is laid out as
+    /// aligned columns assuming a fixed-width font (like the CLI/TUI); a `MessageDialog` uses
+    /// a proportional font, which collapses the columns. A read-only teletype `TextCtrl`
+    /// keeps the columns aligned, matching the Python wx.
+    fn show_monospace_dialog(parent: &Frame, title: &str, lines: &[String]) {
+        let dlg: Dialog = Dialog::builder(parent, title).with_size(640, 460).build();
+        let text: TextCtrl = TextCtrl::builder(&dlg)
+            .with_style(TextCtrlStyle::MultiLine | TextCtrlStyle::ReadOnly)
+            .build();
+        if let Some(mono) = monospace_font() {
+            text.set_font(&mono);
+        }
+        text.set_value(&lines.join("\n"));
+        let close: Button = Button::builder(&dlg).with_label("Close").build();
+        let sizer: BoxSizer = BoxSizer::builder(Orientation::Vertical).build();
+        sizer.add(&text, 1, SizerFlag::Expand | SizerFlag::All, 8);
+        sizer.add(&close, 0, SizerFlag::All, 8);
+        dlg.set_sizer(sizer, true);
+        let dlg_for_close: Dialog = dlg.clone();
+        close.on_click(move |_| dlg_for_close.end_modal(ID_OK));
+        dlg.show_modal();
+    }
+
     let (frame, relabelled, moves): (Frame, bool, Option<Vec<(u32, u32)>>) = {
         let st: std::cell::Ref<'_, GuiState> = state.borrow();
         let moves: Option<Vec<(u32, u32)>> = st.registry.get(name).map(|r| r.default_moves.clone());
@@ -1196,6 +992,20 @@ fn toggle_history(state: &Rc<RefCell<GuiState>>) {
 /// from `main`) and reopenable from Help; the goal itself lives in the status
 /// bar (ui-design-principles ruling 4 — a centered dialog, not an inline panel).
 fn show_howto_dialog(state: &Rc<RefCell<GuiState>>) {
+    /// Draw the legal/illegal-move teaching figure onto a DC: a smaller disc may
+    /// rest on a larger one (left, allowed); a larger disc may never rest on a
+    /// smaller one (right, forbidden). Mirrors `hanoigui.py` _LegalMoveDiagram
+    /// (flat wxDC fills — wxDragon has no `wxGraphicsContext`).
+    fn draw_legal_diagram(dc: &AutoBufferedPaintDC, w: i32, h: i32) {
+        // Fill the panel background (AutoBufferedPaintDC must be painted fully).
+        let bg: Colour = Colour::rgb(238, 238, 242);
+        dc.gradient_fill_linear(DcRect::new(0, 0, w, h), bg, bg, GradientDirection::South);
+        dc.set_background_mode(BackgroundMode::Transparent);
+        let half: i32 = w / 2;
+        draw_diagram_example(dc, 0, half, true);
+        draw_diagram_example(dc, half, half, false);
+    }
+
     let (frame, initial): (Frame, bool) = {
         let st: std::cell::Ref<'_, GuiState> = state.borrow();
         (
@@ -1264,6 +1074,197 @@ fn show_howto_dialog(state: &Rc<RefCell<GuiState>>) {
 }
 
 fn main() {
+    /// Recipe menu → <name> → Apply: replay the recipe under the current labelling;
+    /// under a relabelling, pop the three-panel rebinding teaching view.
+    fn apply_recipe_by_name(state: &Rc<RefCell<GuiState>>, name: &str) {
+        if !confirm_leave_review(state) {
+            return;
+        }
+        let (frame, relabelled, moves): (Frame, bool, Option<Vec<(u32, u32)>>) = {
+            let st: std::cell::Ref<'_, GuiState> = state.borrow();
+            let moves: Option<Vec<(u32, u32)>> =
+                st.registry.get(name).map(|r| r.default_moves.clone());
+            (
+                st.frame.clone(),
+                st.labelling != Labelling::OneTwoThree,
+                moves,
+            )
+        };
+        let labelling: Labelling = {
+            let mut st: std::cell::RefMut<'_, GuiState> = state.borrow_mut();
+            let result: DispatchResult = st.dispatch(&Command::Apply(name.to_string()));
+            // The move count comes from the recipe, not the apply log (which omits
+            // the per-step log under a relabelling, feature-spec §4.8).
+            if let Some(count) = moves.as_ref().map(Vec::len) {
+                st.frame
+                    .set_status_text(&format!("Applied '{name}' \u{2014} {count} moves."), 1);
+            } else if let Some(last) = result.lines.last() {
+                st.frame.set_status_text(last, 1);
+            }
+            st.refresh();
+            if st.is_won() {
+                st.won_via_apply = true;
+            }
+            st.labelling
+        };
+        celebrate_win(state);
+        if relabelled {
+            if let Some(moves) = moves {
+                show_rebinding(
+                    &frame,
+                    &format!("Rebinding for '{name}'"),
+                    &moves,
+                    labelling,
+                );
+            }
+        }
+    }
+
+    /// Draw the board. `drag_src`/`drag_size`/`drag_x`/`drag_y` describe the disc
+    /// currently being dragged (if any): it is omitted from its home peg and drawn
+    /// following the cursor.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_board_dc(
+        dc: &AutoBufferedPaintDC,
+        w: i32,
+        h: i32,
+        game: &HanoiGame,
+        labelling: Labelling,
+        drag_src: Option<usize>,
+        drag_size: u32,
+        drag_x: i32,
+        drag_y: i32,
+    ) {
+        // Vertical background gradient (top lighter), matching the wxPython renderer's
+        // GraphicsContext gradient; the DC can't gradient-fill the rounded pegs/discs, so
+        // those stay flat. Transparent text background so the label digits have no box.
+        dc.gradient_fill_linear(
+            DcRect::new(0, 0, w, h),
+            Colour::rgb(45, 52, 68),
+            Colour::rgb(20, 26, 38),
+            GradientDirection::South,
+        );
+        dc.set_background_mode(BackgroundMode::Transparent);
+
+        let n: u32 = game.num_disks;
+        if n == 0 {
+            return;
+        }
+        let relabelled: bool = labelling != Labelling::OneTwoThree;
+
+        let margin: i32 = 20;
+        let label_band_h: i32 = if relabelled { 60 } else { 36 };
+        let base_h: i32 = 14;
+        let avail_h: i32 = (h - 2 * margin - label_band_h - base_h).max(80);
+        // A third of the width left between the margins (at least 80 px).
+        let peg_zone_w: f64 = f64::from((w - 2 * margin).max(80)) / 3.0;
+        let disc_h: f64 = (f64::from(avail_h) / f64::from(n.max(4)) * 0.92).min(30.0);
+        let max_disc_w: f64 = peg_zone_w * 0.92;
+        let peg_w: f64 = (max_disc_w * 0.07).max(8.0);
+        let peg_h: f64 = f64::from(avail_h) * 0.95;
+        let base_y: f64 = f64::from(h - margin - label_band_h - base_h);
+        let peg_top_y: f64 = base_y - peg_h;
+        let peg_centres: [f64; 3] = board_peg_centres(w);
+
+        // Base bar.
+        dc.set_pen(Colour::rgb(90, 64, 38), 1, PenStyle::Solid);
+        dc.set_brush(Colour::rgb(150, 110, 70), BrushStyle::Solid);
+        dc.draw_rounded_rectangle(margin, base_y as i32, w - 2 * margin, base_h, 4.0);
+
+        // Pegs.
+        for &cx in &peg_centres {
+            dc.set_pen(Colour::rgb(120, 86, 50), 1, PenStyle::Solid);
+            dc.set_brush(Colour::rgb(160, 120, 75), BrushStyle::Solid);
+            dc.draw_rounded_rectangle(
+                (cx - peg_w / 2.0) as i32,
+                peg_top_y as i32,
+                peg_w as i32,
+                peg_h as i32,
+                peg_w / 2.0,
+            );
+        }
+
+        // Discs (bottom-up), coloured by size.
+        for (p, stack) in game.towers.iter().enumerate() {
+            let cx: f64 = peg_centres[p];
+            for (idx, &size) in stack.iter().enumerate() {
+                // Omit the disc currently being dragged from its home peg.
+                if drag_src == Some(p) && idx + 1 == stack.len() {
+                    continue;
+                }
+                let dw: f64 = disc_width(size, n, max_disc_w);
+                let y: f64 = base_y - (idx as f64 + 1.0) * disc_h * 1.04;
+                let rgb: (u8, u8, u8) = disc_rgb(size);
+                dc.set_pen(darken(rgb, 0.45), 1, PenStyle::Solid);
+                dc.set_brush(colour(rgb), BrushStyle::Solid);
+                dc.draw_rounded_rectangle(
+                    (cx - dw / 2.0) as i32,
+                    y as i32,
+                    dw as i32,
+                    disc_h as i32,
+                    disc_h / 3.0,
+                );
+            }
+        }
+
+        // Active label badges (coloured circles with the label digit, bold + centred).
+        let active_label_y: f64 = base_y
+            + f64::from(base_h)
+            + if relabelled {
+                18.0
+            } else {
+                f64::from(label_band_h) / 2.0
+            };
+        if let Some(badge_font) = Font::builder()
+            .with_point_size(13)
+            .with_weight(FontWeight::Bold)
+            .build()
+        {
+            dc.set_font(&badge_font);
+        }
+        dc.set_text_foreground(Colour::rgb(255, 255, 255));
+        for (p, &cx) in peg_centres.iter().enumerate() {
+            let label: usize = change_labels_on_pegs(labelling, p);
+            let rgb: (u8, u8, u8) = label_rgb(label);
+            dc.set_pen(darken(rgb, 0.40), 1, PenStyle::Solid);
+            dc.set_brush(colour(rgb), BrushStyle::Solid);
+            dc.draw_circle(cx as i32, active_label_y as i32, 14);
+            let text: String = (label + 1).to_string();
+            let (tw, th): (i32, i32) = dc.get_text_extent(&text);
+            dc.draw_text(&text, cx as i32 - tw / 2, active_label_y as i32 - th / 2);
+        }
+
+        // Default 1-2-3 reference row when relabelled (smaller, neutral, centred).
+        if relabelled {
+            let ref_y: f64 = active_label_y + 26.0;
+            if let Some(ref_font) = Font::builder().with_point_size(10).build() {
+                dc.set_font(&ref_font);
+            }
+            dc.set_text_foreground(Colour::rgb(170, 178, 195));
+            for (p, &cx) in peg_centres.iter().enumerate() {
+                let text: String = (p + 1).to_string();
+                let (tw, th): (i32, i32) = dc.get_text_extent(&text);
+                dc.draw_text(&text, cx as i32 - tw / 2, ref_y as i32 - th / 2);
+            }
+        }
+
+        // The dragged disc follows the cursor, drawn on top in its size colour (as
+        // if lifted off its peg).
+        if drag_src.is_some() {
+            let dw: f64 = disc_width(drag_size, n, max_disc_w);
+            let rgb: (u8, u8, u8) = disc_rgb(drag_size);
+            dc.set_pen(darken(rgb, 0.45), 1, PenStyle::Solid);
+            dc.set_brush(colour(rgb), BrushStyle::Solid);
+            dc.draw_rounded_rectangle(
+                (f64::from(drag_x) - dw / 2.0) as i32,
+                (f64::from(drag_y) - disc_h / 2.0) as i32,
+                dw as i32,
+                disc_h as i32,
+                disc_h / 3.0,
+            );
+        }
+    }
+
     let _ = wxdragon::main(|_| {
         // Load the shared UI definition (the board panel + move hint) from the
         // baked XRC. The menu bar is built in code below (see the module docs).
@@ -1391,9 +1392,10 @@ fn main() {
         }
         history_toggle.check(true);
 
-        let status_bar: StatusBar = frame.create_status_bar(3, 0, ID_ANY as i32, "");
         // Field 0 = goal line; field 1 = action feedback; field 2 = moves counter.
-        status_bar.set_status_widths(&[-1, -2, 140]);
+        frame
+            .create_status_bar(3, 0, ID_ANY as i32, "")
+            .set_status_widths(&[-1, -2, 140]);
 
         // --- Board panel + move hint from the shared XRC ---
         let panel: Panel = res
@@ -1590,8 +1592,7 @@ fn main() {
                 if s.board().check_win_condition() {
                     return;
                 }
-                let w: i32 = s.board_graphics.get_size().width;
-                let peg: usize = nearest_board_peg(pos.x, w);
+                let peg: usize = nearest_board_peg(pos.x, s.board_graphics.get_size().width);
                 if let Some(&top) = s.board().towers[peg].last() {
                     s.drag_src = Some(peg);
                     s.drag_size = top;
@@ -1628,8 +1629,7 @@ fn main() {
                     let mut s: std::cell::RefMut<'_, GuiState> = st.borrow_mut();
                     let Some(src) = s.drag_src.take() else { return };
                     let Some(pos) = e.get_position() else { return };
-                    let w: i32 = s.board_graphics.get_size().width;
-                    let target: usize = nearest_board_peg(pos.x, w);
+                    let target: usize = nearest_board_peg(pos.x, s.board_graphics.get_size().width);
                     s.board_graphics.refresh(true, None); // snap back to true state
                     (src, target)
                 };

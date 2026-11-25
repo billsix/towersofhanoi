@@ -391,9 +391,9 @@ impl HanoiApp {
         let margin: f32 = 20.0;
         let label_band_h: f32 = if relabelled { 60.0 } else { 36.0 };
         let base_h: f32 = 14.0;
-        let avail_w: f32 = (w - 2.0 * margin).max(80.0);
         let avail_h: f32 = (h - 2.0 * margin - label_band_h - base_h).max(80.0);
-        let peg_zone_w: f32 = avail_w / 3.0;
+        // A third of the width left between the margins (at least 80 px).
+        let peg_zone_w: f32 = (w - 2.0 * margin).max(80.0) / 3.0;
         let disc_h: f32 = (avail_h / (n.max(4) as f32) * 0.92).min(30.0);
         let max_disc_w: f32 = peg_zone_w * 0.92;
         let peg_w: f32 = (max_disc_w * 0.07).max(8.0);
@@ -615,8 +615,10 @@ impl RebindView {
                     let marked: bool = used.is_some_and(|(from_label, to_label)| {
                         label == from_label || label == to_label
                     });
-                    let marker: &str = if marked { "▶" } else { " " };
-                    ui.monospace(format!("{marker} label {label} → peg {peg}"));
+                    ui.monospace(format!(
+                        "{marker} label {label} → peg {peg}",
+                        marker = if marked { "▶" } else { " " }
+                    ));
                 } else {
                     ui.label("");
                 }
@@ -697,8 +699,7 @@ impl eframe::App for HanoiApp {
                         ui.close_menu();
                     }
                     if ui.button("New Game (Same Size)").clicked() {
-                        let n: u32 = self.game.num_disks.max(1);
-                        self.request_new_game(n);
+                        self.request_new_game(self.game.num_disks.max(1));
                         ui.close_menu();
                     }
                 });

@@ -97,9 +97,9 @@ fn board_lines(session: &GameSession) -> Vec<Line<'static>> {
     }
     let labelling: Labelling = session.labelling;
     let relabelled: bool = labelling != Labelling::OneTwoThree;
-    let width: usize = presenter::total_width(n);
     let rows: usize = n + 3 + usize::from(relabelled);
-    let mut grid: Vec<Vec<(char, Color)>> = vec![vec![(' ', Color::White); width]; rows];
+    let mut grid: Vec<Vec<(char, Color)>> =
+        vec![vec![(' ', Color::White); presenter::total_width(n)]; rows];
 
     // Vertical pegs (rows 0..=n), white.
     for peg in 0..3 {
@@ -457,21 +457,19 @@ fn play_game(
         first_win,
     );
 
-    let default_name: String =
-        hanoigame::presenter::default_recipe_name(session.num_disks() as usize);
     let save_hint: [&str; 1] =
         ["Save this solution? Edit the name and press Enter, or clear it to skip."];
     let name: Option<String> = read_line_on(
         terminal,
-        &default_name,
+        // Prefilled with the default recipe name for this disc count.
+        &hanoigame::presenter::default_recipe_name(session.num_disks() as usize),
         |f, input| draw_play(f, &session, &banner, &save_hint, input),
         |s| s.to_string(),
     )?;
     if let Some(name) = name {
         let name: &str = name.trim();
         if !name.is_empty() {
-            let msg: String = session.save_recipe(name);
-            banner.push(msg);
+            banner.push(session.save_recipe(name));
         }
     }
 

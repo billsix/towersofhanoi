@@ -250,8 +250,8 @@ void draw_board(App &app) {
   // lacked this margin, so its outer pegs sat flush to the edges.
   const float margin = 20.0f;
   const float inner_w = board_w - 2.0f * margin;
-  const float avail_w = inner_w > 80.0f ? inner_w : 80.0f;
-  const float peg_gap = avail_w / 3.0f;
+  // A third of the inner width (at least 80 px).
+  const float peg_gap = (inner_w > 80.0f ? inner_w : 80.0f) / 3.0f;
   const float base_y = origin.y + board_h;
   const float disk_h = 20.0f;
   const float max_disk_w = peg_gap * 0.9f;
@@ -365,8 +365,7 @@ void draw_recipe_view(App &app) {
   }
   ImGui::Separator();
   ImGui::TextUnformatted(app.view.title.c_str());
-  const bool relabelled = app.view.labelling != hanoi::Labelling::OneTwoThree;
-  if (!relabelled) {
+  if (app.view.labelling == hanoi::Labelling::OneTwoThree) {
     ImGui::TextDisabled(
         "(default labelling -- no rebinding; the recipe's moves are the "
         "physical moves)");
@@ -635,8 +634,8 @@ void draw_save_modal(App &app) {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextUnformatted("Name this recipe:");
     ImGui::InputText("##name", app.name_buf, sizeof(app.name_buf));
-    const bool has_name = app.name_buf[0] != '\0';
-    if (ImGui::Button("Save") && has_name) {
+    // Save does nothing while the name field is empty.
+    if (ImGui::Button("Save") && app.name_buf[0] != '\0') {
       const std::string name = app.name_buf;
       const bool overwrote = app.registry.get(name) != nullptr;
       app.registry.save(app.recorder.to_recipe(name, app.game.num_disks()));
@@ -697,8 +696,9 @@ void draw_discard_save_modal(App &app) {
     ImGui::Separator();
     bool decided = false;
     if (ImGui::Button("Save")) {
-      const std::string name = hanoi::default_recipe_name(app.game.num_disks());
-      app.registry.save(app.recorder.to_recipe(name, app.game.num_disks()));
+      app.registry.save(app.recorder.to_recipe(
+          hanoi::default_recipe_name(app.game.num_disks()),
+          app.game.num_disks()));
       decided = true;
     }
     ImGui::SameLine();
@@ -706,8 +706,8 @@ void draw_discard_save_modal(App &app) {
       decided = true;
     }
     if (decided) {
-      const int n = app.pending_new_game >= 1 ? app.pending_new_game : 3;
-      app.new_game(n); // resets pending_new_game + the save flags
+      // new_game resets pending_new_game and the save flags.
+      app.new_game(app.pending_new_game >= 1 ? app.pending_new_game : 3);
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -778,8 +778,7 @@ void draw_illegal_modal(App &app) {
 // same checked path as a drop, so an illegal pair pops up its reason.
 void draw_moves(App &app) {
   ImGui::Separator();
-  const ImGuiIO &io = ImGui::GetIO();
-  if (!io.WantCaptureKeyboard &&
+  if (!ImGui::GetIO().WantCaptureKeyboard &&
       !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)) {
     static constexpr std::array<std::array<ImGuiKey, 2>, 3> kPegKeys{
         {{ImGuiKey_1, ImGuiKey_Keypad1},
@@ -895,9 +894,8 @@ void draw_continue_modal(App &app) {
 }
 
 void draw_frame(App &app) {
-  ImGuiIO &io = ImGui::GetIO();
   ImGui::SetNextWindowPos(ImVec2(0, 0));
-  ImGui::SetNextWindowSize(io.DisplaySize);
+  ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
   const ImGuiWindowFlags flags =
       ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar |
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
