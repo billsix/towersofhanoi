@@ -21,8 +21,7 @@
 # and tasks/egui-web-no-network-static-gate.md.
 set -u
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-rust_dir="$(cd "$here/.." && pwd)"
+rust_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Committed web SOURCE of each Rust web target -- never the generated output
 # (tauri embeds frontend/ at build; egui's trunk output is the gitignored dist/).

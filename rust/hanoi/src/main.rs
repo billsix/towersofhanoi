@@ -63,34 +63,34 @@ fn peg_fg(labelling: Labelling, tower_index: usize) -> Color {
 
 // --- Board -----------------------------------------------------------------
 
-/// Coalesce a row of `(char, colour)` cells into a styled [`Line`], merging
-/// adjacent cells that share a colour into one span.
-fn row_to_line(cells: Vec<(char, Color)>) -> Line<'static> {
-    let mut spans: Vec<Span<'static>> = Vec::new();
-    let mut run: String = String::new();
-    let mut run_color: Color = Color::White;
-    for (ch, color) in cells {
-        if !run.is_empty() && color != run_color {
-            spans.push(Span::styled(
-                std::mem::take(&mut run),
-                Style::default().fg(run_color),
-            ));
-        }
-        if run.is_empty() {
-            run_color = color;
-        }
-        run.push(ch);
-    }
-    if !run.is_empty() {
-        spans.push(Span::styled(run, Style::default().fg(run_color)));
-    }
-    Line::from(spans)
-}
-
 /// Build the coloured board as styled lines: cyan discs, white pegs/base, and
 /// the active label row (plus a default-reference row when relabelled) coloured
 /// per peg. Empty for a 0-disc game. Mirrors the curses `_draw_board`.
 fn board_lines(session: &GameSession) -> Vec<Line<'static>> {
+    /// Coalesce a row of `(char, colour)` cells into a styled [`Line`], merging
+    /// adjacent cells that share a colour into one span.
+    fn row_to_line(cells: Vec<(char, Color)>) -> Line<'static> {
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let mut run: String = String::new();
+        let mut run_color: Color = Color::White;
+        for (ch, color) in cells {
+            if !run.is_empty() && color != run_color {
+                spans.push(Span::styled(
+                    std::mem::take(&mut run),
+                    Style::default().fg(run_color),
+                ));
+            }
+            if run.is_empty() {
+                run_color = color;
+            }
+            run.push(ch);
+        }
+        if !run.is_empty() {
+            spans.push(Span::styled(run, Style::default().fg(run_color)));
+        }
+        Line::from(spans)
+    }
+
     let n: usize = session.num_disks() as usize;
     if n == 0 {
         return Vec::new();
@@ -150,24 +150,6 @@ fn digit_char(d: usize) -> char {
     char::from_digit(d as u32, 10).expect("label digit is 1..=9")
 }
 
-/// The one-line status, led by the always-present Tier-1 goal line; the move
-/// count carries the optimal 2^N-1 alongside it (the always-visible history
-/// indicator -- the full numbered tally is the `history` command).
-/// (feature-spec §3.5/§6.1.)
-fn status_line(session: &GameSession) -> String {
-    let a: usize = change_labels_on_pegs(session.labelling, 0) + 1;
-    let b: usize = change_labels_on_pegs(session.labelling, 1) + 1;
-    let c: usize = change_labels_on_pegs(session.labelling, 2) + 1;
-    format!(
-        " Goal: move all {} discs to peg 3    Moves: {}/{}    \
-         Labelling: {a} {b} {c}    Recipes: {} ",
-        session.num_disks(),
-        session.current_moves(),
-        session.min_moves(),
-        session.registry.len()
-    )
-}
-
 // --- Rendering --------------------------------------------------------------
 
 /// Render the whole play screen: status row, centred board, message area, hint
@@ -180,6 +162,24 @@ fn draw_play(
     hint: &[&str],
     input: &str,
 ) {
+    /// The one-line status, led by the always-present Tier-1 goal line; the move
+    /// count carries the optimal 2^N-1 alongside it (the always-visible history
+    /// indicator -- the full numbered tally is the `history` command).
+    /// (feature-spec §3.5/§6.1.)
+    fn status_line(session: &GameSession) -> String {
+        let a: usize = change_labels_on_pegs(session.labelling, 0) + 1;
+        let b: usize = change_labels_on_pegs(session.labelling, 1) + 1;
+        let c: usize = change_labels_on_pegs(session.labelling, 2) + 1;
+        format!(
+            " Goal: move all {} discs to peg 3    Moves: {}/{}    \
+             Labelling: {a} {b} {c}    Recipes: {} ",
+            session.num_disks(),
+            session.current_moves(),
+            session.min_moves(),
+            session.registry.len()
+        )
+    }
+
     let [status, valid, board, messages, hints, prompt]: [Rect; 6] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
@@ -248,26 +248,6 @@ fn draw_disc_prompt(f: &mut Frame, input: &str) {
         Line::from(format!("> {input}")),
     ];
     f.render_widget(Paragraph::new(lines), f.area());
-}
-
-/// Render the full-screen pager for output taller than the message area.
-fn draw_pager(f: &mut Frame, lines: &[String], top: usize) {
-    let area: Rect = f.area();
-    let view_h: usize = area.height.saturating_sub(1) as usize;
-    let mut shown: Vec<Line> = lines
-        .iter()
-        .skip(top)
-        .take(view_h)
-        .map(|s| Line::from(s.clone()))
-        .collect();
-    while shown.len() < view_h {
-        shown.push(Line::from(""));
-    }
-    shown.push(Line::from(Span::styled(
-        "[Up/Down PgUp/PgDn Home/End scroll - q or Enter to close]",
-        Style::default().fg(Color::Gray),
-    )));
-    f.render_widget(Paragraph::new(shown), area);
 }
 
 // --- Input ------------------------------------------------------------------
@@ -346,34 +326,28 @@ where
     }
 }
 
-/// Tab-completion for the TUI prompt: complete the token under the cursor against
-/// the shared `commands::completions` candidates (command verbs, or recipe names
-/// after `apply `/`show `). One candidate fills in fully; several fill to their
-/// longest common prefix; none leaves `input` unchanged. Mirrors the CLI's
-/// readline completion so the two front-ends behave the same.
-fn complete_line(input: &str, recipe_names: &[String]) -> String {
-    let text: &str = input.rsplit(' ').next().unwrap_or("");
-    let cands: Vec<String> = hanoigame::commands::completions(input, text, recipe_names);
-    if cands.is_empty() {
-        return input.to_string();
-    }
-    let fill: String = if cands.len() == 1 {
-        cands[0].clone()
-    } else {
-        let mut prefix: String = cands[0].clone();
-        for c in &cands[1..] {
-            while !c.starts_with(&prefix) {
-                prefix.pop();
-            }
-        }
-        prefix
-    };
-    let base: &str = input.strip_suffix(text).unwrap_or(input);
-    format!("{base}{fill}")
-}
-
 /// Page through `lines` full-screen until the user closes it.
 fn pager(terminal: &mut DefaultTerminal, lines: &[String]) -> std::io::Result<()> {
+    /// Render the full-screen pager for output taller than the message area.
+    fn draw_pager(f: &mut Frame, lines: &[String], top: usize) {
+        let area: Rect = f.area();
+        let view_h: usize = area.height.saturating_sub(1) as usize;
+        let mut shown: Vec<Line> = lines
+            .iter()
+            .skip(top)
+            .take(view_h)
+            .map(|s| Line::from(s.clone()))
+            .collect();
+        while shown.len() < view_h {
+            shown.push(Line::from(""));
+        }
+        shown.push(Line::from(Span::styled(
+            "[Up/Down PgUp/PgDn Home/End scroll - q or Enter to close]",
+            Style::default().fg(Color::Gray),
+        )));
+        f.render_widget(Paragraph::new(shown), area);
+    }
+
     let mut top: usize = 0;
     loop {
         terminal.draw(|f| draw_pager(f, lines, top))?;
@@ -419,6 +393,32 @@ fn play_game(
     first_win: bool,
     registry: &mut RecipeRegistry,
 ) -> std::io::Result<Option<bool>> {
+    /// Tab-completion for the TUI prompt: complete the token under the cursor against
+    /// the shared `commands::completions` candidates (command verbs, or recipe names
+    /// after `apply `/`show `). One candidate fills in fully; several fill to their
+    /// longest common prefix; none leaves `input` unchanged. Mirrors the CLI's
+    /// readline completion so the two front-ends behave the same.
+    fn complete_line(input: &str, recipe_names: &[String]) -> String {
+        let text: &str = input.rsplit(' ').next().unwrap_or("");
+        let cands: Vec<String> = hanoigame::commands::completions(input, text, recipe_names);
+        if cands.is_empty() {
+            return input.to_string();
+        }
+        let fill: String = if cands.len() == 1 {
+            cands[0].clone()
+        } else {
+            let mut prefix: String = cands[0].clone();
+            for c in &cands[1..] {
+                while !c.starts_with(&prefix) {
+                    prefix.pop();
+                }
+            }
+            prefix
+        };
+        let base: &str = input.strip_suffix(text).unwrap_or(input);
+        format!("{base}{fill}")
+    }
+
     let mut session: GameSession<'_> = GameSession::new(n, registry);
     // Open with the Tier-1 onboarding in the message area; the first move's
     // feedback replaces it.
@@ -487,27 +487,27 @@ fn play_game(
     ))
 }
 
-/// The game loop: prompt for a disc count, play, repeat until the user quits.
-fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
-    let mut registry: RecipeRegistry = RecipeRegistry::new();
-    let mut won_before: bool = false;
-    loop {
-        let Some(n) = prompt_disc_count(terminal)? else {
-            return Ok(());
-        };
-        match play_game(terminal, n, !won_before, &mut registry)? {
-            None => return Ok(()),
-            Some(play_again) => {
-                won_before = true;
-                if !play_again {
-                    return Ok(());
+fn main() -> std::io::Result<()> {
+    /// The game loop: prompt for a disc count, play, repeat until the user quits.
+    fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
+        let mut registry: RecipeRegistry = RecipeRegistry::new();
+        let mut won_before: bool = false;
+        loop {
+            let Some(n) = prompt_disc_count(terminal)? else {
+                return Ok(());
+            };
+            match play_game(terminal, n, !won_before, &mut registry)? {
+                None => return Ok(()),
+                Some(play_again) => {
+                    won_before = true;
+                    if !play_again {
+                        return Ok(());
+                    }
                 }
             }
         }
     }
-}
 
-fn main() -> std::io::Result<()> {
     let mut terminal: DefaultTerminal = ratatui::init();
     let result: std::io::Result<()> = app(&mut terminal);
     ratatui::restore();

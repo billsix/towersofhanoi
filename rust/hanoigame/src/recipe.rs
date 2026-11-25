@@ -220,6 +220,31 @@ impl Replay {
     /// Apply the next recipe move to `game`, returning its [`StepResult`], or
     /// `None` once the recipe is exhausted or a prior step failed.
     pub fn step(&mut self, game: &mut HanoiGame) -> Option<StepResult> {
+        /// A human-readable reason a recipe move is illegal in the current state.
+        fn explain_illegal(
+            game: &HanoiGame,
+            from_peg: usize,
+            to_peg: usize,
+            from_label: u32,
+            to_label: u32,
+        ) -> String {
+            let step: String = format!("recipe move '{from_label} -> {to_label}'");
+            let Some(&from_top) = game.towers[from_peg].last() else {
+                return format!(
+                    "{step}: peg {from_label} (physical {}) is empty.",
+                    from_peg + 1
+                );
+            };
+            if let Some(&to_top) = game.towers[to_peg].last() {
+                if from_top > to_top {
+                    return format!(
+                        "{step}: would put disc {from_top} on disc {to_top} — larger on smaller."
+                    );
+                }
+            }
+            format!("{step}: illegal in current state.")
+        }
+
         if self.stopped || self.idx >= self.moves.len() {
             return None;
         }
@@ -280,31 +305,6 @@ pub fn apply(recipe: &Recipe, game: &mut HanoiGame, labelling: Labelling) -> Vec
     results
 }
 
-/// A human-readable reason a recipe move is illegal in the current state.
-fn explain_illegal(
-    game: &HanoiGame,
-    from_peg: usize,
-    to_peg: usize,
-    from_label: u32,
-    to_label: u32,
-) -> String {
-    let step: String = format!("recipe move '{from_label} -> {to_label}'");
-    let Some(&from_top) = game.towers[from_peg].last() else {
-        return format!(
-            "{step}: peg {from_label} (physical {}) is empty.",
-            from_peg + 1
-        );
-    };
-    if let Some(&to_top) = game.towers[to_peg].last() {
-        if from_top > to_top {
-            return format!(
-                "{step}: would put disc {from_top} on disc {to_top} — larger on smaller."
-            );
-        }
-    }
-    format!("{step}: illegal in current state.")
-}
-
 // --- The rebinding: recipe's local labels -> physical pegs ------------------
 
 /// Map each recipe label 1..=3 to the 1-indexed physical peg it resolves to
@@ -322,9 +322,12 @@ fn explain_illegal(
 pub fn rebinding(labelling: Labelling) -> [(u32, u32); 3] {
     let mut pairs: [(u32, u32); 3] = [(0, 0); 3];
     for (i, label) in [1u32, 2, 3].into_iter().enumerate() {
-        let peg: usize =
-            label_to_tower(labelling, label).expect("a label in 1..=3 always resolves");
-        pairs[i] = (label, (peg + 1) as u32);
+        // The label's physical peg, 1-based.
+        pairs[i] = (
+            label,
+            (label_to_tower(labelling, label).expect("a label in 1..=3 always resolves") + 1)
+                as u32,
+        );
     }
     pairs
 }
@@ -364,9 +367,11 @@ pub fn rebound_moves(moves: &[(u32, u32)], labelling: Labelling) -> Vec<(u32, u3
     moves
         .iter()
         .map(|&(from_label, to_label)| {
-            let fp: usize = label_to_tower(labelling, from_label).expect("labels are 1..=3");
-            let tp: usize = label_to_tower(labelling, to_label).expect("labels are 1..=3");
-            ((fp + 1) as u32, (tp + 1) as u32)
+            // The physical peg each label sits on, 1-based: (from, to).
+            (
+                (label_to_tower(labelling, from_label).expect("labels are 1..=3") + 1) as u32,
+                (label_to_tower(labelling, to_label).expect("labels are 1..=3") + 1) as u32,
+            )
         })
         .collect()
 }

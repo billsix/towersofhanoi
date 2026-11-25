@@ -100,10 +100,10 @@ inline std::optional<int> label_to_tower(Labelling l, int label) {
   if (label < 1 || label > 3) {
     return std::nullopt;
   }
-  const int target = label - 1;
   const std::array<int, 3> order = label_order(l);
   for (int tower_index = 0; tower_index < 3; ++tower_index) {
-    if (order[tower_index] == target) {
+    // `label - 1` is the label's 0-based index, the value `order` holds.
+    if (order[tower_index] == label - 1) {
       return tower_index;
     }
   }
@@ -161,10 +161,9 @@ TEST_CASE("default_recipe_name is solve-<N>") {
 inline std::vector<std::string> format_win_celebration(int num_disks, int moves,
                                                        int min_moves,
                                                        bool first_win) {
-  const char *noun = moves == 1 ? "move" : "moves";
   std::vector<std::string> lines;
   lines.push_back("Congratulations — you solved it in " +
-                  std::to_string(moves) + " " + noun + "!");
+                  std::to_string(moves) + (moves == 1 ? " move!" : " moves!"));
   if (moves == min_moves) {
     lines.push_back("Optimal — the fewest possible for " +
                     std::to_string(num_disks) + " discs.");

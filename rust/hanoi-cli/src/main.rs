@@ -169,29 +169,6 @@ fn prompt_disc_count<W: Write>(
     }
 }
 
-/// After a win, offer to save the solution as a recipe.
-fn prompt_save<W: Write>(reader: &mut dyn LineReader, session: &mut GameSession, output: &mut W) {
-    let default: String = default_recipe_name(session.num_disks() as usize);
-    let names: Vec<String> = session.registry.names();
-    let prompt: String = format!(
-        "\nSave this solution as a recipe? Enter to save as '{default}', a name \
-         to rename, or '-' to skip: "
-    );
-    let Some(line) = reader.read(&prompt, output, &names) else {
-        return;
-    };
-    let name: &str = line.trim();
-    if name == "-" {
-        return;
-    }
-    let name: &str = if name.is_empty() {
-        default.as_str()
-    } else {
-        name
-    };
-    let _ = writeln!(output, "{}", session.save_recipe(name));
-}
-
 /// Play one game to a win, quit, or EOF. Returns whether to play again.
 fn play_game<W: Write>(
     reader: &mut dyn LineReader,
@@ -200,6 +177,33 @@ fn play_game<W: Write>(
     first_win: bool,
     output: &mut W,
 ) -> Option<bool> {
+    /// After a win, offer to save the solution as a recipe.
+    fn prompt_save<W: Write>(
+        reader: &mut dyn LineReader,
+        session: &mut GameSession,
+        output: &mut W,
+    ) {
+        let default: String = default_recipe_name(session.num_disks() as usize);
+        let names: Vec<String> = session.registry.names();
+        let prompt: String = format!(
+            "\nSave this solution as a recipe? Enter to save as '{default}', a name \
+             to rename, or '-' to skip: "
+        );
+        let Some(line) = reader.read(&prompt, output, &names) else {
+            return;
+        };
+        let name: &str = line.trim();
+        if name == "-" {
+            return;
+        }
+        let name: &str = if name.is_empty() {
+            default.as_str()
+        } else {
+            name
+        };
+        let _ = writeln!(output, "{}", session.save_recipe(name));
+    }
+
     let mut session: GameSession<'_> = GameSession::new(n, registry);
 
     while !session.is_won() {
@@ -280,27 +284,27 @@ pub fn run<R: BufRead, W: Write>(input: &mut R, output: &mut W) -> i32 {
     game_loop(&mut reader, output)
 }
 
-/// Run at a real terminal with rustyline line editing + Tab completion.
-fn run_interactive() -> i32 {
-    let mut editor: rustyline::Editor<HanoiHelper, rustyline::history::DefaultHistory> =
-        match rustyline::Editor::<HanoiHelper, rustyline::history::DefaultHistory>::new() {
-            Ok(editor) => editor,
-            Err(_) => {
-                // readline init failed — fall back to the plain stream path.
-                let stdin: std::io::Stdin = std::io::stdin();
-                let stdout: std::io::Stdout = std::io::stdout();
-                return run(&mut stdin.lock(), &mut stdout.lock());
-            }
-        };
-    editor.set_helper(Some(HanoiHelper {
-        recipe_names: Vec::new(),
-    }));
-    let mut reader: RustylineReader = RustylineReader { editor };
-    let stdout: std::io::Stdout = std::io::stdout();
-    game_loop(&mut reader, &mut stdout.lock())
-}
-
 fn main() {
+    /// Run at a real terminal with rustyline line editing + Tab completion.
+    fn run_interactive() -> i32 {
+        let mut editor: rustyline::Editor<HanoiHelper, rustyline::history::DefaultHistory> =
+            match rustyline::Editor::<HanoiHelper, rustyline::history::DefaultHistory>::new() {
+                Ok(editor) => editor,
+                Err(_) => {
+                    // readline init failed — fall back to the plain stream path.
+                    let stdin: std::io::Stdin = std::io::stdin();
+                    let stdout: std::io::Stdout = std::io::stdout();
+                    return run(&mut stdin.lock(), &mut stdout.lock());
+                }
+            };
+        editor.set_helper(Some(HanoiHelper {
+            recipe_names: Vec::new(),
+        }));
+        let mut reader: RustylineReader = RustylineReader { editor };
+        let stdout: std::io::Stdout = std::io::stdout();
+        game_loop(&mut reader, &mut stdout.lock())
+    }
+
     if std::io::stdin().is_terminal() {
         std::process::exit(run_interactive());
     }

@@ -97,8 +97,11 @@ pub fn label_to_tower(labelling: Labelling, label: u32) -> Option<usize> {
     if !(1..=3).contains(&label) {
         return None;
     }
-    let target: usize = (label - 1) as usize;
-    labelling.label_order().iter().position(|&l| l == target)
+    // `label - 1` is the label's 0-based index, the value `label_order` holds per tower.
+    labelling
+        .label_order()
+        .iter()
+        .position(|&l| l == (label - 1) as usize)
 }
 
 // --- Colours (referenced by the TUI; harmless to ignore from the CLI) -------
@@ -223,17 +226,6 @@ fn digit_char(d: usize) -> char {
     char::from_digit(d as u32, 10).expect("label digit is 1..=9")
 }
 
-/// A line showing the default "1 2 3" labelling at the peg-centre columns, used
-/// as a reference row under a non-default labelling.
-pub fn default_label_row(num_disks: usize) -> String {
-    let width: usize = total_width(num_disks);
-    let mut row: Vec<char> = vec![' '; width];
-    for peg in 0..3 {
-        row[peg_center_x(num_disks, peg)] = digit_char(peg + 1);
-    }
-    row.into_iter().collect()
-}
-
 /// Render the board top-to-bottom as plain ASCII lines.
 ///
 /// Rows 0..=num_disks are the peg verticals with discs overlaid, then the base
@@ -262,6 +254,16 @@ pub fn default_label_row(num_disks: usize) -> String {
 /// assert!(render(&HanoiGame::new(0), Labelling::OneTwoThree).is_empty());
 /// ```
 pub fn render(game: &HanoiGame, labelling: Labelling) -> Vec<String> {
+    /// A line showing the default "1 2 3" labelling at the peg-centre columns, used
+    /// as a reference row under a non-default labelling.
+    fn default_label_row(num_disks: usize) -> String {
+        let mut row: Vec<char> = vec![' '; total_width(num_disks)];
+        for peg in 0..3 {
+            row[peg_center_x(num_disks, peg)] = digit_char(peg + 1);
+        }
+        row.into_iter().collect()
+    }
+
     let n: usize = game.num_disks as usize;
     if n == 0 {
         return Vec::new();
@@ -384,18 +386,18 @@ pub fn format_win_celebration(
     min_moves: u64,
     first_win: bool,
 ) -> Vec<String> {
-    let noun: &str = if moves == 1 { "move" } else { "moves" };
     let mut lines: Vec<String> = vec![format!(
-        "Congratulations — you solved it in {moves} {noun}!"
+        "Congratulations — you solved it in {moves} {noun}!",
+        noun = if moves == 1 { "move" } else { "moves" }
     )];
     if moves == min_moves {
         lines.push(format!(
             "Optimal — the fewest possible for {num_disks} discs."
         ));
     } else {
-        let extra: u64 = moves - min_moves;
         lines.push(format!(
-            "That is {extra} more than the optimal {min_moves} for {num_disks} discs."
+            "That is {extra} more than the optimal {min_moves} for {num_disks} discs.",
+            extra = moves - min_moves
         ));
     }
     if first_win {
@@ -427,9 +429,10 @@ pub fn labels_to_towers(
     from_label: u32,
     to_label: u32,
 ) -> Option<(usize, usize)> {
-    let fp: usize = label_to_tower(labelling, from_label)?;
-    let tp: usize = label_to_tower(labelling, to_label)?;
-    Some((fp, tp))
+    Some((
+        label_to_tower(labelling, from_label)?,
+        label_to_tower(labelling, to_label)?,
+    ))
 }
 
 #[cfg(test)]
