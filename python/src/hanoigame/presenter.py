@@ -306,28 +306,6 @@ def min_cols(num_disks: int) -> int:
 # --- Pure text rendering ---------------------------------------------------
 
 
-def default_label_row(num_disks: int) -> str:
-    """A line showing the default '1 2 3' labelling at peg-centre columns.
-
-    Used as a second label row under the active labelling whenever the
-    user has relabelled, so they can see both the current labels and the
-    physical peg numbers underneath them.
-
-    Args:
-        num_disks: The game's disc count.
-
-    Returns:
-        A `total_width(num_disks)`-wide string with '1', '2', '3' at the peg
-        centres and spaces elsewhere.
-    """
-    width: int = total_width(num_disks)
-    row: list[str] = [" "] * width
-    p_idx: int
-    for p_idx in range(3):
-        row[peg_center_x(num_disks, p_idx)] = str(p_idx + 1)
-    return "".join(row)
-
-
 def render(game: HanoiGame, labelling: Labelling) -> list[str]:
     """Render the board top-to-bottom as plain ASCII lines.
 
@@ -369,6 +347,27 @@ def render(game: HanoiGame, labelling: Labelling) -> list[str]:
         >>> render(HanoiGame(num_disks=0), Labelling.ONE_TWO_THREE)
         []
     """
+
+    def default_label_row(num_disks: int) -> str:
+        """A line showing the default '1 2 3' labelling at peg-centre columns.
+
+        Used as a second label row under the active labelling whenever the
+        user has relabelled, so they can see both the current labels and the
+        physical peg numbers underneath them.
+
+        Args:
+            num_disks: The game's disc count.
+
+        Returns:
+            A `total_width(num_disks)`-wide string with '1', '2', '3' at the peg
+            centres and spaces elsewhere.
+        """
+        row: list[str] = [" "] * total_width(num_disks)
+        p_idx: int
+        for p_idx in range(3):
+            row[peg_center_x(num_disks, p_idx)] = str(p_idx + 1)
+        return "".join(row)
+
     n: int = game.num_disks
     if n == 0:
         return []

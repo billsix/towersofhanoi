@@ -67,35 +67,6 @@ def _is_interactive(in_: TextIO) -> bool:
         return False
 
 
-def _read_line(prompt: str, in_: TextIO, out: TextIO) -> str | None:
-    """Read one line of input, with terminal editing when interactive.
-
-    At an interactive terminal the read goes through `input()` so `readline`
-    line-editing and tab-completion fire; otherwise it writes `prompt` to `out`
-    and reads `in_` exactly as before, keeping scripted output identical.
-
-    Args:
-        prompt: The prompt to display before reading.
-        in_: The stream the line is read from.
-        out: The stream the prompt is written to (non-interactive path).
-
-    Returns:
-        The line with its trailing newline stripped, or ``None`` on EOF.
-    """
-    if _is_interactive(in_):
-        out.flush()
-        try:
-            return input(prompt)
-        except EOFError:
-            return None
-    out.write(prompt)
-    out.flush()
-    line: str = in_.readline()
-    if not line:  # EOF
-        return None
-    return line.rstrip("\n")
-
-
 def _completions(buffer: str, text: str, registry: RecipeRegistry) -> list[str]:
     """Readline-side adapter over the shared `commands.completions`.
 
@@ -148,144 +119,6 @@ def _install_completion(registry: RecipeRegistry, in_: TextIO) -> None:
         readline.parse_and_bind("tab: complete")
 
 
-def _print_board(session: GameSession, out: TextIO) -> None:
-    """Render the current board plus the running move count to ``out``.
-
-    Args:
-        session: The live game session to render.
-        out: The stream board lines are written to.
-    """
-    # Tier-1 goal line above the board; the running move count is the legend's
-    # trailing "Moves: N" line, so it is not repeated here.
-    out.write(f"Goal: move all {session.num_disks} discs to peg 3\n")
-    line: str
-    for line in presenter.render_with_legend(session.game, session.labelling):
-        out.write(line + "\n")
-
-
-def _prompt_disc_count(in_: TextIO, out: TextIO) -> int | None:
-    """Prompt repeatedly for a disc count until a valid one is given.
-
-    Args:
-        in_: The stream the answer is read from.
-        out: The stream the prompt is written to.
-
-    Returns:
-        The chosen disc count in ``1..MAX_DISKS``, or ``None`` if the user
-        EOFs or quits.
-    """
-    while True:
-        line: str | None = _read_line(
-            f"How many discs? (1-{MAX_DISKS}, or 'quit'): ", in_, out
-        )
-        if line is None:  # EOF
-            return None
-        s: str = line.strip().lower()
-        if s in ("quit", "q", "exit"):
-            return None
-        if s.isdigit():
-            n: int = int(s)
-            if 1 <= n <= MAX_DISKS:
-                return n
-        out.write(f"Please enter a number from 1 to {MAX_DISKS}.\n")
-
-
-def _prompt_save(session: GameSession, in_: TextIO, out: TextIO) -> None:
-    """After a win, offer to save this solution as a recipe.
-
-    Pressing Enter accepts the default name ``solve-<n>`` (matching the GUI, so
-    the user needn't invent one); typing a name saves under it; typing ``-``
-    (or EOF) skips saving.
-
-    Args:
-        session: The won session whose solution may be saved.
-        in_: The stream the name is read from.
-        out: The stream the prompt and result are written to.
-    """
-    default: str = presenter.default_recipe_name(session.num_disks)
-    line: str | None = _read_line(
-        f"\nSave this solution as a recipe? "
-        f"Enter to save as '{default}', a name to rename, or '-' to skip: ",
-        in_,
-        out,
-    )
-    if line is None:
-        return
-    name: str = line.strip()
-    if name == "-":
-        return
-    if not name:
-        name = default
-    out.write(session.save_recipe(name) + "\n")
-
-
-def _play_game(
-    n: int,
-    registry: RecipeRegistry,
-    in_: TextIO,
-    out: TextIO,
-    *,
-    first_win: bool,
-) -> bool | None:
-    """Play one game to a win, quit, or EOF.
-
-    Args:
-        n: The number of discs to start with.
-        registry: The recipe store shared across games.
-        in_: The stream commands are read from.
-        out: The stream the board and messages are written to.
-        first_win: True when no game has been won yet this run (gates the
-            one-time recipe teaching in the win celebration).
-
-    Returns:
-        ``None`` if the user left without winning (quit or EOF mid-game);
-        otherwise the game was won and the bool is whether to play again.
-    """
-    session: GameSession = GameSession(num_disks=n, registry=registry)
-
-    while not session.is_won():
-        out.write("\n")
-        _print_board(session, out)
-        out.write(session.valid_moves_str() + "\n")
-        line: str | None = _read_line("> ", in_, out)
-        if line is None:  # EOF
-            return None
-        cmd: Command = parse(line)
-        result: DispatchResult = session.dispatch(cmd)
-        output_line: str
-        for output_line in result.lines:
-            out.write(output_line + "\n")
-        # After a plain move under a relabelling, print the same three-column
-        # rebinding table `apply` shows — so a hand move teaches the local->
-        # global mapping too. Empty otherwise (see move_teaching_lines).
-        teaching_line: str
-        for teaching_line in session.move_teaching_lines(cmd, result):
-            out.write(teaching_line + "\n")
-        if result.quit:
-            return None
-
-    # Won
-    out.write("\n")
-    _print_board(session, out)
-    out.write("\n")
-    celebration: list[str] = presenter.format_win_celebration(
-        session.num_disks,
-        session.current_moves,
-        session.min_moves(),
-        first_win=first_win,
-    )
-    line_out: str
-    for line_out in celebration:
-        out.write(line_out + "\n")
-
-    _prompt_save(session, in_, out)
-
-    again: str | None = _read_line("\nPlay again? (y/n): ", in_, out)
-    if again is None:
-        return False
-    return again.strip().lower().startswith("y")
-
-
 def run(in_: TextIO, out: TextIO) -> int:
     """Programmatic entry point — pass any pair of streams.
 
@@ -299,6 +132,177 @@ def run(in_: TextIO, out: TextIO) -> int:
     Returns:
         The process exit code (always ``0``).
     """
+
+    def _read_line(prompt: str, in_: TextIO, out: TextIO) -> str | None:
+        """Read one line of input, with terminal editing when interactive.
+
+        At an interactive terminal the read goes through `input()` so `readline`
+        line-editing and tab-completion fire; otherwise it writes `prompt` to
+        `out` and reads `in_` exactly as before, keeping scripted output
+        identical.
+
+        Args:
+            prompt: The prompt to display before reading.
+            in_: The stream the line is read from.
+            out: The stream the prompt is written to (non-interactive path).
+
+        Returns:
+            The line with its trailing newline stripped, or ``None`` on EOF.
+        """
+        if _is_interactive(in_):
+            out.flush()
+            try:
+                return input(prompt)
+            except EOFError:
+                return None
+        out.write(prompt)
+        out.flush()
+        line: str = in_.readline()
+        if not line:  # EOF
+            return None
+        return line.rstrip("\n")
+
+    def _play_game(
+        n: int,
+        registry: RecipeRegistry,
+        in_: TextIO,
+        out: TextIO,
+        *,
+        first_win: bool,
+    ) -> bool | None:
+        """Play one game to a win, quit, or EOF.
+
+        Args:
+            n: The number of discs to start with.
+            registry: The recipe store shared across games.
+            in_: The stream commands are read from.
+            out: The stream the board and messages are written to.
+            first_win: True when no game has been won yet this run (gates the
+                one-time recipe teaching in the win celebration).
+
+        Returns:
+            ``None`` if the user left without winning (quit or EOF mid-game);
+            otherwise the game was won and the bool is whether to play again.
+        """
+
+        def _prompt_save(
+            session: GameSession, in_: TextIO, out: TextIO
+        ) -> None:
+            """After a win, offer to save this solution as a recipe.
+
+            Pressing Enter accepts the default name ``solve-<n>`` (matching the
+            GUI, so the user needn't invent one); typing a name saves under it;
+            typing ``-`` (or EOF) skips saving.
+
+            Args:
+                session: The won session whose solution may be saved.
+                in_: The stream the name is read from.
+                out: The stream the prompt and result are written to.
+            """
+            default: str = presenter.default_recipe_name(session.num_disks)
+            line: str | None = _read_line(
+                f"\nSave this solution as a recipe? "
+                f"Enter to save as '{default}', a name to rename, "
+                f"or '-' to skip: ",
+                in_,
+                out,
+            )
+            if line is None:
+                return
+            name: str = line.strip()
+            if name == "-":
+                return
+            if not name:
+                name = default
+            out.write(session.save_recipe(name) + "\n")
+
+        def _print_board(session: GameSession, out: TextIO) -> None:
+            """Render the current board plus the running move count to ``out``.
+
+            Args:
+                session: The live game session to render.
+                out: The stream board lines are written to.
+            """
+            # Tier-1 goal line above the board; the running move count is the
+            # legend's trailing "Moves: N" line, so it is not repeated here.
+            out.write(f"Goal: move all {session.num_disks} discs to peg 3\n")
+            line: str
+            for line in presenter.render_with_legend(
+                session.game, session.labelling
+            ):
+                out.write(line + "\n")
+
+        session: GameSession = GameSession(num_disks=n, registry=registry)
+
+        while not session.is_won():
+            out.write("\n")
+            _print_board(session, out)
+            out.write(session.valid_moves_str() + "\n")
+            line: str | None = _read_line("> ", in_, out)
+            if line is None:  # EOF
+                return None
+            cmd: Command = parse(line)
+            result: DispatchResult = session.dispatch(cmd)
+            output_line: str
+            for output_line in result.lines:
+                out.write(output_line + "\n")
+            # After a plain move under a relabelling, print the same
+            # three-column rebinding table `apply` shows — so a hand move
+            # teaches the local->global mapping too. Empty otherwise (see
+            # move_teaching_lines).
+            teaching_line: str
+            for teaching_line in session.move_teaching_lines(cmd, result):
+                out.write(teaching_line + "\n")
+            if result.quit:
+                return None
+
+        # Won
+        out.write("\n")
+        _print_board(session, out)
+        out.write("\n")
+        celebration: list[str] = presenter.format_win_celebration(
+            session.num_disks,
+            session.current_moves,
+            session.min_moves(),
+            first_win=first_win,
+        )
+        line_out: str
+        for line_out in celebration:
+            out.write(line_out + "\n")
+
+        _prompt_save(session, in_, out)
+
+        again: str | None = _read_line("\nPlay again? (y/n): ", in_, out)
+        if again is None:
+            return False
+        return again.strip().lower().startswith("y")
+
+    def _prompt_disc_count(in_: TextIO, out: TextIO) -> int | None:
+        """Prompt repeatedly for a disc count until a valid one is given.
+
+        Args:
+            in_: The stream the answer is read from.
+            out: The stream the prompt is written to.
+
+        Returns:
+            The chosen disc count in ``1..MAX_DISKS``, or ``None`` if the user
+            EOFs or quits.
+        """
+        while True:
+            line: str | None = _read_line(
+                f"How many discs? (1-{MAX_DISKS}, or 'quit'): ", in_, out
+            )
+            if line is None:  # EOF
+                return None
+            s: str = line.strip().lower()
+            if s in ("quit", "q", "exit"):
+                return None
+            if s.isdigit():
+                n: int = int(s)
+                if 1 <= n <= MAX_DISKS:
+                    return n
+            out.write(f"Please enter a number from 1 to {MAX_DISKS}.\n")
+
     out.write("Towers of Hanoi\n")
     out.write(HOWTO + "\n")
     registry: RecipeRegistry = RecipeRegistry()
