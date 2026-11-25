@@ -1,66 +1,56 @@
 # Add the Python scoping rules, reworded per language, to the coding standards of every language hanoi uses
 
-**Status:** proposed — needs go-ahead
-**Priority:** 6 (a standards edit with no deadline; it gates the follow-on task that applies the rules across the other repositories)
-**Difficulty:** 4 (five short sections plus mirrored copies; the judgment is in what each rule means in a language without lexical nesting)
-**Created:** 2026-11-25 (William Emerison Six <billsix@gmail.com>, from `git config`): "make a task for all of the languages in hanoi, to add similar rules regarding scoping per language in runClaudeInContainer and runCrushInContainer, and once that's done, to make a task in all of my repos for my projects in /mnt/sda1 to apply them, per language".
+**Done:** 2026-11-25 (William Emerison Six <billsix@gmail.com> asked for it the same day: "make a task for all of the languages in hanoi, to add similar rules regarding scoping per language in runClaudeInContainer and runCrushInContainer, and once that's done, to make a task in all of my repos for my projects in /mnt/sda1 to apply them, per language"). It touched three repositories: github.com/billsix/towersofhanoi (this task and its survey), github.com/billsix/runClaudeInContainer (the canonical standards) and github.com/billsix/runCrushInContainer (their mirrors).
 
-## BLUF
+## What this did
 
-Five naming and scope rules (inline a binding used once, a binding used twice does not automatically earn a name, declare a name at the point of use, nest a helper with one caller, shadow deliberately when nesting) were added to the Python standard on 2026-11-06 and applied to seven Python repositories on 2026-11-25. They exist only for Python. `hanoi` uses five code languages (Python, Rust, C++, bash, and the Tauri frontend's JavaScript); this task writes each rule into that language's standard in github.com/billsix/runClaudeInContainer and its mirrors in github.com/billsix/runCrushInContainer, or says in the standard why a rule does not carry over. Done means every one of those standards has the section (or the stated exception), the mirrored copies are byte-identical, and the follow-on task, "apply the rules in every repository under `/mnt/sda1`, per language", is scaffolded.
+Five naming and scope rules (inline a binding used once, a binding used twice does not automatically earn a name, declare a name at the point of use, nest a helper with one caller, shadow deliberately when nesting) had been in the Python standard since 2026-11-06 and nowhere else. `hanoi` uses five code languages: Python, Rust, C++, bash and the Tauri frontend's JavaScript. Each of the other four now has the rules in its own standard, worded for that language, with the bindings that language must keep and a statement where a rule does not carry over.
 
-## Context
+| Language | Document (github.com/billsix/runClaudeInContainer `tasks/reference/`) | Section added |
+|---|---|---|
+| Rust | `rust-coding-standard.md` | "Locals and helpers — inline what is used once, declare at the point of use, nest a one-caller helper" |
+| C++ | `cpp-coding-standard.md` | "Locals and helpers — inline what is used once; a one-caller helper stays a named function" |
+| JavaScript | `javascript-coding-standard.md` | "(b) Judgment calls — locals and helpers: inline what is used once, nest a one-caller helper" |
+| bash | `shell-and-gate-scripts.md` | "Names and scope in bash — inline what is used once, `local` at the point of use, no nested helpers" |
 
-**The rules and their source.** `python-coding-standard.md` in github.com/billsix/runClaudeInContainer (`tasks/reference/`): "Inline a value used once, and name it in a comment instead of a binding", "What earns an extraction: duplication, or naming a phase — not reshaping control flow" (rule 4, with the pointer to `nest_one_caller.py`), and the carve-out "A name that documents what it holds keeps its binding" (test inputs and case tables, tables of rows and named corners, slices of a packed array named for their layout, side-effecting calls, a value computed before a later statement changes its inputs). The language-agnostic summary is `code-style-conventions.md` ("Names: inline what is used once, declare at the point of use, nest and shadow") and the global `CLAUDE.md` section "What earns pulling code into its own function". Read the archived records of the Python batch for what went wrong and what each carve-out is for: `tasks/archive/2026/11/25/apply-2026-11-06-naming-and-scope-rules.md` in the `Programming3DComputerGraphics`, `methodfinder`, `mathnotebooks`, `multivariate-math`, `epix-mirror`, `hanoi` and `geometricalgebra` repositories (each on github.com/billsix/).
+`code-style-conventions.md` ("Names: inline what is used once…") points at the four sections, and its nesting bullet no longer says a C++ helper nests as "a local `struct` or lambda"; it and the cross-project `CLAUDE.md` of both sandboxes say how nesting differs per language. C and Haskell were out of scope because `hanoi` has neither.
 
-**Languages in `hanoi`** (counted from `git ls-files`, vendored trees excluded, 2026-11-25) and the standard each one has:
+## Decisions (William Emerison Six <billsix@gmail.com>, 2026-11-25: "yes to all seven recommendations", five of them these)
 
-| Language | Where in `hanoi` | Standard (github.com/billsix/runClaudeInContainer `tasks/reference/`) | What it says today |
-|---|---|---|---|
-| Python | `python/src/hanoigame/`, `python/tests/`, `tools/` (24 files) | `python-coding-standard.md` | has all five rules |
-| Rust | `rust/` (15 files; the Tauri backend in `rust/tauri/src-tauri/`) | `rust-coding-standard.md` | no section on locals or nested helpers |
-| C++ | `cpp/hanoiwx.cpp`, `cpp/main.cpp`, `cpp/src/*.hpp` (header-only engine with inline doctest tests) | `cpp-coding-standard.md` | "Lambdas" (Meyers EMC++ 31–34, `F.50`–`F.54`), initialize-and-`const`; nothing on single-use locals or one-caller helpers |
-| bash | `bash/*.sh` (12 demos), `entrypoint/*.sh`, `tools/*.sh` (44 files in all) | `shell-and-gate-scripts.md` (gate and format scripts; there is no bash coding standard) | exit-status and portability rules only |
-| JavaScript | `rust/tauri/frontend/main.js` (vanilla, JSDoc-typed, Deno gate) | `javascript-coding-standard.md` | JSDoc types on every binding; no scoping section |
+1. **C++, rule 4:** a helper with one caller stays a named anonymous-namespace or `static` function and is not turned into a lambda; a lambda only when it captures local state.
+2. **bash, rule 4:** the standard states that rule 4 does not apply (functions are global), and that rules 1, 2, 3 and 5 apply to variables.
+3. **Rust, rule 4:** a one-caller helper that captures nothing becomes a nested `fn`, one that captures a local becomes a closure, and one a `#[cfg(test)]` function calls stays at module level.
+4. **Where the bash section goes:** a section in `shell-and-gate-scripts.md`, not a new bash standard.
+5. **Scope of languages:** hanoi's five; the application task adds C or Haskell sections when it meets a repository that needs one.
 
-Not code, so out of scope: reStructuredText (`docs/`), LaTeX (`workbook/`), XRC (`ui/hanoi.xrc`), TOML, HTML and CSS. The Crush client carries baked copies of these documents under `client/entrypoint/dotfiles/.config/crush/reference/`; `shell-and-gate-scripts.md` has no copy in runCrushInContainer's `tasks/reference/`, only the baked one.
+## What the survey found, and how it shaped the wording
 
-**What does not carry over unchanged** (the agent's analysis; the maintainer settled each point on 2026-11-25, see Decisions):
-- **Rust:** `let` shadowing is idiomatic (`let x = x.trim();`), so rule 5's "shadow deliberately" is already the norm; a nested `fn` item cannot capture locals (a closure can), so "nest a one-caller helper" means a nested `fn` when it captures nothing and a closure when it does; unit tests in a `#[cfg(test)]` module call private functions in the same file, which counts as a second caller under the Python batch's rule for a helper a test imports.
-- **C++:** a nested helper is a lambda, which loses the name for overloading and recursion and can obscure a stack trace; an anonymous-namespace or `static` function is the conventional private helper. The doctest cases sit in the header beside the code, so a helper they call has a second caller.
-- **bash:** functions are global, and `local` is dynamically scoped, so a function defined inside a function becomes global when the outer one runs. Rule 4 has no lexical meaning; rules 1, 2, 3 and 5 apply to variables (`local` at the point of use, no single-use variable that only names an expression).
-- **JavaScript:** nested function declarations and closures work as in Python; `const` at the point of use.
+`survey.py` (ctags for function spans, textual counts; removed with this archive, recoverable with `git show d1dd724:tasks/adhoc/add-scoping-rules-to-per-language-coding-standards/survey.py`) listed functions named exactly twice and locals named exactly twice inside their function: 408 lines of leads across 15 Rust, 6 C++, 43 bash and 1 JavaScript files. The leads that became rules or carve-outs:
 
-**What the tooling is.** `nest_one_caller.py` (github.com/billsix/runClaudeInContainer `tasks/reference/`, mirrored in runCrushInContainer) nests Python helpers only. There is no equivalent for the other languages and this task does not write one; it records, per language, whether a tool is warranted.
+- **Rust:** `let failed: bool = result.error.is_some(); results.push(result);` in `recipe::apply` (a read before a move); `let d: Dialog = dlg.clone();` before a `move` closure in the wx GUI; `let mut st: MutexGuard<…> = state.lock().unwrap();` in the Tauri backend (a guard); the `handle_move`, `handle_relabel`, `handle_show`, `handle_list` and `handle_history` methods of `GameSession`, each called once from the dispatch `match` (a method and a dispatch arm stay); the `two_minus_1_i_to_t`-style names in `solvers/recursive.rs`, each used once and each the name of a step of the relabelling method (a name that carries the lesson stays); `noun` in `presenter.rs`, used once in a `format!` capture (the named-argument form).
+- **C++:** `detail::explain_illegal` in `recipe.hpp`, one caller, already an `inline` function in a `detail` namespace directly above it (the shape decision 1 asks for); `fp`, `tp` and `apply_name` copied in `main.cpp` before `app.clear_pending()` (a copy before its source changes); `wxDouble th`, `td`, `te` in `hanoiwx.cpp` (out-parameter targets); 47 one-caller leads, most of them toolkit event handlers and per-frame draw functions (they name a phase and stay).
+- **JavaScript:** `const count = latest.review;` in `leaveReview`, read before an `await` on a dialog while `latest` is module state (the snapshot carve-out); the cast form `/** @type {Snapshot} */ (await invoke(…))` already used inline in `main.js`; `isActive` already nested in `renderRelabelMenu`.
+- **bash:** only one function in 43 scripts (`ver_part` in `cpp/tools/update-doctest.sh`), so rule 4 has almost nothing to act on there; the single-use leads were `cpp_dir`, `pattern` and `web_files` in the `check-no-network.sh` scripts (a path that can be inlined, a regular expression and an array, which stay).
 
-## Goal
+## Checked by running it (2026-11-25, in the sandbox)
 
-Make each of hanoi's code languages say, in its own standard, how to inline a binding used once, how to treat a binding used twice, where to declare a name, whether and how to nest a helper that has one caller, and how to shadow. Each rule is worded in that language's terms and checked against `hanoi`'s own code (the Rust and C++ ports mirror the Python's structure, so they are the natural test), and a rule that does not apply says so and why.
+- **Rust** (`rustc`, `rustdoc --test`): a borrow of a temporary across statements is E0716; a nested `fn` that names the enclosing generic parameter is E0401; a nested `fn` may recurse; `format!("{moves} {noun}", noun = if …)` compiles. A first draft said rustdoc does not collect a doctest from a nested item. That was wrong: rustdoc ran the example on `outer::inner`. The standard now gives the real reason a doctested helper stays at module level, which is that the example cannot name a nested item.
+- **C++** (`g++` and `clang++ -std=c++20 -Wshadow`): a lambda parameter that repeats an explicit capture is an error in both; one that repeats a name taken by `[&]` is a `-Wshadow` warning in g++.
+- **bash:** a function defined inside another is callable from outside once the outer has run, and sees its caller's `local`; `local v="$(false)"` has status 0 and the two-statement form has status 1; a `for` variable in a function leaks; a `( … )` body does not; under `set -e`, `echo "$(false)"` continues and `z="$(false)"` stops. shellcheck reported SC2155 and SC2034 on the test script.
+- **JavaScript** (`node`): a closure that names a `const` declared below it throws `ReferenceError` when called before that line and works after it.
+- **Not checked:** the sandbox has no `deno`, so the JavaScript section names lint rules generically (`no-var`, `prefer-const`) and makes no claim about Deno's recommended set.
 
-## Plan
+## Mirrors
 
-- [x] Settle the open questions (answered 2026-11-25, see Decisions).
-- [ ] Read the Python sections and the seven archived records named above; list the carve-outs that are language-independent (a name that documents what it holds, order of evaluation, a test as a second caller) and quote them rather than rewriting them.
-- [ ] For each language, survey `hanoi`'s code for places the rule fires (a one-off script under `tasks/adhoc/add-scoping-rules-to-per-language-coding-standards/`, read-only), so each new section is written from real cases and compared to a baseline the reader knows (the Python section).
-- [ ] Write the sections in the canonical documents in github.com/billsix/runClaudeInContainer: `rust-coding-standard.md`, `cpp-coding-standard.md`, `javascript-coding-standard.md`, and a section in `shell-and-gate-scripts.md` for bash (decision 4).
-- [ ] Copy each changed document, byte-identical, to its mirrors in github.com/billsix/runCrushInContainer (`tasks/reference/` and `client/entrypoint/dotfiles/.config/crush/reference/`); check with `cmp`.
-- [ ] Update the language-agnostic summary (`code-style-conventions.md`) and the global `CLAUDE.md` section only where a rule's wording changes for all languages.
-- [ ] Scaffold the follow-on task, proposed and cross-linked: in every project repository under `/mnt/sda1` (not the upstream-only checkouts), apply these rules per language, one task per repository and language.
-- [ ] Stage by path and stop; the archive move waits for the work commit.
+`rust-coding-standard.md`, `cpp-coding-standard.md` and `javascript-coding-standard.md` are byte-identical in three places (`cmp`): the canonical one, and github.com/billsix/runCrushInContainer `tasks/reference/` and `client/entrypoint/dotfiles/.config/crush/reference/`. `code-style-conventions.md` is byte-identical in the canonical and the baked Crush copy. The baked Crush `shell-and-gate-scripts.md` holds only the portable sections of the canonical; the new bash section was added to both from one source text.
 
-## Notes / decisions
+## Commits
 
-- The ordering is the maintainer's: this task first, then the application task (2026-11-25).
-- C and Haskell standards exist but `hanoi` has neither, so they are outside this task (decision 5).
+- This repository: `d1dd724` (the survey), then the work commit holding this record and the follow-on task, then the archive move.
+- github.com/billsix/runClaudeInContainer: `d1e2fa1`. github.com/billsix/runCrushInContainer: `f788404`.
 
-## Decisions (answered 2026-11-25, William Emerison Six <billsix@gmail.com>: "yes to all seven recommendations", the seven being these five and the two in `runClaudeInContainer/tasks/nest-one-caller-tool-gaps.md`)
+The SHAs are those on the `add-scoping-rules-to-per-language-coding-standards` branches before the maintainer's merge.
 
-1. **C++, rule 4:** a helper with one caller stays a named anonymous-namespace or `static` function and is not turned into a lambda; a lambda only when it captures local state, as the existing "Lambdas" section says.
-2. **bash, rule 4:** the standard states that rule 4 does not apply (functions are global, so there is nothing to nest into), and that rules 1, 2, 3 and 5 apply to variables.
-3. **Rust, rule 4:** a one-caller helper that captures nothing becomes a nested `fn` inside its caller, one that captures a local becomes a closure, and a helper a `#[cfg(test)]` function calls stays at module level.
-4. **Where the bash section goes:** a section in `shell-and-gate-scripts.md`, not a new `bash-coding-standard.md`.
-5. **Scope of languages:** only hanoi's five now; the application task adds C or Haskell sections when it meets a repository that needs one.
+## Follow-on
 
-## Open questions
-
-None open. The status stays `proposed — needs go-ahead`: the maintainer asked for the task and its decisions, not yet for the work.
+`tasks/apply-naming-and-scope-rules-per-language-across-repositories.md` (proposed, three open questions): make a task per repository and language to apply these rules.
