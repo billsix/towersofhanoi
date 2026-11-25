@@ -296,6 +296,41 @@ def apply_iter(
     Yields:
         One `StepResult` per move attempted, in order.
     """
+
+    def _explain_illegal(
+        game: HanoiGame,
+        from_peg: int,
+        to_peg: int,
+        from_label: int,
+        to_label: int,
+    ) -> str:
+        """Build a human-readable reason a recipe move is illegal in this state.
+
+        Args:
+            game: The current game, inspected to diagnose the illegality.
+            from_peg: 0-indexed source physical peg.
+            to_peg: 0-indexed destination physical peg.
+            from_label: The move's source value in default-label space.
+            to_label: The move's destination value in default-label space.
+
+        Returns:
+            A sentence explaining why the move cannot be applied.
+        """
+        step: str = f"recipe move '{from_label} -> {to_label}'"
+        if not game.towers[from_peg]:
+            return (
+                f"{step}: peg {from_label} (physical {from_peg + 1}) is empty."
+            )
+        if (
+            game.towers[to_peg]
+            and game.towers[from_peg][-1] > game.towers[to_peg][-1]
+        ):
+            return (
+                f"{step}: would put disc {game.towers[from_peg][-1]} on disc "
+                f"{game.towers[to_peg][-1]} — larger on smaller."
+            )
+        return f"{step}: illegal in current state."
+
     from_label: int
     to_label: int
     for from_label, to_label in recipe.default_moves:
@@ -493,9 +528,6 @@ def format_rebinding_table(
         for i, (fp, tp) in enumerate(rebound_moves(moves, labelling), 1)
     ]
     lhdr, mhdr, rhdr = left_header, "Rebinding", "Rebound (pegs)"
-    lw: int = max([len(lhdr), *(len(s) for s in left)])
-    mw: int = max([len(mhdr), *(len(s) for s in mid)])
-    rows: int = max(len(left), len(mid), len(right))
 
     def cell(col: list[str], i: int, width: int) -> str:
         """Return `col[i]` left-justified to `width`, or blank padding.
@@ -511,46 +543,15 @@ def format_rebinding_table(
         """
         return (col[i] if i < len(col) else "").ljust(width)
 
+    lw: int = max([len(lhdr), *(len(s) for s in left)])
+    mw: int = max([len(mhdr), *(len(s) for s in mid)])
     lines: list[str] = [
         f"  {lhdr.ljust(lw)}   {mhdr.ljust(mw)}   {rhdr}",
         f"  {'-' * lw}   {'-' * mw}   {'-' * len(rhdr)}",
     ]
     i: int
-    for i in range(rows):
+    for i in range(max(len(left), len(mid), len(right))):
         lines.append(
             f"  {cell(left, i, lw)}   {cell(mid, i, mw)}   {cell(right, i, 0)}"
         )
     return lines
-
-
-def _explain_illegal(
-    game: HanoiGame,
-    from_peg: int,
-    to_peg: int,
-    from_label: int,
-    to_label: int,
-) -> str:
-    """Build a human-readable reason a recipe move is illegal in this state.
-
-    Args:
-        game: The current game, inspected to diagnose the illegality.
-        from_peg: 0-indexed source physical peg.
-        to_peg: 0-indexed destination physical peg.
-        from_label: The move's source value in default-label space.
-        to_label: The move's destination value in default-label space.
-
-    Returns:
-        A sentence explaining why the move cannot be applied.
-    """
-    step: str = f"recipe move '{from_label} -> {to_label}'"
-    if not game.towers[from_peg]:
-        return f"{step}: peg {from_label} (physical {from_peg + 1}) is empty."
-    if (
-        game.towers[to_peg]
-        and game.towers[from_peg][-1] > game.towers[to_peg][-1]
-    ):
-        return (
-            f"{step}: would put disc {game.towers[from_peg][-1]} on disc "
-            f"{game.towers[to_peg][-1]} — larger on smaller."
-        )
-    return f"{step}: illegal in current state."

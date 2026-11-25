@@ -177,24 +177,6 @@ def completions(buffer: str, text: str, names: Iterable[str]) -> list[str]:
     return [verb for verb in COMMAND_VERBS if verb.startswith(text)]
 
 
-def _move_or_error(a: int, b: int) -> Command:
-    """Return a `MoveCmd` for labels `a`->`b`, or a `ParseError`.
-
-    Args:
-        a: 1-indexed source peg label.
-        b: 1-indexed destination peg label.
-
-    Returns:
-        A `MoveCmd` when both labels are in 1..3 and differ, else a
-        `ParseError` explaining the problem.
-    """
-    if not (1 <= a <= 3 and 1 <= b <= 3):
-        return ParseError(f"move labels must be 1, 2, or 3 — got {a} and {b}")
-    if a == b:
-        return ParseError(f"can't move from peg {a} to itself")
-    return MoveCmd(a, b)
-
-
 def parse(line: str) -> Command:
     """Parse one line of user input into a Command. Never raises.
 
@@ -220,6 +202,26 @@ def parse(line: str) -> Command:
         >>> isinstance(parse("show"), ParseError)
         True
     """
+
+    def _move_or_error(a: int, b: int) -> Command:
+        """Return a `MoveCmd` for labels `a`->`b`, or a `ParseError`.
+
+        Args:
+            a: 1-indexed source peg label.
+            b: 1-indexed destination peg label.
+
+        Returns:
+            A `MoveCmd` when both labels are in 1..3 and differ, else a
+            `ParseError` explaining the problem.
+        """
+        if not (1 <= a <= 3 and 1 <= b <= 3):
+            return ParseError(
+                f"move labels must be 1, 2, or 3 — got {a} and {b}"
+            )
+        if a == b:
+            return ParseError(f"can't move from peg {a} to itself")
+        return MoveCmd(a, b)
+
     s: str = line.strip()
     if not s:
         return EmptyCmd()

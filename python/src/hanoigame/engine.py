@@ -197,9 +197,10 @@ class GameSession:
     def save_recipe(self, name: str) -> str:
         """Save the current move sequence under `name`. Returns a one-line
         confirmation. Caller is responsible for not calling this mid-game."""
-        recipe = self.recorder.to_recipe(name, disk_count=self.num_disks)
         overwrote = name in self.registry
-        self.registry.save(recipe)
+        self.registry.save(
+            self.recorder.to_recipe(name, disk_count=self.num_disks)
+        )
         if overwrote:
             return f"Overwrote recipe {name!r}."
         return f"Saved recipe {name!r}."
