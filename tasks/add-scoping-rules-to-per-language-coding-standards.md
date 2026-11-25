@@ -25,7 +25,7 @@ Five naming and scope rules (inline a binding used once, a binding used twice do
 
 Not code, so out of scope: reStructuredText (`docs/`), LaTeX (`workbook/`), XRC (`ui/hanoi.xrc`), TOML, HTML and CSS. The Crush client carries baked copies of these documents under `client/entrypoint/dotfiles/.config/crush/reference/`; `shell-and-gate-scripts.md` has no copy in runCrushInContainer's `tasks/reference/`, only the baked one.
 
-**What does not carry over unchanged** (the agent's analysis, to be settled by the open questions below):
+**What does not carry over unchanged** (the agent's analysis; the maintainer settled each point on 2026-11-25, see Decisions):
 - **Rust:** `let` shadowing is idiomatic (`let x = x.trim();`), so rule 5's "shadow deliberately" is already the norm; a nested `fn` item cannot capture locals (a closure can), so "nest a one-caller helper" means a nested `fn` when it captures nothing and a closure when it does; unit tests in a `#[cfg(test)]` module call private functions in the same file, which counts as a second caller under the Python batch's rule for a helper a test imports.
 - **C++:** a nested helper is a lambda, which loses the name for overloading and recursion and can obscure a stack trace; an anonymous-namespace or `static` function is the conventional private helper. The doctest cases sit in the header beside the code, so a helper they call has a second caller.
 - **bash:** functions are global, and `local` is dynamically scoped, so a function defined inside a function becomes global when the outer one runs. Rule 4 has no lexical meaning; rules 1, 2, 3 and 5 apply to variables (`local` at the point of use, no single-use variable that only names an expression).
@@ -39,10 +39,10 @@ Make each of hanoi's code languages say, in its own standard, how to inline a bi
 
 ## Plan
 
-- [ ] Settle the open questions below; each one changes what is written.
+- [x] Settle the open questions (answered 2026-11-25, see Decisions).
 - [ ] Read the Python sections and the seven archived records named above; list the carve-outs that are language-independent (a name that documents what it holds, order of evaluation, a test as a second caller) and quote them rather than rewriting them.
 - [ ] For each language, survey `hanoi`'s code for places the rule fires (a one-off script under `tasks/adhoc/add-scoping-rules-to-per-language-coding-standards/`, read-only), so each new section is written from real cases and compared to a baseline the reader knows (the Python section).
-- [ ] Write the sections in the canonical documents in github.com/billsix/runClaudeInContainer: `rust-coding-standard.md`, `cpp-coding-standard.md`, `javascript-coding-standard.md`, and the bash location the open questions choose.
+- [ ] Write the sections in the canonical documents in github.com/billsix/runClaudeInContainer: `rust-coding-standard.md`, `cpp-coding-standard.md`, `javascript-coding-standard.md`, and a section in `shell-and-gate-scripts.md` for bash (decision 4).
 - [ ] Copy each changed document, byte-identical, to its mirrors in github.com/billsix/runCrushInContainer (`tasks/reference/` and `client/entrypoint/dotfiles/.config/crush/reference/`); check with `cmp`.
 - [ ] Update the language-agnostic summary (`code-style-conventions.md`) and the global `CLAUDE.md` section only where a rule's wording changes for all languages.
 - [ ] Scaffold the follow-on task, proposed and cross-linked: in every project repository under `/mnt/sda1` (not the upstream-only checkouts), apply these rules per language, one task per repository and language.
@@ -51,14 +51,16 @@ Make each of hanoi's code languages say, in its own standard, how to inline a bi
 ## Notes / decisions
 
 - The ordering is the maintainer's: this task first, then the application task (2026-11-25).
-- C and Haskell standards exist but `hanoi` has neither, so they are outside this task.
+- C and Haskell standards exist but `hanoi` has neither, so they are outside this task (decision 5).
+
+## Decisions (answered 2026-11-25, William Emerison Six <billsix@gmail.com>: "yes to all seven recommendations", the seven being these five and the two in `runClaudeInContainer/tasks/nest-one-caller-tool-gaps.md`)
+
+1. **C++, rule 4:** a helper with one caller stays a named anonymous-namespace or `static` function and is not turned into a lambda; a lambda only when it captures local state, as the existing "Lambdas" section says.
+2. **bash, rule 4:** the standard states that rule 4 does not apply (functions are global, so there is nothing to nest into), and that rules 1, 2, 3 and 5 apply to variables.
+3. **Rust, rule 4:** a one-caller helper that captures nothing becomes a nested `fn` inside its caller, one that captures a local becomes a closure, and a helper a `#[cfg(test)]` function calls stays at module level.
+4. **Where the bash section goes:** a section in `shell-and-gate-scripts.md`, not a new `bash-coding-standard.md`.
+5. **Scope of languages:** only hanoi's five now; the application task adds C or Haskell sections when it meets a repository that needs one.
 
 ## Open questions
 
-Each blocks implementation until addressed. The recommendation is first.
-
-1. **C++, rule 4:** state that a helper with one caller stays an anonymous-namespace or `static` function and is **not** turned into a lambda (a lambda only when it captures local state, as the existing "Lambdas" section already says), or translate rule 4 as "nest it as a lambda"? Recommended: stays a named function.
-2. **bash, rule 4:** state that rule 4 does not apply (functions are global, so there is nothing to nest into), and that rules 1, 2, 3 and 5 apply to variables? Recommended: yes.
-3. **Rust, rule 4:** a one-caller helper that captures nothing becomes a nested `fn` inside its caller, one that captures a local becomes a closure, and a helper a `#[cfg(test)]` function calls stays at module level? Recommended: yes.
-4. **Where the bash section goes:** a section in `shell-and-gate-scripts.md`, or a new `bash-coding-standard.md`? Recommended: a section in `shell-and-gate-scripts.md` (one document, no new mirror set beyond the existing copies).
-5. **Scope of languages:** only hanoi's five, or also C and Haskell now, since other repositories under `/mnt/sda1` use them? Recommended: only hanoi's five; the application task adds C or Haskell sections when it meets a repository that needs one.
+None open. The status stays `proposed — needs go-ahead`: the maintainer asked for the task and its decisions, not yet for the work.
