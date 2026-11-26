@@ -210,9 +210,9 @@ public:
     const double margin = 20.0;
     const double label_band = relabelled ? 60.0 : 36.0;
     const double base_h = 14.0;
-    const double avail_w = std::max(80.0, w - 2 * margin);
     const double avail_h = std::max(80.0, h - 2 * margin - label_band - base_h);
-    const double peg_zone_w = avail_w / 3.0;
+    // A third of the width left between the margins (at least 80 px).
+    const double peg_zone_w = std::max(80.0, w - 2 * margin) / 3.0;
     const double disc_h = std::min(avail_h / std::max(n, 4) * 0.92, 30.0);
     const double max_disc_w = peg_zone_w * 0.92;
     const double peg_w = std::max(8.0, max_disc_w * 0.07);
@@ -428,8 +428,7 @@ private:
     if (!gc) {
       return;
     }
-    const double width = GetClientSize().GetWidth();
-    const double half = width / 2.0;
+    const double half = GetClientSize().GetWidth() / 2.0;
     draw_example(*gc, 0.0, half, true);
     draw_example(*gc, half, half, false);
   }
@@ -520,8 +519,7 @@ private:
     for (const std::array<int, 3> &labels : kRelabelPerms) {
       const wxString id =
           wxString::Format("relabel_%d_%d_%d", labels[0], labels[1], labels[2]);
-      const int item_id = wxXmlResource::GetXRCID(id);
-      wxMenuItem *item = mb->FindItem(item_id);
+      wxMenuItem *item = mb->FindItem(wxXmlResource::GetXRCID(id));
       relabel_items_.push_back({labels, item, item->GetItemLabel()});
       Bind(
           wxEVT_MENU, [this, labels](wxCommandEvent &) { on_relabel(labels); },
@@ -549,8 +547,8 @@ private:
     // View menu: the always-visible move-history toggle, appended to the
     // existing (XRC) View menu. (How-to-Play is a dialog now, not a toggled
     // panel, so it lives only on the Help menu below.)
-    const int view_pos = mb->FindMenu("View");
-    wxMenu *view_menu = mb->GetMenu(static_cast<std::size_t>(view_pos));
+    wxMenu *view_menu =
+        mb->GetMenu(static_cast<std::size_t>(mb->FindMenu("View")));
     view_menu->AppendSeparator();
     history_toggle_ = view_menu->AppendCheckItem(
         wxID_ANY, "Move &history\tCtrl+H",
@@ -736,8 +734,9 @@ private:
     history_header_ = new wxStaticText(panel, wxID_ANY, "");
     history_list_ = new wxListBox(panel, wxID_ANY);
     history_list_->SetFont(mono);
-    const int row_h = std::max(1, history_list_->GetCharHeight());
-    history_list_->SetMinSize(wxSize(240, row_h * 12 + 8));
+    // Tall enough for twelve rows of the list's own font.
+    history_list_->SetMinSize(
+        wxSize(240, std::max(1, history_list_->GetCharHeight()) * 12 + 8));
     // Clicking a move (or arrowing through them) shows the board as it was
     // after that move; "Back to current" returns to the live game.
     history_list_->Bind(wxEVT_LISTBOX, &HanoiFrame::on_history_select, this);
@@ -1326,8 +1325,8 @@ private:
     // have legal moves even when the live game is won).
     const hanoi::Game &shown = shown_game();
     board_.set_state(&shown, labelling_);
-    const bool w = shown.check_win_condition();
-    board_.set_interactive(!w); // disc dragging off once solved
+    // Disc dragging is off once the shown board is solved.
+    board_.set_interactive(!shown.check_win_condition());
     SetStatusText(wxString::Format("Moves: %d", shown.current_moves()), 2);
 
     const std::array<int, 3> cur{

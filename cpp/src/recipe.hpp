@@ -273,8 +273,8 @@ inline std::array<std::array<int, 2>, 3> rebinding(Labelling labelling) {
   std::array<std::array<int, 2>, 3> pairs{};
   for (int i = 0; i < 3; ++i) {
     const int label = i + 1;
-    const std::optional<int> peg = label_to_tower(labelling, label);
-    pairs[i] = {label, *peg + 1}; // a label in 1..3 always resolves
+    // The label's physical peg, 1-based; a label in 1..3 always resolves.
+    pairs[i] = {label, *label_to_tower(labelling, label) + 1};
   }
   return pairs;
 }
@@ -298,9 +298,10 @@ rebound_moves(const std::vector<std::array<int, 2>> &moves,
   std::vector<std::array<int, 2>> out;
   out.reserve(moves.size());
   for (const std::array<int, 2> &mv : moves) {
-    const std::optional<int> fp = label_to_tower(labelling, mv[0]);
-    const std::optional<int> tp = label_to_tower(labelling, mv[1]);
-    out.push_back({*fp + 1, *tp + 1}); // labels are 1..3, always resolve
+    // The physical peg each label sits on, 1-based: {from, to}. Labels are
+    // 1..3, so they always resolve.
+    out.push_back({*label_to_tower(labelling, mv[0]) + 1,
+                   *label_to_tower(labelling, mv[1]) + 1});
   }
   return out;
 }

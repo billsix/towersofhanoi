@@ -223,9 +223,9 @@ function discWidth(size, n, maxW) {
  * @returns {void}
  */
 function roundRect(ctx, x, y, w, h, r) {
-  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, radius);
+  // The corner radius, clamped so it never exceeds half the shorter side.
+  ctx.roundRect(x, y, w, h, Math.max(0, Math.min(r, w / 2, h / 2)));
   ctx.fill();
   ctx.stroke();
 }
@@ -330,61 +330,6 @@ function drawBoard(s) {
 }
 
 /**
- * Fill the Relabel menu: one item per permutation, the active labelling marked,
- * all disabled while the current game is already solved.
- * @param {Snapshot} s
- * @returns {void}
- */
-function renderRelabelMenu(s) {
-  /** @type {(perm: number[]) => boolean} */
-  const isActive = (perm) =>
-    perm[0] === s.labels[0] && perm[1] === s.labels[1] &&
-    perm[2] === s.labels[2];
-  el("relabel-panel").innerHTML = RELABEL_PERMS.map((perm) =>
-    `<button class="menu-item" data-perm="${perm.join("")}"${
-      s.won ? " disabled" : ""
-    }>${isActive(perm) ? "● " : "○ "}${perm.join(" ")}</button>`
-  ).join("");
-}
-
-/**
- * Show the first-win teaching as a modal <dialog> (the teaching hinge): the
- * shared wording from the backend `win_celebration` command (so the webview
- * reads identically to the other front-ends), with a single "Got it" dismiss
- * and NO Save button. Shown only on the first win (always a clean default-label
- * solve), so it never collides with the inline rebinding view; the save is
- * offered at the New Game boundary instead (`maybeOfferSaveBeforeDiscard`).
- * @returns {Promise<void>}
- */
-async function showWinTeaching() {
-  const lines = /** @type {string[]} */ (
-    await invoke("win_celebration", { firstWin: true })
-  );
-  const dialog = document.createElement("dialog");
-  dialog.className = "howto";
-  const heading = document.createElement("h2");
-  heading.textContent = lines[0] || "You solved it!";
-  dialog.appendChild(heading);
-  for (const line of lines.slice(1)) {
-    const para = document.createElement("p");
-    para.textContent = line;
-    dialog.appendChild(para);
-  }
-  const form = document.createElement("form");
-  form.method = "dialog";
-  const gotIt = document.createElement("button");
-  gotIt.value = "ok";
-  gotIt.textContent = "Got it";
-  form.appendChild(gotIt);
-  dialog.appendChild(form);
-  document.body.appendChild(dialog);
-  dialog.addEventListener("close", () => {
-    dialog.remove();
-  });
-  dialog.showModal();
-}
-
-/**
  * Save-before-discard: if a hand-won, unsaved solution is on the board, ask
  * whether to save it as a recipe before a New Game discards it (the
  * save-before-you-close pattern). Resolves once the player chooses; a save is
@@ -431,34 +376,154 @@ async function maybeOfferSaveBeforeDiscard() {
 }
 
 /**
- * Fill the Recipe menu: Save current solution (enabled only at a win), then each
- * saved recipe as a row with View / Apply (Apply disabled once the game is solved).
- * @param {Snapshot} s
- * @returns {void}
- */
-function renderRecipeMenu(s) {
-  const save = `<button class="menu-item" data-act="save"${
-    s.won ? "" : " disabled"
-  }>Save current solution</button><hr />`;
-  const body = s.recipes.length === 0
-    ? `<span class="menu-empty">(no saved recipes yet)</span>`
-    : s.recipes.map((r) =>
-      `<div class="recipe-row"><span>${r.name} (${r.disks} discs, ${r.moves} moves)</span>` +
-      `<button class="menu-item" data-act="view" data-name="${r.name}">View</button>` +
-      `<button class="menu-item" data-act="apply" data-name="${r.name}"${
-        s.won ? " disabled" : ""
-      }>Apply</button></div>`
-    ).join("");
-  el("recipe-panel").innerHTML = save + body;
-}
-
-/**
  * Paint the whole UI from a snapshot: board, goal line, message, history, the
  * Tier-2 menu gating, the menus, and the apply view.
  * @param {Snapshot} s
  * @returns {void}
  */
 function render(s) {
+  /**
+   * The on-invoke three-panel rebinding view (feature-spec §4.8): the recipe's own
+   * moves | the label→peg rebinding | the rebound physical moves, plus the per-step
+   * replay log. Shown only under a non-default labelling (nothing to teach otherwise).
+   * @param {ApplyView|null} apply
+   * @returns {void}
+   */
+  function renderApplyView(apply) {
+    const panel = el("apply-view");
+    if (!apply || !apply.relabelled) {
+      panel.classList.add("hidden");
+      panel.innerHTML = "";
+      return;
+    }
+    // One table, so the three columns scroll together. Clicking a move row
+    // selects it across all three columns and marks (▶) the two label→peg
+    // bindings that move uses.
+    const rows = Math.max(apply.recipe_moves.length, apply.rebinding.length);
+    /** @type {(i: number) => string} */
+    const row = (i) => {
+      const m = apply.recipe_moves[i];
+      const k = apply.rebinding[i];
+      const r = apply.rebound_moves[i];
+      const left = m ? `${i + 1}: ${m[0]} → ${m[1]}` : "";
+      const mid = k
+        ? `<span class="key-mark"></span>label ${k[0]} → peg ${k[1]}`
+        : "";
+      const right = r ? `${i + 1}: ${r[0]} → ${r[1]}` : "";
+      const attrs = m ? ` class="move-row" data-row="${i}"` : "";
+      return `<tr${attrs}><td>${left}</td><td data-label="${
+        k ? k[0] : ""
+      }">${mid}</td><td>${right}</td></tr>`;
+    };
+    panel.innerHTML =
+      `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
+      `<div class="apply-scroll"><table class="apply-table"><thead><tr>` +
+      `<th>Recipe (its labels)</th><th>Rebinding (label &rarr; peg)</th>` +
+      `<th>Rebound (physical pegs)</th></tr></thead><tbody>` +
+      Array.from({ length: rows }, (_, i) => row(i)).join("") +
+      `</tbody></table></div>`;
+    const table = /** @type {HTMLTableElement} */ (
+      panel.querySelector(".apply-table")
+    );
+    table.addEventListener("click", (e) => {
+      const target = /** @type {HTMLElement} */ (e.target);
+      const tr = /** @type {HTMLTableRowElement|null} */ (
+        target.closest("tr.move-row")
+      );
+      if (!tr) return;
+      const move = apply.recipe_moves[Number(tr.dataset.row)];
+      table.querySelectorAll("tr.selected").forEach((t) =>
+        t.classList.remove("selected")
+      );
+      tr.classList.add("selected");
+      table.querySelectorAll("td[data-label]").forEach((td) => {
+        const cell = /** @type {HTMLTableCellElement} */ (td);
+        const mark = cell.querySelector(".key-mark");
+        if (!mark) return;
+        const label = Number(cell.dataset.label);
+        mark.textContent = label === move[0] || label === move[1] ? "▶ " : "";
+      });
+    });
+    panel.classList.remove("hidden");
+  }
+
+  /**
+   * Fill the Recipe menu: Save current solution (enabled only at a win), then each
+   * saved recipe as a row with View / Apply (Apply disabled once the game is solved).
+   * @param {Snapshot} s
+   * @returns {void}
+   */
+  function renderRecipeMenu(s) {
+    const save = `<button class="menu-item" data-act="save"${
+      s.won ? "" : " disabled"
+    }>Save current solution</button><hr />`;
+    const body = s.recipes.length === 0
+      ? `<span class="menu-empty">(no saved recipes yet)</span>`
+      : s.recipes.map((r) =>
+        `<div class="recipe-row"><span>${r.name} (${r.disks} discs, ${r.moves} moves)</span>` +
+        `<button class="menu-item" data-act="view" data-name="${r.name}">View</button>` +
+        `<button class="menu-item" data-act="apply" data-name="${r.name}"${
+          s.won ? " disabled" : ""
+        }>Apply</button></div>`
+      ).join("");
+    el("recipe-panel").innerHTML = save + body;
+  }
+
+  /**
+   * Show the first-win teaching as a modal <dialog> (the teaching hinge): the
+   * shared wording from the backend `win_celebration` command (so the webview
+   * reads identically to the other front-ends), with a single "Got it" dismiss
+   * and NO Save button. Shown only on the first win (always a clean default-label
+   * solve), so it never collides with the inline rebinding view; the save is
+   * offered at the New Game boundary instead (`maybeOfferSaveBeforeDiscard`).
+   * @returns {Promise<void>}
+   */
+  async function showWinTeaching() {
+    const lines = /** @type {string[]} */ (
+      await invoke("win_celebration", { firstWin: true })
+    );
+    const dialog = document.createElement("dialog");
+    dialog.className = "howto";
+    const heading = document.createElement("h2");
+    heading.textContent = lines[0] || "You solved it!";
+    dialog.appendChild(heading);
+    for (const line of lines.slice(1)) {
+      const para = document.createElement("p");
+      para.textContent = line;
+      dialog.appendChild(para);
+    }
+    const form = document.createElement("form");
+    form.method = "dialog";
+    const gotIt = document.createElement("button");
+    gotIt.value = "ok";
+    gotIt.textContent = "Got it";
+    form.appendChild(gotIt);
+    dialog.appendChild(form);
+    document.body.appendChild(dialog);
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+    });
+    dialog.showModal();
+  }
+
+  /**
+   * Fill the Relabel menu: one item per permutation, the active labelling marked,
+   * all disabled while the current game is already solved.
+   * @param {Snapshot} s
+   * @returns {void}
+   */
+  function renderRelabelMenu(s) {
+    /** @type {(perm: number[]) => boolean} */
+    const isActive = (perm) =>
+      perm[0] === s.labels[0] && perm[1] === s.labels[1] &&
+      perm[2] === s.labels[2];
+    el("relabel-panel").innerHTML = RELABEL_PERMS.map((perm) =>
+      `<button class="menu-item" data-perm="${perm.join("")}"${
+        s.won ? " disabled" : ""
+      }>${isActive(perm) ? "● " : "○ "}${perm.join(" ")}</button>`
+    ).join("");
+  }
+
   latest = s;
   const firstWin = s.won && !wonOnce;
   wonOnce = wonOnce || s.won;
@@ -516,71 +581,6 @@ function render(s) {
   renderApplyView(s.apply);
 }
 
-/**
- * The on-invoke three-panel rebinding view (feature-spec §4.8): the recipe's own
- * moves | the label→peg rebinding | the rebound physical moves, plus the per-step
- * replay log. Shown only under a non-default labelling (nothing to teach otherwise).
- * @param {ApplyView|null} apply
- * @returns {void}
- */
-function renderApplyView(apply) {
-  const panel = el("apply-view");
-  if (!apply || !apply.relabelled) {
-    panel.classList.add("hidden");
-    panel.innerHTML = "";
-    return;
-  }
-  // One table, so the three columns scroll together. Clicking a move row
-  // selects it across all three columns and marks (▶) the two label→peg
-  // bindings that move uses.
-  const rows = Math.max(apply.recipe_moves.length, apply.rebinding.length);
-  /** @type {(i: number) => string} */
-  const row = (i) => {
-    const m = apply.recipe_moves[i];
-    const k = apply.rebinding[i];
-    const r = apply.rebound_moves[i];
-    const left = m ? `${i + 1}: ${m[0]} → ${m[1]}` : "";
-    const mid = k
-      ? `<span class="key-mark"></span>label ${k[0]} → peg ${k[1]}`
-      : "";
-    const right = r ? `${i + 1}: ${r[0]} → ${r[1]}` : "";
-    const attrs = m ? ` class="move-row" data-row="${i}"` : "";
-    return `<tr${attrs}><td>${left}</td><td data-label="${
-      k ? k[0] : ""
-    }">${mid}</td><td>${right}</td></tr>`;
-  };
-  panel.innerHTML =
-    `<h3>Applying &lsquo;${apply.name}&rsquo; under your relabelling</h3>` +
-    `<div class="apply-scroll"><table class="apply-table"><thead><tr>` +
-    `<th>Recipe (its labels)</th><th>Rebinding (label &rarr; peg)</th>` +
-    `<th>Rebound (physical pegs)</th></tr></thead><tbody>` +
-    Array.from({ length: rows }, (_, i) => row(i)).join("") +
-    `</tbody></table></div>`;
-  const table = /** @type {HTMLTableElement} */ (
-    panel.querySelector(".apply-table")
-  );
-  table.addEventListener("click", (e) => {
-    const target = /** @type {HTMLElement} */ (e.target);
-    const tr = /** @type {HTMLTableRowElement|null} */ (
-      target.closest("tr.move-row")
-    );
-    if (!tr) return;
-    const move = apply.recipe_moves[Number(tr.dataset.row)];
-    table.querySelectorAll("tr.selected").forEach((t) =>
-      t.classList.remove("selected")
-    );
-    tr.classList.add("selected");
-    table.querySelectorAll("td[data-label]").forEach((td) => {
-      const cell = /** @type {HTMLTableCellElement} */ (td);
-      const mark = cell.querySelector(".key-mark");
-      if (!mark) return;
-      const label = Number(cell.dataset.label);
-      mark.textContent = label === move[0] || label === move[1] ? "▶ " : "";
-    });
-  });
-  panel.classList.remove("hidden");
-}
-
 /** Close every open menu-bar dropdown. @returns {void} */
 function closeMenus() {
   document.querySelectorAll(".menu.open").forEach((m) =>
@@ -589,99 +589,9 @@ function closeMenus() {
 }
 
 /**
- * Wire the menu bar: a click on an (enabled) menu button toggles its dropdown and
- * closes the others; a click anywhere else closes them; clicks inside a panel stay
- * open unless an action closes the menu explicitly.
- * @returns {void}
- */
-function initMenuBar() {
-  document.querySelectorAll(".menu-btn").forEach((b) =>
-    b.addEventListener("click", (e) => {
-      const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
-      if (btn.disabled) return;
-      const menu = /** @type {HTMLElement} */ (btn.parentElement);
-      const willOpen = !menu.classList.contains("open");
-      closeMenus();
-      if (willOpen) menu.classList.add("open");
-      e.stopPropagation();
-    })
-  );
-  // Clicks inside a panel do not bubble to the document closer; actions close
-  // the menu themselves.
-  document.querySelectorAll(".menu-panel").forEach((p) =>
-    p.addEventListener("click", (e) => e.stopPropagation())
-  );
-  document.addEventListener("click", closeMenus);
-}
-
-/**
  * Wire every control to its backend command and paint the initial snapshot.
  * @returns {Promise<void>}
  */
-/**
- * Wire disc drag-drop on the <canvas> board (spike, mirrored across the GUIs):
- * press picks up the top disc of the nearest peg, pointer moves it, release
- * drops on the nearest peg and dispatches `do_move` (which validates + reports
- * an illegal drop). Pointer capture keeps the drag alive outside the canvas;
- * dragging is off once won. The keyboard move is the mouse-free path.
- * @returns {void}
- */
-function initBoardDrag() {
-  const canvas =
-    /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
-  /**
-   * @param {PointerEvent} e
-   * @returns {{ x: number; y: number }}
-   */
-  const canvasPos = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  };
-  canvas.addEventListener("pointerdown", (e) => {
-    if (!latest || latest.board_won) return;
-    const { x, y } = canvasPos(e);
-    const peg = nearestPeg(x, canvas.width);
-    const stack = latest.towers[peg];
-    if (!stack || stack.length === 0) return;
-    dragSrc = peg;
-    dragSize = stack[stack.length - 1];
-    dragX = x;
-    dragY = y;
-    canvas.setPointerCapture(e.pointerId);
-    drawBoard(latest);
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    if (dragSrc === null || !latest) return;
-    const p = canvasPos(e);
-    dragX = p.x;
-    dragY = p.y;
-    drawBoard(latest);
-  });
-  canvas.addEventListener("pointerup", async (e) => {
-    if (dragSrc === null || !latest) return;
-    const src = dragSrc;
-    const target = nearestPeg(canvasPos(e).x, canvas.width);
-    dragSrc = null;
-    if (target === src) {
-      drawBoard(latest); // no move: redraw to settle the disc back on its peg
-      return;
-    }
-    // A move is coming: DON'T repaint the old snapshot first (that would flash
-    // the disc back to its source during the await) -- leave the dragged-disc
-    // frame up until render() paints the result at the destination.
-    const from = latest.labels[src];
-    const to = latest.labels[target];
-    await moveFromHere(from, to);
-  });
-  canvas.addEventListener("pointercancel", () => {
-    dragSrc = null;
-    if (latest) drawBoard(latest);
-  });
-}
-
 /**
  * Before a move or an apply while reviewing the history, ask whether to
  * continue from the reviewed move, deleting every later one. On yes the backend
@@ -746,6 +656,96 @@ async function moveFromHere(from, to) {
 }
 
 async function init() {
+  /**
+   * Wire disc drag-drop on the <canvas> board (spike, mirrored across the GUIs):
+   * press picks up the top disc of the nearest peg, pointer moves it, release
+   * drops on the nearest peg and dispatches `do_move` (which validates + reports
+   * an illegal drop). Pointer capture keeps the drag alive outside the canvas;
+   * dragging is off once won. The keyboard move is the mouse-free path.
+   * @returns {void}
+   */
+  function initBoardDrag() {
+    const canvas =
+      /** @type {HTMLCanvasElement} */ (document.getElementById("canvas"));
+    /**
+     * @param {PointerEvent} e
+     * @returns {{ x: number; y: number }}
+     */
+    const canvasPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height),
+      };
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!latest || latest.board_won) return;
+      const { x, y } = canvasPos(e);
+      const peg = nearestPeg(x, canvas.width);
+      const stack = latest.towers[peg];
+      if (!stack || stack.length === 0) return;
+      dragSrc = peg;
+      dragSize = stack[stack.length - 1];
+      dragX = x;
+      dragY = y;
+      canvas.setPointerCapture(e.pointerId);
+      drawBoard(latest);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (dragSrc === null || !latest) return;
+      const p = canvasPos(e);
+      dragX = p.x;
+      dragY = p.y;
+      drawBoard(latest);
+    });
+    canvas.addEventListener("pointerup", async (e) => {
+      if (dragSrc === null || !latest) return;
+      const src = dragSrc;
+      const target = nearestPeg(canvasPos(e).x, canvas.width);
+      dragSrc = null;
+      if (target === src) {
+        drawBoard(latest); // no move: redraw to settle the disc back on its peg
+        return;
+      }
+      // A move is coming: DON'T repaint the old snapshot first (that would flash
+      // the disc back to its source during the await) -- leave the dragged-disc
+      // frame up until render() paints the result at the destination.
+      const from = latest.labels[src];
+      const to = latest.labels[target];
+      await moveFromHere(from, to);
+    });
+    canvas.addEventListener("pointercancel", () => {
+      dragSrc = null;
+      if (latest) drawBoard(latest);
+    });
+  }
+
+  /**
+   * Wire the menu bar: a click on an (enabled) menu button toggles its dropdown and
+   * closes the others; a click anywhere else closes them; clicks inside a panel stay
+   * open unless an action closes the menu explicitly.
+   * @returns {void}
+   */
+  function initMenuBar() {
+    document.querySelectorAll(".menu-btn").forEach((b) =>
+      b.addEventListener("click", (e) => {
+        const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
+        if (btn.disabled) return;
+        const menu = /** @type {HTMLElement} */ (btn.parentElement);
+        const willOpen = !menu.classList.contains("open");
+        closeMenus();
+        if (willOpen) menu.classList.add("open");
+        e.stopPropagation();
+      })
+    );
+    // Clicks inside a panel do not bubble to the document closer; actions close
+    // the menu themselves.
+    document.querySelectorAll(".menu-panel").forEach((p) =>
+      p.addEventListener("click", (e) => e.stopPropagation())
+    );
+    document.addEventListener("click", closeMenus);
+  }
+
   initMenuBar();
   initBoardDrag();
 
@@ -803,10 +803,12 @@ async function init() {
     const target = /** @type {HTMLElement} */ (e.target);
     const raw = target.dataset ? target.dataset.perm : undefined;
     if (!raw) return;
-    /** @type {[number, number, number]} */
-    const labels = [Number(raw[0]), Number(raw[1]), Number(raw[2])];
     closeMenus();
-    render(/** @type {Snapshot} */ (await invoke("relabel", { labels })));
+    render(
+      /** @type {Snapshot} */ (await invoke("relabel", {
+        labels: [Number(raw[0]), Number(raw[1]), Number(raw[2])],
+      })),
+    );
   });
 
   // Recipe menu (delegated): Save current solution / per-recipe View / Apply.
@@ -825,10 +827,12 @@ async function init() {
       );
       savedCurrent = true;
     } else if (act === "view" && name) {
-      const steps = /** @type {string[]} */ (await invoke("show_recipe", {
-        name,
-      }));
-      alert(steps.join("\n"));
+      // The recipe's steps, one per line.
+      alert(
+        /** @type {string[]} */ (await invoke("show_recipe", { name })).join(
+          "\n",
+        ),
+      );
     } else if (act === "apply" && name) {
       if (!(await leaveReview())) return;
       render(/** @type {Snapshot} */ (await invoke("apply_recipe", { name })));

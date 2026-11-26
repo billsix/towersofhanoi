@@ -132,9 +132,12 @@ impl<'r> GameSession<'r> {
             .move_options()
             .iter()
             .map(|mv| {
-                let f: usize = change_labels_on_pegs(self.labelling, mv.from_peg) + 1;
-                let t: usize = change_labels_on_pegs(self.labelling, mv.to_peg) + 1;
-                format!("{f} -> {t}")
+                // The move in the current labels: from-label -> to-label.
+                format!(
+                    "{} -> {}",
+                    change_labels_on_pegs(self.labelling, mv.from_peg) + 1,
+                    change_labels_on_pegs(self.labelling, mv.to_peg) + 1
+                )
             })
             .collect();
         pairs.sort();
@@ -166,9 +169,9 @@ impl<'r> GameSession<'r> {
     /// Save the current move sequence under `name`; returns a one-line
     /// confirmation. The caller must not call this mid-game.
     pub fn save_recipe(&mut self, name: &str) -> String {
-        let recipe: Recipe = self.recorder.to_recipe(name, self.num_disks());
         let overwrote: bool = self.registry.contains(name);
-        self.registry.save(recipe);
+        self.registry
+            .save(self.recorder.to_recipe(name, self.num_disks()));
         if overwrote {
             format!("Overwrote recipe '{name}'.")
         } else {
@@ -280,9 +283,11 @@ impl<'r> GameSession<'r> {
                         result.from_label, result.to_label
                     ));
                 }
-                let fp: usize = result.from_peg.expect("a successful step carries pegs");
-                let tp: usize = result.to_peg.expect("a successful step carries pegs");
-                self.recorder.record((fp + 1) as u32, (tp + 1) as u32);
+                // Record the step in default labels: the physical pegs, 1-based.
+                self.recorder.record(
+                    (result.from_peg.expect("a successful step carries pegs") + 1) as u32,
+                    (result.to_peg.expect("a successful step carries pegs") + 1) as u32,
+                );
             } else {
                 lines.push(format!(
                     "  step {step}: stopped — {}",
@@ -302,10 +307,11 @@ impl<'r> GameSession<'r> {
             )];
         };
         let n: usize = recipe.default_moves.len();
-        let plural: &str = if n == 1 { "" } else { "s" };
         let mut lines: Vec<String> = vec![format!(
             "Recipe '{}' ({} discs, {n} move{plural}):",
-            recipe.name, recipe.disk_count
+            recipe.name,
+            recipe.disk_count,
+            plural = if n == 1 { "" } else { "s" }
         )];
         for (i, &(a, b)) in recipe.default_moves.iter().enumerate() {
             lines.push(format!("  step {}: {a} -> {b}", i + 1));
@@ -338,10 +344,10 @@ impl<'r> GameSession<'r> {
     fn handle_history(&self) -> Vec<String> {
         let moves: &[(u32, u32)] = &self.recorder.default_moves;
         let count: usize = moves.len();
-        let noun: &str = if count == 1 { "move" } else { "moves" };
         let mut lines: Vec<String> = vec![format!(
             "History — {count} {noun} (optimal {}, default 1-2-3 labels):",
-            self.min_moves()
+            self.min_moves(),
+            noun = if count == 1 { "move" } else { "moves" }
         )];
         let tally: Vec<String> = format_move_tally(moves);
         if tally.is_empty() {

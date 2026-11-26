@@ -200,9 +200,11 @@ impl AppState {
         let mut stopped: Option<String> = None;
         for r in &results {
             if r.ok() {
-                let fp: usize = r.from_peg.expect("a successful step carries pegs");
-                let tp: usize = r.to_peg.expect("a successful step carries pegs");
-                self.recorder.record((fp + 1) as u32, (tp + 1) as u32);
+                // Record the step in default labels: the physical pegs, 1-based.
+                self.recorder.record(
+                    (r.from_peg.expect("a successful step carries pegs") + 1) as u32,
+                    (r.to_peg.expect("a successful step carries pegs") + 1) as u32,
+                );
                 applied += 1;
             } else {
                 stopped = r.error.clone();
@@ -359,8 +361,7 @@ fn continue_from_review(state: State<'_, Mutex<AppState>>) -> Snapshot {
 fn relabel(state: State<'_, Mutex<AppState>>, labels: [u32; 3]) -> Snapshot {
     let mut st: std::sync::MutexGuard<'_, AppState> = state.lock().unwrap();
     let result: DispatchResult = st.dispatch(&Command::Relabel(labels));
-    let message: String = result.lines.first().cloned().unwrap_or_default();
-    st.snapshot(message)
+    st.snapshot(result.lines.first().cloned().unwrap_or_default())
 }
 
 #[tauri::command]

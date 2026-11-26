@@ -22,8 +22,7 @@
 # Rationale: tasks/cpp-wasm-no-network-static-gate.md.
 set -u
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cpp_dir="$(cd "$here/.." && pwd)"
+cpp_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # The committed web source files of the app (NOT the generated web/, NOT elpa/).
 web_files=(
