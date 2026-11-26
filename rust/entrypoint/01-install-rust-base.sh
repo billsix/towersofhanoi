@@ -17,6 +17,9 @@
 # The Tauri front-end renders in the OS webview (WebKitGTK on Linux), so it needs
 # webkit2gtk4.1-devel + libsoup3-devel.
 #
+# The egui front-end's window library (winit) opens libxkbcommon-x11 at run time when it
+# is on an X11 display, so nothing pulls the package in at build time: libxkbcommon-x11.
+#
 # rust-analyzer is installed for the emacs LSP set (entrypoint/dotfiles/.emacs.d).
 #
 # CAVEAT (self-contained-image rule): wxDragon fetches wxWidgets at cargo-build time, so
@@ -46,6 +49,7 @@ dnf install -y cargo \
                libSM-devel \
                libsoup3-devel \
                libtiff-devel \
+               libxkbcommon-x11 \
                make \
                nano \
                ninja-build \
