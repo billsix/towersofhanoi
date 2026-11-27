@@ -519,7 +519,8 @@ private:
     for (const std::array<int, 3> &labels : kRelabelPerms) {
       const wxString id =
           wxString::Format("relabel_%d_%d_%d", labels[0], labels[1], labels[2]);
-      wxMenuItem *item = mb->FindItem(wxXmlResource::GetXRCID(id));
+      const int item_id = wxXmlResource::GetXRCID(id);
+      wxMenuItem *item = mb->FindItem(item_id);
       relabel_items_.push_back({labels, item, item->GetItemLabel()});
       Bind(
           wxEVT_MENU, [this, labels](wxCommandEvent &) { on_relabel(labels); },
